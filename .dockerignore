@@ -1,0 +1,11 @@
+node_modules
+server/node_modules
+server/dist
+server/public
+dist
+.expo
+android
+ios
+.git
+.claude
+*.log

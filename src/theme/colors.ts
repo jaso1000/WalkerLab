@@ -1,0 +1,75 @@
+// Central dark-theme color palette for the whole app. Every screen/component
+// pulls its colors from here rather than hardcoding hex values, so a palette
+// change only has to happen in one place.
+//
+// Service colors (sonarr/overseerr/sabnzbd/qbittorrent) are kept as their own
+// named tokens instead of being reused across unrelated features, even when a
+// hex value happens to match another token (e.g. `info` and `overseerr` share
+// a hex today, but they mean different things and can diverge independently).
+export const colors = {
+  // Primary brand accent, used sparingly (e.g. splash/onboarding).
+  brand: '#5B8CFF',
+
+  // Base surface layers, darkest to lightest, plus the hairline border color
+  // used between cards/list rows.
+  background: '#131419',
+  surface: '#1D1F27',
+  surfaceAlt: '#22242E',
+  border: 'rgba(255,255,255,0.08)',
+
+  // Text hierarchy: primary (headings/values), secondary (labels), muted
+  // (least important, e.g. placeholder/disabled text).
+  textPrimary: '#FFFFFF',
+  textSecondary: '#9498A3',
+  textMuted: '#6B6E79',
+
+  // Radarr's amber accent, also used as the app's generic "action" tint
+  // wherever a screen isn't specifically Sonarr/Discover/etc.-themed.
+  accent: '#F5A623',
+  accentMuted: 'rgba(245,166,35,0.15)',
+
+  // Generic positive-state color (e.g. "continuing" status, success toasts).
+  success: '#34D399',
+  successMuted: 'rgba(52,211,153,0.15)',
+
+  // Generic destructive/error-state color (delete actions, failed states).
+  danger: '#F0574F',
+  dangerMuted: 'rgba(240,87,79,0.15)',
+
+  // Generic informational purple - also used for the "in X days" countdown
+  // badge on Movies/TV rows. Don't assume this is exclusively Overseerr's
+  // color just because the hex matches; grep for `colors.info` before
+  // repointing it.
+  info: '#8C7CF0',
+  infoMuted: 'rgba(140,124,240,0.18)',
+
+  // Discover's green accent (drawer icon, category chrome).
+  sectionGreen: '#3FDA84',
+  sectionGreenMuted: 'rgba(63,218,132,0.15)',
+
+  // Sonarr/TV Shows blue.
+  sonarr: '#3AB4EA',
+  sonarrMuted: 'rgba(58,180,234,0.15)',
+
+  // Overseerr/Requests purple (shares its hex with `info` above by design -
+  // see the note on `info`).
+  overseerr: '#8C7CF0',
+  overseerrMuted: 'rgba(140,124,240,0.18)',
+
+  // SABnzbd/Downloads yellow, matching SABnzbd's real icon color.
+  sabnzbd: '#FDD835',
+  sabnzbdMuted: 'rgba(253,216,53,0.15)',
+
+  // qBittorrent/Torrents blue.
+  qbittorrent: '#4A90E2',
+  qbittorrentMuted: 'rgba(74,144,226,0.15)',
+
+  // Tautulli/Stats yellow - Plex's own brand gold, matching Tautulli's icon.
+  tautulli: '#E5A00D',
+  tautulliMuted: 'rgba(229,160,13,0.15)',
+
+  // Portainer/Containers teal - close to Portainer's own brand blue without
+  // reusing any other service's hue (sonarr/qbittorrent are already blue).
+  portainer: '#13C4CC',
+  portainerMuted: 'rgba(19,196,204,0.15)',
+};

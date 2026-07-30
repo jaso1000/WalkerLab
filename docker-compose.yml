@@ -1,0 +1,30 @@
+# Example deployment - see PLAN.md for the full "why" behind this
+# architecture. Run on the same host/LAN as your Sonarr/Radarr/SABnzbd/
+# qBittorrent/Overseerr/Tautulli/Portainer stack (the container makes those
+# calls itself; a browser reaching this over a tunnel can't reach them
+# directly). Expose port 3000 to a reverse proxy or cloud tunnel of your
+# choice - nothing here handles TLS termination itself.
+services:
+  walkerlab:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      # Encrypted credential store + auto-generated encryption key live here.
+      # Losing this volume means re-entering every service's credentials -
+      # low stakes, but back it up if you'd rather not.
+      - walkerlab-data:/data
+    environment:
+      - PORT=3000
+      # Optional: seeds the admin account from these on first boot instead
+      # of using the in-app first-run setup wizard. Only takes effect if no
+      # admin account exists yet - never overwrites one you've already set.
+      # - WALKERLAB_ADMIN_USERNAME=admin
+      # - WALKERLAB_ADMIN_PASSWORD=changeme
+      # Optional: supply your own 32-byte encryption key (base64 or hex)
+      # instead of the auto-generated one persisted to the volume.
+      # - WALKERLAB_ENCRYPTION_KEY=
+    restart: unless-stopped
+
+volumes:
+  walkerlab-data:
