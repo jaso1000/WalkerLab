@@ -117,6 +117,15 @@ export interface RadarrRootFolder {
   path: string;
 }
 
+// One mounted filesystem Radarr can see - distinct from RadarrRootFolder
+// (which is about configured library folders, not raw disk capacity).
+export interface RadarrDiskSpace {
+  path: string;
+  label: string;
+  freeSpace: number;
+  totalSpace: number;
+}
+
 export interface RadarrQualityProfile {
   id: number;
   name: string;
@@ -205,6 +214,10 @@ export const radarrApi = {
     arrFetch<{ records: RadarrQueueItem[] }>(config, '/api/v3/queue', { params: { includeMovie: 'true' } }),
 
   getRootFolders: (config: ServiceConfig) => arrFetch<RadarrRootFolder[]>(config, '/api/v3/rootfolder'),
+
+  // Raw disk capacity for the Server tab's "Free Space" stat - separate
+  // endpoint from rootfolder, which doesn't carry totalSpace.
+  getDiskSpace: (config: ServiceConfig) => arrFetch<RadarrDiskSpace[]>(config, '/api/v3/diskspace'),
 
   getQualityProfiles: (config: ServiceConfig) => arrFetch<RadarrQualityProfile[]>(config, '/api/v3/qualityprofile'),
 

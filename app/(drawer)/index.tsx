@@ -23,6 +23,7 @@ import {
 } from 'react-native';
 import {
   sonarrApi,
+  SonarrDiskSpace,
   SonarrEpisode,
   SonarrHistoryRecord,
   SonarrQualityProfile,
@@ -180,6 +181,7 @@ export default function SeriesScreen() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [loadingServer, setLoadingServer] = useState(false);
   const [version, setVersion] = useState('');
+  const [diskSpace, setDiskSpace] = useState<SonarrDiskSpace[]>([]);
   const [busyAction, setBusyAction] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
@@ -311,8 +313,9 @@ export default function SeriesScreen() {
     if (!config) return;
     setLoadingServer(true);
     try {
-      const status = await sonarrApi.getSystemStatus(config);
+      const [status, disks] = await Promise.all([sonarrApi.getSystemStatus(config), sonarrApi.getDiskSpace(config)]);
       setVersion(status.version);
+      setDiskSpace(disks);
       serverLoaded.current = true;
     } catch (e) {
       alert('Failed to load server info', e instanceof Error ? e.message : 'Unknown error');
@@ -841,6 +844,7 @@ export default function SeriesScreen() {
               { label: 'Missing', value: String(missing.length) },
               { label: 'On Disk', value: formatBytes(series.reduce((sum, s) => sum + (s.statistics?.sizeOnDisk ?? 0), 0)) },
             ]}
+            diskSpace={diskSpace}
             actionGroups={[
               [
                 { label: 'Sonarr Settings', icon: 'settings-outline', onPress: () => router.push('/settings') },

@@ -21,7 +21,14 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { radarrApi, RadarrHistoryRecord, RadarrMovie, RadarrQualityProfile, RadarrQueueItem } from '../../src/api/radarr';
+import {
+  radarrApi,
+  RadarrDiskSpace,
+  RadarrHistoryRecord,
+  RadarrMovie,
+  RadarrQualityProfile,
+  RadarrQueueItem,
+} from '../../src/api/radarr';
 import { ActionSheet, ActionSheetOption } from '../../src/components/ActionSheet';
 import { Badge } from '../../src/components/Badge';
 import { RatingBadges } from '../../src/components/RatingBadges';
@@ -200,6 +207,7 @@ export default function MoviesScreen() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [loadingServer, setLoadingServer] = useState(false);
   const [version, setVersion] = useState('');
+  const [diskSpace, setDiskSpace] = useState<RadarrDiskSpace[]>([]);
   const [busyAction, setBusyAction] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
@@ -328,8 +336,9 @@ export default function MoviesScreen() {
     if (!config) return;
     setLoadingServer(true);
     try {
-      const status = await radarrApi.getSystemStatus(config);
+      const [status, disks] = await Promise.all([radarrApi.getSystemStatus(config), radarrApi.getDiskSpace(config)]);
       setVersion(status.version);
+      setDiskSpace(disks);
       serverLoaded.current = true;
     } catch (e) {
       alert('Failed to load server info', e instanceof Error ? e.message : 'Unknown error');
@@ -844,6 +853,7 @@ export default function MoviesScreen() {
               { label: 'Missing', value: String(missing.length) },
               { label: 'On Disk', value: formatBytes(movies.reduce((sum, m) => sum + (m.sizeOnDisk ?? 0), 0)) },
             ]}
+            diskSpace={diskSpace}
             actionGroups={[
               [
                 { label: 'Radarr Settings', icon: 'settings-outline', onPress: () => router.push('/settings') },

@@ -142,6 +142,15 @@ export interface SonarrRootFolder {
   path: string;
 }
 
+// One mounted filesystem Sonarr can see - distinct from SonarrRootFolder
+// (which is about configured library folders, not raw disk capacity).
+export interface SonarrDiskSpace {
+  path: string;
+  label: string;
+  freeSpace: number;
+  totalSpace: number;
+}
+
 export interface SonarrQualityProfile {
   id: number;
   name: string;
@@ -260,6 +269,10 @@ export const sonarrApi = {
     arrFetch<{ records: SonarrQueueItem[] }>(config, '/api/v3/queue', { params: { includeSeries: 'true' } }),
 
   getRootFolders: (config: ServiceConfig) => arrFetch<SonarrRootFolder[]>(config, '/api/v3/rootfolder'),
+
+  // Raw disk capacity for the Server tab's "Free Space" stat - separate
+  // endpoint from rootfolder, which doesn't carry totalSpace.
+  getDiskSpace: (config: ServiceConfig) => arrFetch<SonarrDiskSpace[]>(config, '/api/v3/diskspace'),
 
   getQualityProfiles: (config: ServiceConfig) => arrFetch<SonarrQualityProfile[]>(config, '/api/v3/qualityprofile'),
 
