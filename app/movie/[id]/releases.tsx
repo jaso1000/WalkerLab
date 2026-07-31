@@ -13,7 +13,7 @@ import { alert } from '../../../src/lib/alert';
 import { colors } from '../../../src/theme/colors';
 
 export default function MovieReleasesScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, title } = useLocalSearchParams<{ id: string; title?: string }>();
   const movieId = Number(id);
   const { servers } = useServers();
   const config = servers.radarr;
@@ -75,7 +75,7 @@ export default function MovieReleasesScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
       <ReleasesView
-        title="Movie search"
+        title={title ?? 'Movie search'}
         releases={releases}
         loading={loading}
         grabbingGuid={grabbingGuid}

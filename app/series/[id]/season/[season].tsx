@@ -267,13 +267,15 @@ export default function SeasonEpisodesScreen() {
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[styles.expandAction, styles.expandActionWide]}
-                        onPress={() =>
+                        onPress={() => {
+                          const episodeLabel = `S${seasonNumber}E${item.episodeNumber} · ${item.title}`;
+                          const searchTitle = seriesTitle ? `${seriesTitle} · ${episodeLabel}` : episodeLabel;
                           router.push(
                             `/series/${seriesId}/releases?episodeId=${item.id}&seasonNumber=${seasonNumber}&title=${encodeURIComponent(
-                              `E${item.episodeNumber} · ${item.title}`
+                              searchTitle
                             )}`
-                          )
-                        }
+                          );
+                        }}
                       >
                         <Ionicons name="document-text-outline" size={14} color={colors.textPrimary} />
                         <Text style={styles.expandActionText}>Manual</Text>

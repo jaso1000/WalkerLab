@@ -47,7 +47,7 @@ export function ReleasesView({
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Releases ({releases.length})</Text>
       </View>
-      <Text style={styles.subtitle} numberOfLines={1}>
+      <Text style={styles.subtitle} numberOfLines={2}>
         {title}
       </Text>
 

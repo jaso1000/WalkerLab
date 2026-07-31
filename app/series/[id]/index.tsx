@@ -257,8 +257,12 @@ export default function SeriesDetailScreen() {
         { label: 'Automatic season search', onPress: () => searchSeason(seasonNumber, label) },
         {
           label: 'Manual season search',
-          onPress: () =>
-            router.push(`/series/${seriesId}/releases?seasonNumber=${seasonNumber}&title=${encodeURIComponent(label)}`),
+          onPress: () => {
+            const searchTitle = series ? `${series.title} · ${label}` : label;
+            router.push(
+              `/series/${seriesId}/releases?seasonNumber=${seasonNumber}&title=${encodeURIComponent(searchTitle)}`
+            );
+          },
         },
         { label: 'Delete all episode files', destructive: true, onPress: () => deleteFiles(seasonNumber, label) },
         { label: isMonitored ? 'Stop monitoring' : 'Start monitoring', onPress: () => toggleSeasonMonitored(seasonNumber) },

@@ -237,7 +237,11 @@ export default function MovieDetailScreen() {
 
   const searchMenuOptions: ActionSheetOption[] = [
     { label: 'Automatic search', onPress: searchRelease },
-    { label: 'Interactive search', onPress: () => router.push(`/movie/${movieId}/releases`) },
+    {
+      label: 'Interactive search',
+      onPress: () =>
+        router.push(`/movie/${movieId}/releases?title=${encodeURIComponent(movie?.title ?? 'Movie search')}`),
+    },
   ];
 
   const availabilityMenuOptions: ActionSheetOption[] = AVAILABILITY_OPTIONS.map((o) => ({
