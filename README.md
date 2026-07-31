@@ -42,16 +42,15 @@ Run it as a container on the same machine/network as your media stack (it needs 
 docker compose up -d
 ```
 
-or without compose (a prebuilt image isn't published yet, so build it locally first):
+or without compose:
 
 ```bash
-docker build -t walkerlab .
 docker run -d \
   --name walkerlab \
   -p 3000:3000 \
   -v walkerlab-data:/data \
   --restart unless-stopped \
-  walkerlab
+  ghcr.io/jaso1000/walkerlab:latest
 ```
 
 Open the container's address in a browser — the first visit walks you through a setup wizard to create your admin account, then you configure each service under Settings, same as on mobile. Every credential is encrypted at rest server-side and never touches the browser directly. See [`docker-compose.yml`](docker-compose.yml) for optional environment variables (seeding an admin account, supplying your own encryption key).
