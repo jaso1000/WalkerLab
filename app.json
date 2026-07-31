@@ -19,7 +19,8 @@
       "package": "com.anonymous.walkerlab"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "themeColor": "#131419"
     },
     "plugins": [
       "expo-router",
