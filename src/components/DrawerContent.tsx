@@ -101,7 +101,9 @@ export function DrawerContent(props: DrawerContentComponentProps) {
               <View style={[styles.iconCircle, { backgroundColor: `${item.tint}26` }]}>
                 <Ionicons name={item.icon} size={18} color={item.tint} />
               </View>
-              <Text style={[styles.label, active && styles.labelActive]}>{names[item.sectionId]}</Text>
+              <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1}>
+                {names[item.sectionId]}
+              </Text>
             </TouchableOpacity>
           );
         })}
@@ -173,7 +175,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  label: { color: colors.textSecondary, fontSize: 15, fontWeight: '600' },
+  // Defense-in-depth: a user can type an arbitrarily long custom section
+  // name in Settings' "Rename in drawer & header" field (no maxLength
+  // enforced there) - flexShrink/minWidth let numberOfLines={1}'s ellipsis
+  // actually take effect within this fixed-width row instead of the label
+  // just pushing past it uncapped.
+  label: { color: colors.textSecondary, fontSize: 15, fontWeight: '600', flexShrink: 1, minWidth: 0 },
   labelActive: { color: colors.textPrimary, fontWeight: '700' },
   profileLabel: { flex: 1 },
   footer: { paddingBottom: 8, paddingHorizontal: 12 },

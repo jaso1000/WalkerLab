@@ -592,6 +592,11 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   infoIcon: { marginRight: 10 },
+  // infoLabel's flex: 1 is the spacer that pushes infoValue to the row's
+  // right edge (no justifyContent needed) - don't touch it. infoValue needs
+  // its own flexShrink + minWidth: 0 so a long value (e.g. rootFolderPath,
+  // a full filesystem path) wraps within the row instead of overflowing -
+  // same fix as app/(drawer)/downloads.tsx's file-path overflow.
   infoLabel: { color: colors.textSecondary, fontSize: 13, flex: 1 },
-  infoValue: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
+  infoValue: { color: colors.textPrimary, fontSize: 13, fontWeight: '600', flexShrink: 1, minWidth: 0 },
 });

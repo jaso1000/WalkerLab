@@ -431,7 +431,16 @@ const styles = StyleSheet.create({
   title: { fontSize: 15, fontWeight: '700', color: colors.textPrimary },
   track: { height: 4, borderRadius: 2, backgroundColor: colors.surfaceAlt, marginTop: 10, overflow: 'hidden' },
   fill: { height: 4, borderRadius: 2, backgroundColor: colors.sabnzbd },
-  subtitle: { fontSize: 13, color: colors.textSecondary, marginTop: 8 },
+  // flexShrink alone isn't enough on the web build (react-native-web is
+  // real CSS flexbox under the hood, where flex items default to
+  // `min-width: auto` - that overrides flexShrink and refuses to shrink
+  // below the text's own unwrapped content width, so long unbroken paths
+  // still pushed past the card). minWidth: 0 removes that floor, letting
+  // it actually shrink/wrap to the remaining row width. Matters for
+  // History's long file paths sitting next to the status Badge in
+  // `badgeRow` (a flex row); harmless for the Queue tab's plain
+  // single-line usages inside a flex:1 column.
+  subtitle: { fontSize: 13, color: colors.textSecondary, marginTop: 8, flexShrink: 1, minWidth: 0 },
   itemActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   reorderColumn: { justifyContent: 'center' },
   reorderButton: { padding: 4 },

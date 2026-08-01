@@ -56,6 +56,11 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   label: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  valueGroup: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  value: { color: colors.textSecondary, fontSize: 14 },
+  // flexShrink + minWidth: 0 on both the group and the Text itself - needed
+  // at both levels for a long value (e.g. a root folder path) to actually
+  // shrink/wrap instead of overflowing past the row on web. See the same
+  // fix in app/(drawer)/downloads.tsx for the full explanation of why
+  // flexShrink alone isn't enough in real CSS flexbox.
+  valueGroup: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1, minWidth: 0 },
+  value: { color: colors.textSecondary, fontSize: 14, flexShrink: 1, minWidth: 0 },
 });
