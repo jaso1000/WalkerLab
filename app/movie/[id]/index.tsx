@@ -28,6 +28,7 @@ import { alert } from '../../../src/lib/alert';
 import { AVAILABILITY_OPTIONS } from '../../../src/lib/constants';
 import { deletedLibrary } from '../../../src/lib/deletedLibrary';
 import { formatDate } from '../../../src/lib/format';
+import { useTabBarClearance } from '../../../src/lib/tabBarClearance';
 import { colors } from '../../../src/theme/colors';
 
 // Radarr's own movie detail page (as opposed to Discover's detail page for
@@ -103,6 +104,7 @@ function statusBanner(movie: RadarrMovie): { title: string; message: string } | 
 }
 
 export default function MovieDetailScreen() {
+  const tabBarClearance = useTabBarClearance();
   const { id } = useLocalSearchParams<{ id: string }>();
   const movieId = Number(id);
   const { servers } = useServers();
@@ -349,7 +351,7 @@ export default function MovieDetailScreen() {
 
   return (
     <View style={styles.screen}>
-      <ScrollView bounces={false}>
+      <ScrollView bounces={false} contentContainerStyle={{ paddingBottom: tabBarClearance }}>
         <ImageBackground source={backdrop?.remoteUrl ? { uri: backdrop.remoteUrl } : undefined} style={styles.hero}>
           <LinearGradient colors={['transparent', colors.background]} style={styles.heroGradient} />
           <SafeAreaView edges={['top']} style={styles.heroTopBar}>
@@ -497,7 +499,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
   emptyText: { color: colors.textSecondary },
   hero: { minHeight: 260, justifyContent: 'flex-end' },
-  heroGradient: { ...StyleSheet.absoluteFillObject },
+  heroGradient: { ...StyleSheet.absoluteFill },
   heroTopBar: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
   circleButton: {
     width: 40,
@@ -542,7 +544,7 @@ const styles = StyleSheet.create({
   // right edge (no justifyContent needed) - don't touch it. infoValue needs
   // its own flexShrink + minWidth: 0 so a long value (e.g. rootFolderPath,
   // a full filesystem path) wraps within the row instead of overflowing -
-  // same fix as app/(drawer)/downloads.tsx's file-path overflow.
+  // same fix as app/downloads.tsx's file-path overflow.
   infoLabel: { color: colors.textSecondary, fontSize: 13, flex: 1 },
   infoValue: { color: colors.textPrimary, fontSize: 13, fontWeight: '600', flexShrink: 1, minWidth: 0 },
   infoPencil: { marginLeft: 8 },

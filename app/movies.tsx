@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { DrawerActions, useNavigation } from '@react-navigation/native';
 import { Image } from 'expo-image';
-import { router, useFocusEffect } from 'expo-router';
+import { router, Stack, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -18,7 +17,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import {
@@ -28,17 +26,18 @@ import {
   RadarrMovie,
   RadarrQualityProfile,
   RadarrQueueItem,
-} from '../../src/api/radarr';
-import { ActionSheet, ActionSheetOption } from '../../src/components/ActionSheet';
-import { Badge } from '../../src/components/Badge';
-import { RatingBadges } from '../../src/components/RatingBadges';
-import { NotConfigured } from '../../src/components/NotConfigured';
-import { ServerPanel } from '../../src/components/ServerPanel';
-import { SortMenu } from '../../src/components/SortMenu';
-import { SwipeTabBar } from '../../src/components/SwipeTabBar';
-import { WebRefreshButton } from '../../src/components/WebRefreshButton';
-import { useServers } from '../../src/context/ServersContext';
-import { alert } from '../../src/lib/alert';
+} from '../src/api/radarr';
+import { ActionSheet, ActionSheetOption } from '../src/components/ActionSheet';
+import { Badge } from '../src/components/Badge';
+import { RatingBadges } from '../src/components/RatingBadges';
+import { NotConfigured } from '../src/components/NotConfigured';
+import { ServerPanel } from '../src/components/ServerPanel';
+import { SortMenu } from '../src/components/SortMenu';
+import { SwipeTabBar } from '../src/components/SwipeTabBar';
+import { WebRefreshButton } from '../src/components/WebRefreshButton';
+import { useServers } from '../src/context/ServersContext';
+import { useSectionNames } from '../src/context/SectionNamesContext';
+import { alert } from '../src/lib/alert';
 import {
   formatBytes,
   formatCountdown,
@@ -47,12 +46,15 @@ import {
   formatMonthYear,
   historyEventLabel,
   titleCase,
-} from '../../src/lib/format';
-import { groupConsecutive } from '../../src/lib/groupBy';
-import { getGroupHeaders, getSortPreference, setGroupHeaders, setSortPreference } from '../../src/lib/preferences';
-import { chunk, useColumns } from '../../src/lib/responsive';
-import { useTabBarClearance } from '../../src/lib/tabBarClearance';
-import { colors } from '../../src/theme/colors';
+} from '../src/lib/format';
+import { groupConsecutive } from '../src/lib/groupBy';
+import { getGroupHeaders, getSortPreference, setGroupHeaders, setSortPreference } from '../src/lib/preferences';
+import { chunk, useColumns, useContentWidth } from '../src/lib/responsive';
+import { useTabBarClearance } from '../src/lib/tabBarClearance';
+import { HeaderTitle } from '../src/components/HeaderTitle';
+import { SidebarMenuButton } from '../src/components/SidebarMenuButton';
+import { SECTION_META } from '../src/lib/sectionMeta';
+import { colors } from '../src/theme/colors';
 
 // Movies screen (Radarr) - same shape as the TV Shows screen (`index.tsx`),
 // which this file closely mirrors: All/Missing/Upcoming/Activity/History/
@@ -189,10 +191,10 @@ function sortValue(item: RadarrMovie, key: SortKey, profiles: RadarrQualityProfi
 }
 
 export default function MoviesScreen() {
+  const { names } = useSectionNames();
   const { servers } = useServers();
   const config = servers.radarr;
-  const navigation = useNavigation();
-  const { width } = useWindowDimensions();
+  const width = useContentWidth();
   const columns = useColumns();
   const scrollRef = useRef<ScrollView>(null);
   const tabBarClearance = useTabBarClearance();
@@ -363,7 +365,8 @@ export default function MoviesScreen() {
   );
 
   // Hardware back clears an active search query first, same as the TV
-  // Shows screen.
+  // Shows screen - returning `false` when there's no query to clear lets
+  // the default back behavior (pop the stack) proceed.
   useFocusEffect(
     useCallback(() => {
       const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -371,11 +374,10 @@ export default function MoviesScreen() {
           setQuery('');
           return true;
         }
-        navigation.dispatch(DrawerActions.openDrawer());
-        return true;
+        return false;
       });
       return () => sub.remove();
-    }, [query, navigation])
+    }, [query])
   );
 
   // Central place to react to the active tab changing (tap or swipe).
@@ -620,6 +622,17 @@ export default function MoviesScreen() {
 
   return (
     <View style={styles.screen}>
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          headerStyle: { backgroundColor: colors.background },
+          headerShadowVisible: false,
+          headerTintColor: colors.textPrimary,
+          headerTitleAlign: 'left',
+          headerLeft: () => <SidebarMenuButton />,
+          headerTitle: () => <HeaderTitle icon={SECTION_META.movies.icon} tint={SECTION_META.movies.tint} title={names.movies} />,
+        }}
+      />
       <View style={styles.searchRow}>
         <View style={styles.searchInputWrapper}>
           <Ionicons name="search" size={16} color={colors.textSecondary} />
@@ -945,7 +958,14 @@ const styles = StyleSheet.create({
   sortPillText: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
   list: { padding: 12, gap: 10 },
   row: { flexDirection: 'row', gap: 10 },
-  rowItem: { flex: 1 },
+  // `minWidth: 0` matters here (and on `info` below) for the same reason
+  // documented elsewhere in this codebase for react-native-web: a flex
+  // item's default `min-width: auto` refuses to shrink below its own
+  // content's natural width, so an unwrapped badge row wide enough could
+  // force this whole card past its 1/columns share of the row - overflowing
+  // the actual screen width instead of respecting it, especially once 3
+  // columns only have ~300px each to work with.
+  rowItem: { flex: 1, minWidth: 0 },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -968,10 +988,10 @@ const styles = StyleSheet.create({
     marginHorizontal: -12,
     paddingHorizontal: 12,
   },
-  card: { flexDirection: 'row', gap: 12, backgroundColor: colors.surface, borderRadius: 14, padding: 10 },
+  card: { flexDirection: 'row', gap: 12, backgroundColor: colors.surface, borderRadius: 14, padding: 10, minWidth: 0 },
   poster: { width: 60, height: 90, borderRadius: 8, backgroundColor: colors.surfaceAlt },
   posterPlaceholder: {},
-  info: { flex: 1, justifyContent: 'center' },
+  info: { flex: 1, justifyContent: 'center', minWidth: 0 },
   title: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   size: { color: colors.textSecondary, fontSize: 12, marginTop: 6 },

@@ -7,6 +7,11 @@ import { ServiceConfig } from '../api/types';
 
 export type MediaKind = 'movie' | 'tv';
 export type DiscoverCategory = 'trending' | 'popular' | 'upcoming' | 'recent';
+// 'all' is Discover's mixed-content tab - a third `fetchDiscoverCategory`
+// mode alongside the two real `MediaKind`s, not itself a `MediaKind` (TMDB
+// items are always concretely movie or tv; 'all' only ever describes a
+// *query*, resolved back to a real MediaKind per item via resolveMediaKind).
+export type DiscoverMediaFilter = MediaKind | 'all';
 
 export const CATEGORY_LABELS: Record<DiscoverCategory, string> = {
   trending: 'Trending',
@@ -27,16 +32,46 @@ export const RELEASE_TYPE_FILTERS = [
 ] as const;
 export type ReleaseTypeFilterKey = (typeof RELEASE_TYPE_FILTERS)[number]['key'];
 
-// Fetches one page of a Discover category for the given media type, routing
-// to the right TMDB endpoint. `releaseTypes` only applies to the 'recent'
-// category (Theatrical/Digital/Physical filter), and is ignored otherwise.
+// Fetches one page of a Discover category for the given media filter,
+// routing to the right TMDB endpoint(s). `releaseTypes` only applies to the
+// 'recent' category (Theatrical/Digital/Physical filter), and is ignored
+// otherwise. `mediaType: 'all'` powers Discover's "All" tab (and its rows'
+// "See All" full-grid pages): Trending uses TMDB's real combined endpoint;
+// Popular/Upcoming have no combined equivalent, so both types are fetched
+// for the same page and interleaved client-side - `total_pages` is the max
+// of the two so paging continues until BOTH are exhausted (once one list
+// runs out, further pages are one-sided rather than perfectly alternating,
+// which is fine). 'recent' has no cross-media concept at all (see
+// RELEASE_TYPE_FILTERS' own comment) and falls back to movies-only even
+// under 'all' - Discover's main screen never surfaces this combination
+// (the All tab omits Recently Released entirely), so this only matters if
+// a future caller navigates here directly.
 export function fetchDiscoverCategory(
   config: ServiceConfig,
   category: DiscoverCategory,
-  mediaType: MediaKind,
+  mediaType: DiscoverMediaFilter,
   page: number,
   releaseTypes?: number[]
 ): Promise<{ results: (TmdbMovie | TmdbTv)[]; total_pages: number }> {
+  if (mediaType === 'all') {
+    if (category === 'trending') {
+      return tmdbApi.trendingAll(config, 'week', page).then((res) => ({
+        results: res.results.filter((item) => item.media_type !== 'person'),
+        total_pages: res.total_pages,
+      }));
+    }
+    if (category === 'recent') {
+      return tmdbApi.recentlyReleasedMovies(config, page, releaseTypes);
+    }
+    const [fetchMovie, fetchTv] =
+      category === 'popular'
+        ? [tmdbApi.popularMovies(config, page), tmdbApi.popularTv(config, page)]
+        : [tmdbApi.upcomingMovies(config, page), tmdbApi.upcomingTv(config, page)];
+    return Promise.all([fetchMovie, fetchTv]).then(([m, t]) => ({
+      results: interleave<TmdbMovie | TmdbTv>(m.results, t.results),
+      total_pages: Math.max(m.total_pages, t.total_pages),
+    }));
+  }
   if (category === 'trending') {
     return mediaType === 'movie' ? tmdbApi.trendingMovies(config, 'week', page) : tmdbApi.trendingTv(config, 'week', page);
   }
@@ -59,4 +94,28 @@ export function dedupeById<T extends { id: number }>(existing: T[], incoming: T[
     seen.add(item.id);
     return true;
   });
+}
+
+// Interleaves two lists alternating a[0], b[0], a[1], b[1], ... - used to
+// build Discover's "All" tab's Popular/Upcoming rows from separate
+// movie+TV calls (TMDB has no combined endpoint for either, unlike Trending
+// - see tmdbApi.trendingAll). Continues with whichever list has leftovers
+// once the shorter one is exhausted, rather than truncating.
+export function interleave<T>(a: T[], b: T[]): T[] {
+  const result: T[] = [];
+  const max = Math.max(a.length, b.length);
+  for (let i = 0; i < max; i++) {
+    if (i < a.length) result.push(a[i]);
+    if (i < b.length) result.push(b[i]);
+  }
+  return result;
+}
+
+// Reliable per-item movie-vs-tv discrimination for a mixed array that
+// doesn't carry an explicit media_type tag on every item (unlike
+// tmdbApi.trendingAll's results) - a TmdbMovie always has `.title`, a
+// TmdbTv always has `.name` (same trick already used inline in
+// discover.tsx's search results renderer).
+export function resolveMediaKind(item: TmdbMovie | TmdbTv): MediaKind {
+  return 'title' in item ? 'movie' : 'tv';
 }

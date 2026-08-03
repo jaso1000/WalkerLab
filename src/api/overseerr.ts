@@ -49,7 +49,7 @@ export interface OverseerrRequestsResponse {
 // filter value for GET /api/v1/request (400s), even though a request
 // object's own `status` field can be 3 (declined). Declined requests still
 // show up under the 'all' filter with that status - see requestStatusInfo
-// in app/(drawer)/overseerr.tsx.
+// in app/overseerr.tsx.
 export type OverseerrFilter =
   | 'all'
   | 'pending'

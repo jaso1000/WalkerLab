@@ -20,6 +20,7 @@ import { useServers } from '../../src/context/ServersContext';
 import { alert } from '../../src/lib/alert';
 import { AVAILABILITY_OPTIONS } from '../../src/lib/constants';
 import { getLastQualityProfileId, setLastQualityProfileId } from '../../src/lib/preferences';
+import { useTabBarClearance } from '../../src/lib/tabBarClearance';
 import { colors } from '../../src/theme/colors';
 
 // Add Movie flow: Radarr's own title search (works without TMDB configured),
@@ -27,6 +28,7 @@ import { colors } from '../../src/theme/colors';
 // and the result isn't already in the library) or falls back to this
 // screen's own lightweight quality-profile/root-folder config form.
 export default function AddMovieScreen() {
+  const tabBarClearance = useTabBarClearance();
   const { servers } = useServers();
   const config = servers.radarr;
   const tmdbConfig = servers.tmdb;
@@ -152,7 +154,7 @@ export default function AddMovieScreen() {
           <Text style={styles.topBarTitle}>Add Movie</Text>
           <View style={{ width: 38 }} />
         </View>
-        <ScrollView contentContainerStyle={styles.configContainer}>
+        <ScrollView contentContainerStyle={[styles.configContainer, { paddingBottom: tabBarClearance }]}>
           <View style={styles.configHeader}>
             {poster?.remoteUrl ? (
               <Image source={{ uri: poster.remoteUrl }} style={styles.poster} cachePolicy="memory-disk" />
@@ -255,7 +257,7 @@ export default function AddMovieScreen() {
       <FlatList
         data={results}
         keyExtractor={(item) => String(item.tmdbId)}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: tabBarClearance }]}
         ListHeaderComponent={searching ? <ActivityIndicator color={colors.accent} style={{ marginBottom: 12 }} /> : null}
         renderItem={({ item }) => {
           const poster = item.images.find((i) => i.coverType === 'poster');

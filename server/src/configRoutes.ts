@@ -8,7 +8,6 @@ import { Router } from 'express';
 import {
   deleteProfileData,
   getActiveProfileId,
-  getNavigationStyle,
   getSectionNameOverrides,
   getServiceConfig,
   getServiceEnabledOverrides,
@@ -16,7 +15,6 @@ import {
   getTabOrder,
   getProfiles,
   setActiveProfileId,
-  setNavigationStyle,
   setProfiles,
   setSectionNameOverrides,
   setServiceConfig,
@@ -25,7 +23,7 @@ import {
   setTabOrder,
   clearServiceConfig,
 } from './store';
-import { isServiceName, NavigationStyle, Profile, SectionId, ServiceConfig, ServiceName, StartupSectionId } from './types';
+import { isServiceName, Profile, SectionId, ServiceConfig, ServiceName, StartupSectionId } from './types';
 
 export const configRouter = Router();
 
@@ -181,20 +179,6 @@ configRouter.put('/startup-screen/:profileId', (req, res) => {
     return;
   }
   setStartupScreen(req.params.profileId, id);
-  res.json({ ok: true });
-});
-
-configRouter.get('/navigation-style/:profileId', (req, res) => {
-  res.json({ style: getNavigationStyle(req.params.profileId) ?? null });
-});
-
-configRouter.put('/navigation-style/:profileId', (req, res) => {
-  const style = req.body?.style as NavigationStyle | undefined;
-  if (!style) {
-    res.status(400).json({ error: 'style is required.' });
-    return;
-  }
-  setNavigationStyle(req.params.profileId, style);
   res.json({ ok: true });
 });
 

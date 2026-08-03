@@ -7,19 +7,21 @@
 // it's a pure passthrough on native, see AuthContext.tsx), and within that,
 // `ProfilesProvider` must be outermost among the rest since every other
 // profile-scoped context reads `activeProfileId` from it.
-import { DarkTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { DarkTheme, ThemeProvider } from 'expo-router/react-navigation';
+import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { AdaptiveNav } from '../src/components/AdaptiveNav';
 import { AlertHost } from '../src/components/AlertHost';
 import { AuthGate } from '../src/context/AuthContext';
-import { ProfilesProvider } from '../src/context/ProfilesContext';
+import { ProfilesProvider, useProfiles } from '../src/context/ProfilesContext';
 import { SectionNamesProvider } from '../src/context/SectionNamesContext';
 import { ServiceEnabledProvider } from '../src/context/ServiceEnabledContext';
 import { ServersProvider } from '../src/context/ServersContext';
+import { DEFAULT_STARTUP_SCREEN, getStartupScreen, startupRoute } from '../src/lib/startupScreen';
 import { colors } from '../src/theme/colors';
 
 // React Navigation's DarkTheme, repointed at this app's own palette so
@@ -36,6 +38,45 @@ const navigationTheme = {
     primary: colors.accent,
   },
 };
+
+// Resolves (and, if needed, navigates to) the active profile's configured
+// startup screen once profiles have loaded. This has no dependency on
+// AdaptiveNav's own nav-chrome state at all - unlike the old combined
+// "which navigator to render" decision this used to be entangled with, the
+// Stack is always mounted from the very first render regardless of any
+// nav-chrome loading, so there's no risk of this `router.replace()` ever
+// firing before something it targets exists. Only resolves once per app
+// launch (not on every later profile switch); a failed lookup still clears
+// the overlay rather than leaving it up forever.
+function useStartupRedirect(profilesLoading: boolean, activeProfileId: string) {
+  const [ready, setReady] = useState(false);
+  const resolvedRef = useRef(false);
+
+  useEffect(() => {
+    if (profilesLoading || resolvedRef.current) return;
+    resolvedRef.current = true;
+    getStartupScreen(activeProfileId)
+      .then((id) => {
+        if (id !== DEFAULT_STARTUP_SCREEN) router.replace(startupRoute(id));
+      })
+      .catch(() => {})
+      .finally(() => setReady(true));
+  }, [profilesLoading, activeProfileId]);
+
+  return ready;
+}
+
+function RootStack() {
+  const { loading: profilesLoading, activeProfileId } = useProfiles();
+  const ready = useStartupRedirect(profilesLoading, activeProfileId);
+
+  return (
+    <AdaptiveNav>
+      <Stack screenOptions={{ headerShown: false }} />
+      {!ready && <View style={styles.loadingOverlay} pointerEvents="none" />}
+    </AdaptiveNav>
+  );
+}
 
 export default function RootLayout() {
   // Expo's web template never sets a background-color on <html>/<body>, so
@@ -65,7 +106,7 @@ export default function RootLayout() {
                 <ServiceEnabledProvider>
                   <ThemeProvider value={navigationTheme}>
                     <StatusBar style="light" />
-                    <Stack screenOptions={{ headerShown: false }} />
+                    <RootStack />
                     <AlertHost />
                   </ThemeProvider>
                 </ServiceEnabledProvider>
@@ -77,3 +118,7 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingOverlay: { ...StyleSheet.absoluteFill, backgroundColor: colors.background },
+});

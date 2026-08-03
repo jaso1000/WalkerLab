@@ -34,6 +34,7 @@ import { AVAILABILITY_OPTIONS, SONARR_MONITOR_OPTIONS, SonarrMonitorOption } fro
 import { deletedLibrary } from '../../../src/lib/deletedLibrary';
 import { formatDate } from '../../../src/lib/format';
 import { getLastQualityProfileId, setLastQualityProfileId } from '../../../src/lib/preferences';
+import { useTabBarClearance } from '../../../src/lib/tabBarClearance';
 import { colors } from '../../../src/theme/colors';
 
 // Discover's universal detail page for both movies and TV, reached from
@@ -56,6 +57,7 @@ function InfoRow({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap;
 }
 
 export default function DiscoverDetailScreen() {
+  const tabBarClearance = useTabBarClearance();
   const { mediaType, id } = useLocalSearchParams<{ mediaType: MediaType; id: string }>();
   const { servers } = useServers();
   const tmdbConfig = servers.tmdb;
@@ -279,7 +281,7 @@ export default function DiscoverDetailScreen() {
 
   return (
     <View style={styles.screen}>
-      <ScrollView bounces={false}>
+      <ScrollView bounces={false} contentContainerStyle={{ paddingBottom: tabBarClearance }}>
         <ImageBackground source={backdrop ? { uri: backdrop } : undefined} style={styles.hero}>
           <LinearGradient colors={['transparent', colors.background]} style={styles.heroGradient} />
           <SafeAreaView edges={['top']} style={styles.heroTopBar}>
@@ -500,7 +502,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', padding: 32 },
   emptyText: { color: colors.textSecondary, textAlign: 'center' },
   hero: { minHeight: 260, justifyContent: 'flex-end' },
-  heroGradient: { ...StyleSheet.absoluteFillObject },
+  heroGradient: { ...StyleSheet.absoluteFill },
   heroTopBar: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, paddingTop: 4 },
   circleButton: {
     width: 38,

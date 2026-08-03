@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { DrawerActions, useNavigation } from '@react-navigation/native';
 import { Image } from 'expo-image';
-import { router, useFocusEffect } from 'expo-router';
+import { router, Stack, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -18,7 +17,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import {
@@ -29,17 +27,18 @@ import {
   SonarrQualityProfile,
   SonarrQueueItem,
   SonarrSeries,
-} from '../../src/api/sonarr';
-import { ActionSheet, ActionSheetOption } from '../../src/components/ActionSheet';
-import { Badge } from '../../src/components/Badge';
-import { RatingBadges } from '../../src/components/RatingBadges';
-import { NotConfigured } from '../../src/components/NotConfigured';
-import { ServerPanel } from '../../src/components/ServerPanel';
-import { SortMenu } from '../../src/components/SortMenu';
-import { SwipeTabBar } from '../../src/components/SwipeTabBar';
-import { WebRefreshButton } from '../../src/components/WebRefreshButton';
-import { useServers } from '../../src/context/ServersContext';
-import { alert } from '../../src/lib/alert';
+} from '../src/api/sonarr';
+import { ActionSheet, ActionSheetOption } from '../src/components/ActionSheet';
+import { Badge } from '../src/components/Badge';
+import { RatingBadges } from '../src/components/RatingBadges';
+import { NotConfigured } from '../src/components/NotConfigured';
+import { ServerPanel } from '../src/components/ServerPanel';
+import { SortMenu } from '../src/components/SortMenu';
+import { SwipeTabBar } from '../src/components/SwipeTabBar';
+import { WebRefreshButton } from '../src/components/WebRefreshButton';
+import { useServers } from '../src/context/ServersContext';
+import { useSectionNames } from '../src/context/SectionNamesContext';
+import { alert } from '../src/lib/alert';
 import {
   formatBytes,
   formatCountdown,
@@ -50,14 +49,17 @@ import {
   historyEventLabel,
   seriesStatusTone,
   titleCase,
-} from '../../src/lib/format';
-import { groupConsecutive } from '../../src/lib/groupBy';
-import { getGroupHeaders, getSortPreference, setGroupHeaders, setSortPreference } from '../../src/lib/preferences';
-import { chunk, useColumns } from '../../src/lib/responsive';
-import { useTabBarClearance } from '../../src/lib/tabBarClearance';
-import { colors } from '../../src/theme/colors';
+} from '../src/lib/format';
+import { groupConsecutive } from '../src/lib/groupBy';
+import { getGroupHeaders, getSortPreference, setGroupHeaders, setSortPreference } from '../src/lib/preferences';
+import { chunk, useColumns, useContentWidth } from '../src/lib/responsive';
+import { useTabBarClearance } from '../src/lib/tabBarClearance';
+import { HeaderTitle } from '../src/components/HeaderTitle';
+import { SidebarMenuButton } from '../src/components/SidebarMenuButton';
+import { SECTION_META } from '../src/lib/sectionMeta';
+import { colors } from '../src/theme/colors';
 
-// TV Shows screen (Sonarr) - the library root screen (`app/(drawer)/index.tsx`
+// TV Shows screen (Sonarr) - the library root screen (`app/index.tsx`
 // route). All/Missing/Upcoming/Activity/History/Server swipeable tabs, each
 // its own paged FlatList/SectionList inside one shared horizontal
 // Animated.ScrollView (same paged-tab pattern as Downloads/Torrents/
@@ -163,10 +165,10 @@ function sortValue(item: SonarrSeries, key: SortKey, profiles: SonarrQualityProf
 }
 
 export default function SeriesScreen() {
+  const { names } = useSectionNames();
   const { servers } = useServers();
   const config = servers.sonarr;
-  const navigation = useNavigation();
-  const { width } = useWindowDimensions();
+  const width = useContentWidth();
   const columns = useColumns();
   const scrollRef = useRef<ScrollView>(null);
   const tabBarClearance = useTabBarClearance();
@@ -341,9 +343,10 @@ export default function SeriesScreen() {
     }, [loadLibrary])
   );
 
-  // Hardware back clears an active search query first (rather than
-  // immediately opening the drawer), matching how a search UI usually
-  // "backs out" one step at a time.
+  // Hardware back clears an active search query first, matching how a
+  // search UI usually "backs out" one step at a time - returning `false`
+  // when there's no query to clear lets the default back behavior (pop
+  // the stack) proceed instead of swallowing the event.
   useFocusEffect(
     useCallback(() => {
       const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -351,11 +354,10 @@ export default function SeriesScreen() {
           setQuery('');
           return true;
         }
-        navigation.dispatch(DrawerActions.openDrawer());
-        return true;
+        return false;
       });
       return () => sub.remove();
-    }, [query, navigation])
+    }, [query])
   );
 
   // Central place to react to the active tab changing (tap or swipe) -
@@ -606,6 +608,17 @@ export default function SeriesScreen() {
 
   return (
     <View style={styles.screen}>
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          headerStyle: { backgroundColor: colors.background },
+          headerShadowVisible: false,
+          headerTintColor: colors.textPrimary,
+          headerTitleAlign: 'left',
+          headerLeft: () => <SidebarMenuButton />,
+          headerTitle: () => <HeaderTitle icon={SECTION_META.tvShows.icon} tint={SECTION_META.tvShows.tint} title={names.tvShows} />,
+        }}
+      />
       <View style={styles.searchRow}>
         <View style={styles.searchInputWrapper}>
           <Ionicons name="search" size={16} color={colors.textSecondary} />
@@ -940,7 +953,14 @@ const styles = StyleSheet.create({
   sortPillText: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
   list: { padding: 12, gap: 10 },
   row: { flexDirection: 'row', gap: 10 },
-  rowItem: { flex: 1 },
+  // `minWidth: 0` matters here (and on `info` below) for the same reason
+  // documented elsewhere in this codebase for react-native-web: a flex
+  // item's default `min-width: auto` refuses to shrink below its own
+  // content's natural width, so an unwrapped badge row wide enough could
+  // force this whole card past its 1/columns share of the row - overflowing
+  // the actual screen width instead of respecting it, especially once 3
+  // columns only have ~300px each to work with.
+  rowItem: { flex: 1, minWidth: 0 },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -963,10 +983,10 @@ const styles = StyleSheet.create({
     marginHorizontal: -12,
     paddingHorizontal: 12,
   },
-  card: { flexDirection: 'row', gap: 12, backgroundColor: colors.surface, borderRadius: 14, padding: 10 },
+  card: { flexDirection: 'row', gap: 12, backgroundColor: colors.surface, borderRadius: 14, padding: 10, minWidth: 0 },
   poster: { width: 60, height: 90, borderRadius: 8, backgroundColor: colors.surfaceAlt },
   posterPlaceholder: {},
-  info: { flex: 1, justifyContent: 'center' },
+  info: { flex: 1, justifyContent: 'center', minWidth: 0 },
   title: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   size: { color: colors.textSecondary, fontSize: 12, marginTop: 6 },

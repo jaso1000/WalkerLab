@@ -1,10 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
-import { DrawerActions, useNavigation } from '@react-navigation/native';
-import { router, useFocusEffect } from 'expo-router';
+import { router, Stack, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Animated,
-  BackHandler,
   FlatList,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -15,7 +13,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import {
@@ -27,20 +24,24 @@ import {
   PortainerStack,
   portainerApi,
   stackTypeLabel,
-} from '../../src/api/portainer';
-import { ActionSheet, ActionSheetOption } from '../../src/components/ActionSheet';
-import { Badge, BadgeTone } from '../../src/components/Badge';
-import { NotConfigured } from '../../src/components/NotConfigured';
-import { SortField, SortMenu } from '../../src/components/SortMenu';
-import { SwipeTabBar } from '../../src/components/SwipeTabBar';
-import { WebRefreshButton } from '../../src/components/WebRefreshButton';
-import { useServers } from '../../src/context/ServersContext';
-import { alert } from '../../src/lib/alert';
-import { titleCase } from '../../src/lib/format';
-import { confirmContainerAction, containerActionDefs, PortainerAction, runContainerAction } from '../../src/lib/portainerActions';
-import { chunk, useColumns } from '../../src/lib/responsive';
-import { useTabBarClearance } from '../../src/lib/tabBarClearance';
-import { colors } from '../../src/theme/colors';
+} from '../src/api/portainer';
+import { ActionSheet, ActionSheetOption } from '../src/components/ActionSheet';
+import { Badge, BadgeTone } from '../src/components/Badge';
+import { NotConfigured } from '../src/components/NotConfigured';
+import { SortField, SortMenu } from '../src/components/SortMenu';
+import { SwipeTabBar } from '../src/components/SwipeTabBar';
+import { WebRefreshButton } from '../src/components/WebRefreshButton';
+import { useServers } from '../src/context/ServersContext';
+import { useSectionNames } from '../src/context/SectionNamesContext';
+import { alert } from '../src/lib/alert';
+import { titleCase } from '../src/lib/format';
+import { confirmContainerAction, containerActionDefs, PortainerAction, runContainerAction } from '../src/lib/portainerActions';
+import { chunk, useColumns, useContentWidth } from '../src/lib/responsive';
+import { useTabBarClearance } from '../src/lib/tabBarClearance';
+import { HeaderTitle } from '../src/components/HeaderTitle';
+import { SidebarMenuButton } from '../src/components/SidebarMenuButton';
+import { SECTION_META } from '../src/lib/sectionMeta';
+import { colors } from '../src/theme/colors';
 
 // Containers screen (Portainer) - Containers/Stacks swipeable tabs, mirroring
 // Downloads' 2-tab structure (paged Animated.ScrollView + SwipeTabBar +
@@ -84,10 +85,10 @@ function containerTone(c: PortainerContainer): BadgeTone {
 }
 
 export default function ContainersScreen() {
+  const { names } = useSectionNames();
   const { servers } = useServers();
   const config = servers.portainer;
-  const navigation = useNavigation();
-  const { width } = useWindowDimensions();
+  const width = useContentWidth();
   const columns = useColumns();
   const scrollRef = useRef<ScrollView>(null);
   const tabBarClearance = useTabBarClearance();
@@ -140,16 +141,6 @@ export default function ContainersScreen() {
       if (activeTab === 1) loadStacks();
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loadContainers])
-  );
-
-  useFocusEffect(
-    useCallback(() => {
-      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-        navigation.dispatch(DrawerActions.openDrawer());
-        return true;
-      });
-      return () => sub.remove();
-    }, [navigation])
   );
 
   const handleTabChange = (index: number) => {
@@ -242,6 +233,17 @@ export default function ContainersScreen() {
 
   return (
     <View style={styles.screen}>
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          headerStyle: { backgroundColor: colors.background },
+          headerShadowVisible: false,
+          headerTintColor: colors.textPrimary,
+          headerTitleAlign: 'left',
+          headerLeft: () => <SidebarMenuButton />,
+          headerTitle: () => <HeaderTitle icon={SECTION_META.containers.icon} tint={SECTION_META.containers.tint} title={names.containers} />,
+        }}
+      />
       <View style={styles.searchRow}>
         <View style={styles.searchInputWrapper}>
           <Ionicons name="search" size={16} color={colors.textSecondary} />
@@ -426,7 +428,7 @@ const styles = StyleSheet.create({
   sortPillText: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
   statusBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 16, paddingVertical: 12 },
   tabBar: {},
-  // See app/(drawer)/index.tsx's identical comment - fixes "can't scroll"
+  // See app/index.tsx's identical comment - fixes "can't scroll"
   // on the web build without affecting native.
   pager: { flex: 1 },
   page: { flex: 1 },
@@ -435,7 +437,11 @@ const styles = StyleSheet.create({
   statusValue: { color: colors.portainer, fontSize: 16, fontWeight: '700' },
   list: { paddingHorizontal: 12, paddingBottom: 24, gap: 10 },
   row: { flexDirection: 'row', gap: 10 },
-  rowItem: { flex: 1 },
+  // `minWidth: 0` - react-native-web flex items default to `min-width: auto`
+  // and refuse to shrink below their own content's natural width, which can
+  // force a card past its 1/columns share of the row (see the fuller
+  // explanation on this same style in movies.tsx/index.tsx).
+  rowItem: { flex: 1, minWidth: 0 },
   card: { backgroundColor: colors.surface, borderRadius: 14, padding: 14 },
   title: { fontSize: 15, fontWeight: '700', color: colors.textPrimary },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' },

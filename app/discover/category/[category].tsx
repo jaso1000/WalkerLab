@@ -10,12 +10,14 @@ import {
   CATEGORY_LABELS,
   DiscoverCategory,
   dedupeById,
+  DiscoverMediaFilter,
   fetchDiscoverCategory,
-  MediaKind,
   RELEASE_TYPE_FILTERS,
   ReleaseTypeFilterKey,
+  resolveMediaKind,
 } from '../../../src/lib/discoverCategories';
 import { badgeForMovie, badgeForSeries, buildLibraryIndex, EMPTY_LIBRARY_INDEX, LibraryIndex } from '../../../src/lib/libraryStatus';
+import { useTabBarClearance } from '../../../src/lib/tabBarClearance';
 import { colors } from '../../../src/theme/colors';
 
 // Full-screen infinite-scroll grid for one Discover category (Trending/
@@ -26,7 +28,8 @@ import { colors } from '../../../src/theme/colors';
 const ALL_RELEASE_FILTER_KEYS = RELEASE_TYPE_FILTERS.map((f) => f.key);
 
 export default function DiscoverCategoryScreen() {
-  const { category, mediaType } = useLocalSearchParams<{ category: DiscoverCategory; mediaType: MediaKind }>();
+  const tabBarClearance = useTabBarClearance();
+  const { category, mediaType } = useLocalSearchParams<{ category: DiscoverCategory; mediaType: DiscoverMediaFilter }>();
   const { servers } = useServers();
   const config = servers.tmdb;
   const radarrConfig = servers.radarr;
@@ -145,15 +148,19 @@ export default function DiscoverCategoryScreen() {
           data={items}
           keyExtractor={(item) => String(item.id)}
           numColumns={3}
-          contentContainerStyle={styles.grid}
+          contentContainerStyle={[styles.grid, { paddingBottom: tabBarClearance }]}
           onEndReachedThreshold={0.5}
           onEndReached={loadMore}
           ListFooterComponent={loadingMore ? <ActivityIndicator color={colors.sectionGreen} style={{ marginVertical: 16 }} /> : null}
           renderItem={({ item }) => {
+            // 'all' mixes movies+TV in one grid - each item resolves its own
+            // type rather than trusting the screen-level `mediaType` filter,
+            // same trick the main Discover screen's "All" tab uses.
+            const itemType = mediaType === 'all' ? resolveMediaKind(item) : mediaType;
             const posterUrl = tmdbImageUrl(item.poster_path);
-            const badge = mediaType === 'movie' ? badgeForMovie(item.id, library) : badgeForSeries(item.id, library);
+            const badge = itemType === 'movie' ? badgeForMovie(item.id, library) : badgeForSeries(item.id, library);
             return (
-              <TouchableOpacity style={styles.card} onPress={() => router.push(`/discover/${mediaType}/${item.id}`)}>
+              <TouchableOpacity style={styles.card} onPress={() => router.push(`/discover/${itemType}/${item.id}`)}>
                 <View>
                   {posterUrl ? (
                     <Image source={{ uri: posterUrl }} style={styles.poster} cachePolicy="memory-disk" />
@@ -167,7 +174,7 @@ export default function DiscoverCategoryScreen() {
                   ) : null}
                 </View>
                 <Text style={styles.cardTitle} numberOfLines={2}>
-                  {mediaType === 'movie' ? (item as TmdbMovie).title : (item as TmdbTv).name}
+                  {itemType === 'movie' ? (item as TmdbMovie).title : (item as TmdbTv).name}
                 </Text>
               </TouchableOpacity>
             );

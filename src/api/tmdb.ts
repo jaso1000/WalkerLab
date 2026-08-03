@@ -350,6 +350,19 @@ export const tmdbApi = {
   trendingTv: (config: ServiceConfig, window: 'day' | 'week' = 'week', page = 1) =>
     tmdbFetch<{ results: TmdbTv[]; total_pages: number }>(config, `/trending/tv/${window}`, { page: String(page) }),
 
+  // Discover's "All" tab Trending row - TMDB's real combined endpoint, the
+  // only one of the three preview rows with genuine server-side movie+TV
+  // ranking (Popular/Upcoming have no combined equivalent - see
+  // discoverCategories.ts's `interleave` helper for how those are handled
+  // instead). Can return `media_type: 'person'` entries too - callers must
+  // filter those out before rendering.
+  trendingAll: (config: ServiceConfig, window: 'day' | 'week' = 'week', page = 1) =>
+    tmdbFetch<{ results: ((TmdbMovie | TmdbTv) & { media_type: 'movie' | 'tv' | 'person' })[]; total_pages: number }>(
+      config,
+      `/trending/all/${window}`,
+      { page: String(page) }
+    ),
+
   popularMovies: (config: ServiceConfig, page = 1) =>
     tmdbFetch<{ results: TmdbMovie[]; total_pages: number }>(config, '/movie/popular', { page: String(page) }),
 

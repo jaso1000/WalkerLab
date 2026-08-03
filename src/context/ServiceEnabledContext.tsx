@@ -1,5 +1,5 @@
 // Provides the active profile's per-service enabled/disabled flags app-wide -
-// the drawer reads this to decide which nav sections to show at all.
+// AdaptiveNav reads this to decide which nav sections to show at all.
 // Re-loads whenever the active profile changes.
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { ServiceName } from '../api/types';

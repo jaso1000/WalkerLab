@@ -1,4 +1,4 @@
-const { withAndroidManifest } = require('@expo/config-plugins');
+const { withAndroidManifest } = require('expo/config-plugins');
 
 // Fixes a documented Android/Expo issue: without `smallestScreenSize` (and
 // friends) declared in the MainActivity's configChanges, folding/unfolding

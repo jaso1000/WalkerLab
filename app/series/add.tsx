@@ -21,6 +21,7 @@ import { useServers } from '../../src/context/ServersContext';
 import { alert } from '../../src/lib/alert';
 import { SONARR_MONITOR_OPTIONS, SonarrMonitorOption } from '../../src/lib/constants';
 import { getLastQualityProfileId, setLastQualityProfileId } from '../../src/lib/preferences';
+import { useTabBarClearance } from '../../src/lib/tabBarClearance';
 import { colors } from '../../src/theme/colors';
 
 // Add Series flow: Sonarr's own title search (works without TMDB
@@ -30,6 +31,7 @@ import { colors } from '../../src/theme/colors';
 // `movie/add.tsx`'s shape, plus the extra tvdbId->tmdbId resolve step and a
 // Monitor picker instead of a plain Monitored switch.
 export default function AddSeriesScreen() {
+  const tabBarClearance = useTabBarClearance();
   const { servers } = useServers();
   const config = servers.sonarr;
   const tmdbConfig = servers.tmdb;
@@ -163,7 +165,7 @@ export default function AddSeriesScreen() {
           <Text style={styles.topBarTitle}>Add Series</Text>
           <View style={{ width: 38 }} />
         </View>
-        <ScrollView contentContainerStyle={styles.configContainer}>
+        <ScrollView contentContainerStyle={[styles.configContainer, { paddingBottom: tabBarClearance }]}>
           <View style={styles.configHeader}>
             {poster?.remoteUrl ? (
               <Image source={{ uri: poster.remoteUrl }} style={styles.poster} cachePolicy="memory-disk" />
@@ -262,7 +264,7 @@ export default function AddSeriesScreen() {
       <FlatList
         data={results}
         keyExtractor={(item, index) => `${item.title}-${index}`}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: tabBarClearance }]}
         ListHeaderComponent={searching ? <ActivityIndicator color={colors.sonarr} style={{ marginBottom: 12 }} /> : null}
         renderItem={({ item }) => {
           const poster = item.images.find((i) => i.coverType === 'poster');

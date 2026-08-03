@@ -1,4 +1,4 @@
-const { withAndroidManifest } = require('@expo/config-plugins');
+const { withAndroidManifest } = require('expo/config-plugins');
 
 // Every service this app talks to (Sonarr/Radarr/SABnzbd/qBittorrent/
 // Overseerr/Tautulli) is a self-hosted home-server app, almost always

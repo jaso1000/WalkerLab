@@ -4,6 +4,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { MediaKind } from '../lib/discoverCategories';
 import { colors } from '../theme/colors';
 
 // Small corner badge on a poster card (in-library/downloaded/deleted status -
@@ -19,6 +20,11 @@ export interface DiscoverCardItem {
   posterUrl?: string;
   rating?: number;
   badge?: DiscoverCardBadge;
+  // Only set for Discover's "All" tab's mixed rows - lets one row's press
+  // handler route each item to the right per-type destination. Movies/TV
+  // Shows tab rows leave this undefined; their onPressItem closures already
+  // know their fixed type without needing it.
+  mediaType?: MediaKind;
 }
 
 export function DiscoverRow({
@@ -29,7 +35,7 @@ export function DiscoverRow({
 }: {
   title: string;
   items: DiscoverCardItem[];
-  onPressItem: (id: number) => void;
+  onPressItem: (id: number, mediaType?: MediaKind) => void;
   /** When provided, the title becomes tappable (with a chevron) - used to open the full, infinite-scroll category view. */
   onPressTitle?: () => void;
 }) {
@@ -55,7 +61,7 @@ export function DiscoverRow({
       )}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
         {items.map((item) => (
-          <Pressable key={item.id} style={styles.card} onPress={() => onPressItem(item.id)}>
+          <Pressable key={item.id} style={styles.card} onPress={() => onPressItem(item.id, item.mediaType)}>
             {item.posterUrl ? (
               <Image source={{ uri: item.posterUrl }} style={styles.poster} cachePolicy="memory-disk" />
             ) : (

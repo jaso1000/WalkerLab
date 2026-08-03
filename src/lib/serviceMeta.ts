@@ -143,7 +143,7 @@ export const SERVICE_META: ServiceMeta[] = [
   },
 ];
 
-/** The service that owns a given nav section, if any - lets the drawer hide a section when that service is disabled. */
+/** The service that owns a given nav section, if any - lets AdaptiveNav hide a section when that service is disabled. */
 export function serviceForSection(sectionId: StartupSectionId): ServiceName | undefined {
   return SERVICE_META.find((s) => s.sectionId === sectionId)?.name;
 }

@@ -1,6 +1,6 @@
 // Per-profile enabled/disabled flags for each service - a disabled service's
-// nav section is hidden from the hamburger drawer entirely (see
-// `serviceForSection` in `serviceMeta.ts`).
+// nav section is hidden from navigation entirely (see `serviceForSection`
+// in `serviceMeta.ts`).
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { ServiceName } from '../api/types';

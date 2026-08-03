@@ -1,30 +1,28 @@
 // Bottom padding a scrollable needs so its last row clears the floating
-// bottom tab bar.
+// pill bar - 0 when the pill isn't showing at all (tablet-width screens get
+// the persistent side panel instead, which doesn't overlay content the same
+// way, so no clearance is needed there).
 //
-// In Tabs mode the bar is `position: 'absolute'` (see
-// `app/(drawer)/_layout.tsx`), so it deliberately doesn't reserve layout
-// space - that's what lets content run edge to edge and stay visible in the
-// margins around the pill. The cost is that content would otherwise scroll
-// underneath it, leaving the last list row half-hidden at the bottom of a
-// list. React Navigation's own docs point at exactly this: an absolutely
-// positioned tab bar means "you'd also need to use `useBottomTabBarHeight()`
-// to add a bottom padding to your content".
+// The pill is `position: 'absolute'` (see `src/components/AdaptiveNav.tsx`),
+// so it deliberately doesn't reserve layout space - that's what lets content
+// run edge to edge and stay visible in the margins around it. The cost is
+// that content would otherwise scroll underneath it, leaving the last list
+// row half-hidden at the bottom of a list.
 //
-// `useBottomTabBarHeight()` itself is unusable here because it *throws*
-// outside a Bottom Tab Navigator, and every one of these screens is also
-// rendered under the Drawer when that navigation style is chosen. Reading
-// the underlying context directly gives `undefined` there instead, which
-// maps cleanly to "no floating bar, no clearance needed" - so Drawer mode
-// gets zero extra dead space at the end of its lists.
-import { BottomTabBarHeightContext } from '@react-navigation/bottom-tabs';
-import { useContext } from 'react';
+// This used to read React Navigation's own `BottomTabBarHeightContext` from
+// a real `<Tabs>` navigator. There is no navigator anymore - `AdaptiveNav` is
+// a plain always-mounted component, not a real tab router (see its own
+// comments for why) - so this is now a plain Context we own outright,
+// provided once from the root layout alongside `AdaptiveNav` itself.
+import { createContext, useContext } from 'react';
 
 // Breathing room below the last row, on top of the bar's own measured
 // height. Also absorbs the bar's 16px bottom offset in case the measured
 // height doesn't already account for it.
-const FLOATING_BAR_GAP = 24;
+export const FLOATING_BAR_GAP = 24;
+
+export const TabBarClearanceContext = createContext(0);
 
 export function useTabBarClearance(): number {
-  const height = useContext(BottomTabBarHeightContext);
-  return height === undefined ? 0 : height + FLOATING_BAR_GAP;
+  return useContext(TabBarClearanceContext);
 }

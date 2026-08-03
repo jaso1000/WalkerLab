@@ -12,11 +12,13 @@ import { TautulliHistoryItem, tautulliApi } from '../../../src/api/tautulli';
 import { TautulliHistoryCard } from '../../../src/components/TautulliHistoryCard';
 import { useServers } from '../../../src/context/ServersContext';
 import { alert } from '../../../src/lib/alert';
+import { useTabBarClearance } from '../../../src/lib/tabBarClearance';
 import { colors } from '../../../src/theme/colors';
 
 const PAGE_SIZE = 25;
 
 export default function TautulliUserHistoryScreen() {
+  const tabBarClearance = useTabBarClearance();
   const { id, name } = useLocalSearchParams<{ id: string; name?: string }>();
   const userId = Number(id);
   const { servers } = useServers();
@@ -93,7 +95,7 @@ export default function TautulliUserHistoryScreen() {
         <FlatList
           data={history}
           keyExtractor={(item) => String(item.row_id)}
-          contentContainerStyle={history.length === 0 ? styles.emptyContainer : styles.list}
+          contentContainerStyle={[history.length === 0 ? styles.emptyContainer : styles.list, { paddingBottom: tabBarClearance }]}
           onEndReachedThreshold={0.5}
           onEndReached={loadMore}
           ListFooterComponent={loadingMore ? <ActivityIndicator color={colors.tautulli} style={{ marginVertical: 16 }} /> : null}

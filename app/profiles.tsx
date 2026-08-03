@@ -8,15 +8,17 @@ import { useProfiles } from '../src/context/ProfilesContext';
 import { alert } from '../src/lib/alert';
 import { Profile } from '../src/lib/profiles';
 import { exportProfile, importProfileInto } from '../src/lib/profileBackup';
+import { useTabBarClearance } from '../src/lib/tabBarClearance';
 import { colors } from '../src/theme/colors';
 
-// Profile management screen ("Manage Profiles…" from the drawer footer) -
-// create/rename/delete profiles, plus passphrase-encrypted Backup (current
-// profile -> shareable code) and Restore (code + passphrase -> always a
-// brand-new profile, never overwriting an existing one). Passphrases are
-// collected via a second `PromptModal` step rather than a single combined
-// form, so the same modal component handles both flows.
+// Profile management screen ("Manage Profiles…" from ProfileSwitcher's
+// sheet) - create/rename/delete profiles, plus passphrase-encrypted Backup
+// (current profile -> shareable code) and Restore (code + passphrase ->
+// always a brand-new profile, never overwriting an existing one).
+// Passphrases are collected via a second `PromptModal` step rather than a
+// single combined form, so the same modal component handles both flows.
 export default function ProfilesScreen() {
+  const tabBarClearance = useTabBarClearance();
   const { profiles, activeProfile, switchProfile, addProfile, renameProfile, deleteProfile } = useProfiles();
 
   const [renameTarget, setRenameTarget] = useState<Profile | null>(null);
@@ -97,7 +99,7 @@ export default function ProfilesScreen() {
         <View style={{ width: 38 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={[styles.container, { paddingBottom: tabBarClearance }]}>
         <Text style={styles.sectionLabel}>PROFILES</Text>
         <View style={styles.card}>
           {profiles.map((profile, i) => {

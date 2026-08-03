@@ -1,10 +1,11 @@
-// Settings > Navigation: pick Side Drawer vs Bottom Tabs, and reorder which
-// sections are primary bottom-bar icons vs tucked into the "More" overflow
-// (also used as the side Drawer's own display order - see
-// app/(drawer)/_layout.tsx and src/lib/tabOrder.ts). Deliberately uses
-// up/down buttons rather than drag-and-drop - no such dependency exists in
-// this app today, and this achieves the same reordering outcome with far
-// less risk (this session hit several real gesture-conflict bugs elsewhere).
+// Settings > Navigation: reorder which sections are primary bottom-bar/
+// sidebar icons vs tucked into the "More" overflow - used by both the
+// phone-width floating pill and the tablet-width persistent sidebar (see
+// src/components/AdaptiveNav.tsx and src/lib/tabOrder.ts). Deliberately
+// uses up/down buttons rather than drag-and-drop - no such dependency
+// exists in this app today, and this achieves the same reordering outcome
+// with far less risk (this session hit several real gesture-conflict bugs
+// elsewhere).
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
@@ -13,38 +14,27 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useProfiles } from '../../src/context/ProfilesContext';
 import { useSectionNames } from '../../src/context/SectionNamesContext';
 import { useServiceEnabled } from '../../src/context/ServiceEnabledContext';
-import { DEFAULT_NAVIGATION_STYLE, getNavigationStyle, NavigationStyle, setNavigationStyle } from '../../src/lib/navigationStyle';
 import { SECTION_META } from '../../src/lib/sectionMeta';
 import { serviceForSection } from '../../src/lib/serviceMeta';
 import { StartupSectionId } from '../../src/lib/startupScreen';
+import { useTabBarClearance } from '../../src/lib/tabBarClearance';
 import { DEFAULT_TAB_ORDER, getTabOrder, PRIMARY_TAB_COUNT, setTabOrder } from '../../src/lib/tabOrder';
 import { colors } from '../../src/theme/colors';
-
-const STYLE_OPTIONS: { value: NavigationStyle; label: string }[] = [
-  { value: 'drawer', label: 'Side Drawer' },
-  { value: 'tabs', label: 'Bottom Tabs' },
-];
 
 export default function NavigationSettingsScreen() {
   const { activeProfileId } = useProfiles();
   const { isEnabled } = useServiceEnabled();
   const { names } = useSectionNames();
-  const [style, setStyle] = useState<NavigationStyle>(DEFAULT_NAVIGATION_STYLE);
+  const tabBarClearance = useTabBarClearance();
   const [order, setOrder] = useState<StartupSectionId[]>(DEFAULT_TAB_ORDER);
 
   // Re-reads on every focus, matching [service].tsx's own startup-screen
   // pattern - reflects a change made elsewhere immediately on return here.
   useFocusEffect(
     useCallback(() => {
-      getNavigationStyle(activeProfileId).then(setStyle);
       getTabOrder(activeProfileId).then(setOrder);
     }, [activeProfileId])
   );
-
-  const selectStyle = (next: NavigationStyle) => {
-    setStyle(next);
-    setNavigationStyle(activeProfileId, next);
-  };
 
   const moveItem = (index: number, direction: -1 | 1) => {
     const target = index + direction;
@@ -68,23 +58,12 @@ export default function NavigationSettingsScreen() {
         <View style={{ width: 38 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.card}>
-          <Text style={styles.sectionLabel}>STYLE</Text>
-          {STYLE_OPTIONS.map((opt) => (
-            <TouchableOpacity key={opt.value} style={styles.styleRow} onPress={() => selectStyle(opt.value)}>
-              <Text style={styles.styleRowLabel}>{opt.label}</Text>
-              {style === opt.value ? <Ionicons name="checkmark" size={20} color={colors.brand} /> : null}
-            </TouchableOpacity>
-          ))}
-          <Text style={styles.hint}>Restart the app for this to take effect.</Text>
-        </View>
-
+      <ScrollView contentContainerStyle={[styles.container, { paddingBottom: tabBarClearance }]}>
         <View style={styles.card}>
           <Text style={styles.sectionLabel}>SECTION ORDER</Text>
           <Text style={styles.hint}>
-            The first {PRIMARY_TAB_COUNT} shown below are the bottom bar's primary icons - the rest live in its "More"
-            menu. This order is also used by the side drawer.
+            The first {PRIMARY_TAB_COUNT} shown below are the primary icons - the rest live in the "More" menu. On a
+            tablet-width screen these appear in an always-visible side panel instead of a bottom bar.
           </Text>
           {order.map((id, index) => {
             const service = serviceForSection(id);
@@ -92,7 +71,7 @@ export default function NavigationSettingsScreen() {
             const meta = SECTION_META[id];
             return (
               <View key={id}>
-                {index === 0 ? <Text style={styles.dividerLabel}>BOTTOM BAR</Text> : null}
+                {index === 0 ? <Text style={styles.dividerLabel}>PRIMARY</Text> : null}
                 {index === PRIMARY_TAB_COUNT ? <Text style={styles.dividerLabel}>MORE MENU</Text> : null}
                 <View style={styles.orderRow}>
                   <Ionicons name={meta.icon} size={18} color={enabled ? meta.tint : colors.textMuted} />
@@ -138,15 +117,6 @@ const styles = StyleSheet.create({
   container: { padding: 16, gap: 14 },
   card: { backgroundColor: colors.surface, borderRadius: 14, padding: 16, gap: 4 },
   sectionLabel: { color: colors.textSecondary, fontSize: 12, fontWeight: '700', letterSpacing: 0.5, marginBottom: 8 },
-  styleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-  },
-  styleRowLabel: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
   hint: { color: colors.textMuted, fontSize: 12, lineHeight: 16, marginTop: 8 },
   dividerLabel: { color: colors.textSecondary, fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginTop: 12, marginBottom: 4 },
   orderRow: {

@@ -4,26 +4,27 @@
 // whichever service currently owns that role. Settings itself has no
 // service card, so it can't be renamed or disabled the way other sections can.
 import { Ionicons } from '@expo/vector-icons';
-import { DrawerActions, useNavigation } from '@react-navigation/native';
-import { router, useFocusEffect } from 'expo-router';
+import { router, Stack, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { BackHandler, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
-import { ChangePasswordModal } from '../../src/components/ChangePasswordModal';
-import { SelectRow } from '../../src/components/SelectRow';
-import { useProfiles } from '../../src/context/ProfilesContext';
-import { useServiceEnabled } from '../../src/context/ServiceEnabledContext';
-import { DEFAULT_NAVIGATION_STYLE, getNavigationStyle, NavigationStyle } from '../../src/lib/navigationStyle';
-import { SERVICE_META } from '../../src/lib/serviceMeta';
-import { DEFAULT_STARTUP_SCREEN, getStartupScreen, StartupSectionId } from '../../src/lib/startupScreen';
-import { useTabBarClearance } from '../../src/lib/tabBarClearance';
-import { colors } from '../../src/theme/colors';
+import { Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { ChangePasswordModal } from '../src/components/ChangePasswordModal';
+import { HeaderTitle } from '../src/components/HeaderTitle';
+import { SidebarMenuButton } from '../src/components/SidebarMenuButton';
+import { SelectRow } from '../src/components/SelectRow';
+import { useProfiles } from '../src/context/ProfilesContext';
+import { useSectionNames } from '../src/context/SectionNamesContext';
+import { useServiceEnabled } from '../src/context/ServiceEnabledContext';
+import { SECTION_META } from '../src/lib/sectionMeta';
+import { SERVICE_META } from '../src/lib/serviceMeta';
+import { DEFAULT_STARTUP_SCREEN, getStartupScreen, StartupSectionId } from '../src/lib/startupScreen';
+import { useTabBarClearance } from '../src/lib/tabBarClearance';
+import { colors } from '../src/theme/colors';
 
 export default function SettingsScreen() {
-  const navigation = useNavigation();
+  const { names } = useSectionNames();
   const { activeProfileId } = useProfiles();
   const { isEnabled, setEnabled } = useServiceEnabled();
   const [startupId, setStartupId] = useState<StartupSectionId>(DEFAULT_STARTUP_SCREEN);
-  const [navStyle, setNavStyle] = useState<NavigationStyle>(DEFAULT_NAVIGATION_STYLE);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const tabBarClearance = useTabBarClearance();
 
@@ -36,31 +37,19 @@ export default function SettingsScreen() {
     }, [activeProfileId])
   );
 
-  // Same reasoning - reflects a change made on Settings > Navigation
-  // immediately on returning here.
-  useFocusEffect(
-    useCallback(() => {
-      getNavigationStyle(activeProfileId).then(setNavStyle);
-    }, [activeProfileId])
-  );
-
-  // Only meaningful in Drawer mode - there's no drawer to open in Tabs
-  // mode, so don't attach the listener at all there (leaving it attached
-  // but always `return true`ing would make hardware back dead on this
-  // screen under Tabs).
-  useFocusEffect(
-    useCallback(() => {
-      if (navStyle !== 'drawer') return;
-      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-        navigation.dispatch(DrawerActions.openDrawer());
-        return true;
-      });
-      return () => sub.remove();
-    }, [navigation, navStyle])
-  );
-
   return (
     <>
+    <Stack.Screen
+      options={{
+        headerShown: true,
+        headerStyle: { backgroundColor: colors.background },
+        headerShadowVisible: false,
+        headerTintColor: colors.textPrimary,
+        headerTitleAlign: 'left',
+        headerLeft: () => <SidebarMenuButton />,
+        headerTitle: () => <HeaderTitle icon={SECTION_META.settings.icon} title={names.settings} />,
+      }}
+    />
     <ScrollView style={styles.screen} contentContainerStyle={[styles.container, { paddingBottom: tabBarClearance }]}>
       <Text style={styles.groupLabel}>SERVICES</Text>
       <View style={styles.list}>
@@ -96,15 +85,11 @@ export default function SettingsScreen() {
           );
         })}
       </View>
-      <Text style={styles.hint}>Turning a service off hides its section from the hamburger menu.</Text>
+      <Text style={styles.hint}>Turning a service off hides its section from navigation.</Text>
 
       <Text style={styles.groupLabel}>NAVIGATION</Text>
       <View style={styles.navCard}>
-        <SelectRow
-          label="Navigation Style"
-          value={navStyle === 'tabs' ? 'Bottom Tabs' : 'Side Drawer'}
-          onPress={() => router.push('/settings/navigation')}
-        />
+        <SelectRow label="Section Order" value="" onPress={() => router.push('/settings/navigation')} />
       </View>
 
       {Platform.OS === 'web' ? (

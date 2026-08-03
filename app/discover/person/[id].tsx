@@ -6,6 +6,7 @@ import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View }
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { tmdbApi, tmdbImageUrl, TmdbPerson, TmdbPersonCredit } from '../../../src/api/tmdb';
 import { useServers } from '../../../src/context/ServersContext';
+import { useTabBarClearance } from '../../../src/lib/tabBarClearance';
 import { colors } from '../../../src/theme/colors';
 
 // Cast & Crew's "tap through to filmography" page - shows a person's bio and
@@ -19,6 +20,7 @@ function creditDate(item: TmdbPersonCredit): string {
 }
 
 export default function PersonScreen() {
+  const tabBarClearance = useTabBarClearance();
   const { id } = useLocalSearchParams<{ id: string }>();
   const personId = Number(id);
   const { servers } = useServers();
@@ -95,7 +97,7 @@ export default function PersonScreen() {
           data={credits}
           keyExtractor={(item) => `${item.media_type}:${item.id}`}
           numColumns={3}
-          contentContainerStyle={styles.grid}
+          contentContainerStyle={[styles.grid, { paddingBottom: tabBarClearance }]}
           ListHeaderComponent={
             person ? (
               <View style={styles.header}>

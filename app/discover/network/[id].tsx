@@ -8,6 +8,7 @@ import { TMDB_NETWORKS, tmdbApi, tmdbImageUrl, TmdbTv } from '../../../src/api/t
 import { useServers } from '../../../src/context/ServersContext';
 import { dedupeById } from '../../../src/lib/discoverCategories';
 import { badgeForSeries, buildLibraryIndex, EMPTY_LIBRARY_INDEX, LibraryIndex } from '../../../src/lib/libraryStatus';
+import { useTabBarClearance } from '../../../src/lib/tabBarClearance';
 import { colors } from '../../../src/theme/colors';
 
 // "Browse by Network" full-screen grid (TV only) - one fixed TMDB network id
@@ -16,6 +17,7 @@ import { colors } from '../../../src/theme/colors';
 // pattern, same plain-effect-vs-useFocusEffect split) but keyed by network
 // id instead of a discover category.
 export default function NetworkBrowseScreen() {
+  const tabBarClearance = useTabBarClearance();
   const { id, name } = useLocalSearchParams<{ id: string; name?: string }>();
   const { servers } = useServers();
   const config = servers.tmdb;
@@ -100,7 +102,7 @@ export default function NetworkBrowseScreen() {
           data={shows}
           keyExtractor={(item) => String(item.id)}
           numColumns={3}
-          contentContainerStyle={styles.grid}
+          contentContainerStyle={[styles.grid, { paddingBottom: tabBarClearance }]}
           onEndReachedThreshold={0.5}
           onEndReached={loadMore}
           ListFooterComponent={loadingMore ? <ActivityIndicator color={colors.sectionGreen} style={{ marginVertical: 16 }} /> : null}

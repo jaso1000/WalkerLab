@@ -17,7 +17,7 @@ export const PRIMARY_TAB_COUNT = 4;
 
 // Default order matches the app's long-standing fixed display order,
 // Settings excluded (it's never part of this list - always the "More"
-// sheet's fixed last item, see app/(drawer)/_layout.tsx).
+// sheet's fixed last item, see src/components/AdaptiveNav.tsx).
 export const DEFAULT_TAB_ORDER: StartupSectionId[] = SECTION_ORDER.filter(
   (id): id is StartupSectionId => id !== 'settings'
 );

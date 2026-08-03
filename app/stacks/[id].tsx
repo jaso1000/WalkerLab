@@ -21,11 +21,13 @@ import {
 import { useServers } from '../../src/context/ServersContext';
 import { alert } from '../../src/lib/alert';
 import { titleCase } from '../../src/lib/format';
+import { useTabBarClearance } from '../../src/lib/tabBarClearance';
 import { colors } from '../../src/theme/colors';
 
 export default function StackDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const stackId = Number(id);
+  const tabBarClearance = useTabBarClearance();
   const { servers } = useServers();
   const config = servers.portainer;
 
@@ -113,7 +115,7 @@ export default function StackDetailScreen() {
         <View style={{ width: 38 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={[styles.container, { paddingBottom: tabBarClearance }]}>
         <View style={styles.card}>
           <Text style={styles.sectionLabel}>STACK</Text>
           <View style={styles.row}>

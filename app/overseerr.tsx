@@ -1,12 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
-import { DrawerActions, useNavigation } from '@react-navigation/native';
 import { Image } from 'expo-image';
-import { useFocusEffect } from 'expo-router';
+import { Stack, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
-  BackHandler,
   FlatList,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -16,23 +14,26 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from 'react-native';
-import { overseerrApi, OverseerrFilter, OverseerrRequest } from '../../src/api/overseerr';
-import { tmdbApi, tmdbImageUrl, TmdbMovieDetail, TmdbTvDetail } from '../../src/api/tmdb';
-import { ActionSheet, ActionSheetOption } from '../../src/components/ActionSheet';
-import { Badge, BadgeTone } from '../../src/components/Badge';
-import { NotConfigured } from '../../src/components/NotConfigured';
-import { SwipeTabBar } from '../../src/components/SwipeTabBar';
-import { WebRefreshButton } from '../../src/components/WebRefreshButton';
-import { useServers } from '../../src/context/ServersContext';
-import { alert } from '../../src/lib/alert';
-import { dedupeById } from '../../src/lib/discoverCategories';
-import { formatDate } from '../../src/lib/format';
-import { chunk, useColumns } from '../../src/lib/responsive';
-import { useTabBarClearance } from '../../src/lib/tabBarClearance';
-import { colors } from '../../src/theme/colors';
+import { overseerrApi, OverseerrFilter, OverseerrRequest } from '../src/api/overseerr';
+import { tmdbApi, tmdbImageUrl, TmdbMovieDetail, TmdbTvDetail } from '../src/api/tmdb';
+import { ActionSheet, ActionSheetOption } from '../src/components/ActionSheet';
+import { Badge, BadgeTone } from '../src/components/Badge';
+import { NotConfigured } from '../src/components/NotConfigured';
+import { SwipeTabBar } from '../src/components/SwipeTabBar';
+import { WebRefreshButton } from '../src/components/WebRefreshButton';
+import { useServers } from '../src/context/ServersContext';
+import { useSectionNames } from '../src/context/SectionNamesContext';
+import { alert } from '../src/lib/alert';
+import { dedupeById } from '../src/lib/discoverCategories';
+import { formatDate } from '../src/lib/format';
+import { chunk, useColumns, useContentWidth } from '../src/lib/responsive';
+import { useTabBarClearance } from '../src/lib/tabBarClearance';
+import { HeaderTitle } from '../src/components/HeaderTitle';
+import { SidebarMenuButton } from '../src/components/SidebarMenuButton';
+import { SECTION_META } from '../src/lib/sectionMeta';
+import { colors } from '../src/theme/colors';
 
 // Requests screen (Overseerr, shown as "Seer" in Settings) - a Pending tab
 // (default) and an All tab with single-select status filter chips, both
@@ -77,11 +78,11 @@ function requestStatusInfo(req: OverseerrRequest): { label: string; tone: BadgeT
 }
 
 export default function OverseerrScreen() {
+  const { names } = useSectionNames();
   const { servers } = useServers();
   const config = servers.overseerr;
   const tmdbConfig = servers.tmdb;
-  const navigation = useNavigation();
-  const { width } = useWindowDimensions();
+  const width = useContentWidth();
   const columns = useColumns();
   const scrollRef = useRef<ScrollView>(null);
   const tabBarClearance = useTabBarClearance();
@@ -203,16 +204,6 @@ export default function OverseerrScreen() {
     if (activeTab === 1) loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
-
-  useFocusEffect(
-    useCallback(() => {
-      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-        navigation.dispatch(DrawerActions.openDrawer());
-        return true;
-      });
-      return () => sub.remove();
-    }, [navigation])
-  );
 
   const handleTabChange = (index: number) => {
     setActiveTab(index);
@@ -390,6 +381,17 @@ export default function OverseerrScreen() {
 
   return (
     <View style={styles.screen}>
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          headerStyle: { backgroundColor: colors.background },
+          headerShadowVisible: false,
+          headerTintColor: colors.textPrimary,
+          headerTitleAlign: 'left',
+          headerLeft: () => <SidebarMenuButton />,
+          headerTitle: () => <HeaderTitle icon={SECTION_META.requests.icon} tint={SECTION_META.requests.tint} title={names.requests} />,
+        }}
+      />
       <View style={styles.tabBarRow}>
         <View style={styles.tabBar}>
           <SwipeTabBar
@@ -499,7 +501,7 @@ const styles = StyleSheet.create({
   tabBarRow: { flexDirection: 'row', alignItems: 'center' },
   tabBar: { flex: 1, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6 },
   flatList: { flex: 1 },
-  // See app/(drawer)/index.tsx's identical comment - fixes "can't scroll"
+  // See app/index.tsx's identical comment - fixes "can't scroll"
   // on the web build without affecting native.
   pager: { flex: 1 },
   page: { flex: 1 },
@@ -517,11 +519,18 @@ const styles = StyleSheet.create({
   filterChipTextActive: { color: colors.overseerr },
   list: { paddingHorizontal: 12, paddingBottom: 24, gap: 10 },
   row: { flexDirection: 'row', gap: 10 },
-  rowItem: { flex: 1 },
-  card: { flexDirection: 'row', gap: 12, alignItems: 'center', backgroundColor: colors.surface, borderRadius: 14, padding: 10 },
+  // `minWidth: 0` matters here (and on `info` below) for the same reason
+  // documented elsewhere in this codebase for react-native-web: a flex
+  // item's default `min-width: auto` refuses to shrink below its own
+  // content's natural width, so an unwrapped row wide enough could force
+  // this whole card past its 1/columns share of the row - overflowing the
+  // actual screen width instead of respecting it, especially once 3 columns
+  // only have ~300px each to work with.
+  rowItem: { flex: 1, minWidth: 0 },
+  card: { flexDirection: 'row', gap: 12, alignItems: 'center', backgroundColor: colors.surface, borderRadius: 14, padding: 10, minWidth: 0 },
   poster: { width: 50, height: 75, borderRadius: 8, backgroundColor: colors.surfaceAlt },
   posterPlaceholder: { alignItems: 'center', justifyContent: 'center' },
-  info: { flex: 1, gap: 2 },
+  info: { flex: 1, gap: 2, minWidth: 0 },
   title: { color: colors.textPrimary, fontSize: 15, fontWeight: '700' },
   subtitle: { color: colors.textSecondary, fontSize: 12, marginTop: 4 },
   menuButton: { padding: 6 },

@@ -1,9 +1,9 @@
-// Custom content for the hamburger drawer (registered as the drawer's
-// `drawerContent` in `app/(drawer)/_layout.tsx`) - renders the nav item
-// list, Settings, and the profile switcher footer. `SafeAreaView` insets
-// are used deliberately (not a guessed paddingTop) since the header/footer
-// otherwise collide with the status bar/notch on real devices.
-import { DrawerContentComponentProps } from '@react-navigation/drawer';
+// Always-visible left navigation panel shown at tablet width and up (see
+// src/components/AdaptiveNav.tsx) - phone width gets the floating pill bar
+// instead (src/components/FloatingPill.tsx). Unlike the old hamburger
+// Drawer this replaced, there's no open/close state at all: it's a plain,
+// permanently-mounted column, so navigating just does a normal
+// `router.push()` with no "close" step.
 import { Image } from 'expo-image';
 import { router, usePathname } from 'expo-router';
 import { useState } from 'react';
@@ -14,51 +14,70 @@ import { ProfileSwitcher } from './ProfileSwitcher';
 import { useAuth } from '../context/AuthContext';
 import { useProfiles } from '../context/ProfilesContext';
 import { useSectionNames } from '../context/SectionNamesContext';
+import { isSectionActive } from '../lib/activeSection';
+import { SIDEBAR_WIDTH } from '../lib/navChrome';
 import { SECTION_META } from '../lib/sectionMeta';
 import { StartupSectionId } from '../lib/startupScreen';
 import { colors } from '../theme/colors';
 
-// Renders the drawer's item list, Settings row, and the profile switcher
-// footer (name + tap-to-open switcher sheet). `order` is the caller's
-// already-resolved (per-profile, already enabled-service-filtered) list of
-// non-Settings sections to show, in the user's chosen order - see
-// `src/lib/tabOrder.ts` and `app/(drawer)/_layout.tsx`, which is the only
-// place this component is ever rendered from.
-export function DrawerContent(props: DrawerContentComponentProps & { order: StartupSectionId[] }) {
+// `order` is the caller's already-resolved (per-profile, already
+// enabled-service-filtered) list of non-Settings sections to show, in the
+// user's chosen order - see `src/lib/tabOrder.ts`. `onNavigate`/`onClose`/
+// `fullWidth` are only used by the off-canvas overlay variant
+// (SidebarOverlay.tsx, tabletMedium nav tier) - all left undefined by the
+// pinned/tabletLarge caller, which has nothing to close and always renders
+// at the fixed `SIDEBAR_WIDTH`. `onNavigate` closes the overlay after a real
+// navigation; `onClose` (when provided) renders an explicit close button in
+// the header, since the overlay covers the full screen at `fullWidth` -
+// there's no backdrop area left to tap to dismiss it.
+export function Sidebar({
+  order,
+  onNavigate,
+  onClose,
+  fullWidth,
+}: {
+  order: StartupSectionId[];
+  onNavigate?: () => void;
+  onClose?: () => void;
+  fullWidth?: boolean;
+}) {
   const pathname = usePathname();
   const { names } = useSectionNames();
   const { activeProfile } = useProfiles();
   const { logout } = useAuth();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
-  // Navigates and closes the drawer in one step, since the drawer doesn't
-  // auto-close on navigation the way a bottom tab bar would.
-  const go = (href: string) => {
-    router.push(href as never);
-    props.navigation.closeDrawer();
-  };
-
-  const visibleItems = props.order.map((sectionId) => ({ sectionId, ...SECTION_META[sectionId] }));
+  const visibleItems = order.map((sectionId) => ({ sectionId, ...SECTION_META[sectionId] }));
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.container, fullWidth && styles.containerFullWidth]} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <Image source={require('../../assets/walkerlab-icon.png')} style={styles.logoIcon} />
-        <Text style={styles.logo}>
-          <Text style={styles.logoWhite}>Walker</Text>
-          <Text style={styles.logoAccent}>Lab</Text>
-        </Text>
+        <View style={styles.headerBrand}>
+          <Image source={require('../../assets/walkerlab-icon.png')} style={styles.logoIcon} />
+          <Text style={styles.logo}>
+            <Text style={styles.logoWhite}>Walker</Text>
+            <Text style={styles.logoAccent}>Lab</Text>
+          </Text>
+        </View>
+        {onClose ? (
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="close" size={26} color={colors.textSecondary} />
+          </TouchableOpacity>
+        ) : null}
       </View>
       <View style={styles.divider} />
 
       <ScrollView contentContainerStyle={styles.list}>
         {visibleItems.map((item) => {
-          const active = pathname === item.href;
+          const active = isSectionActive(pathname, item.href);
           return (
             <TouchableOpacity
               key={item.href}
               style={[styles.row, active && { backgroundColor: `${item.tint}26` }]}
-              onPress={() => go(item.href)}
+              onPress={() => {
+                router.push(item.href as never);
+                onNavigate?.();
+              }}
             >
               <View style={[styles.iconCircle, { backgroundColor: `${item.tint}26` }]}>
                 <Ionicons name={item.icon} size={18} color={item.tint} />
@@ -73,7 +92,13 @@ export function DrawerContent(props: DrawerContentComponentProps & { order: Star
 
       <View style={styles.footer}>
         <View style={styles.divider} />
-        <TouchableOpacity style={styles.row} onPress={() => go('/settings')}>
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => {
+            router.push('/settings');
+            onNavigate?.();
+          }}
+        >
           <View style={styles.iconCircle}>
             <Ionicons name={SECTION_META.settings.icon} size={18} color={colors.textSecondary} />
           </View>
@@ -105,8 +130,32 @@ export function DrawerContent(props: DrawerContentComponentProps & { order: Star
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16 },
+  // `height: '100%'` matters for the off-canvas overlay case
+  // (SidebarOverlay.tsx): that panel is a column-flex absolutely-positioned
+  // box, where a child only auto-stretches along the CROSS axis (width),
+  // not the main axis (height) - so without an explicit height, Sidebar
+  // sized itself to its own content and left a gap below it instead of
+  // reaching the bottom of the screen. The pinned/tabletLarge case doesn't
+  // need this (it's a row-flex child, where cross-axis stretch already
+  // gives it full height for free) but doesn't regress from it either.
+  container: {
+    width: SIDEBAR_WIDTH,
+    height: '100%',
+    backgroundColor: colors.surface,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderRightColor: colors.border,
+  },
+  containerFullWidth: { width: '100%', borderRightWidth: 0 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
+  },
+  headerBrand: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   logoIcon: { width: 34, height: 34, borderRadius: 9 },
   logo: { fontSize: 22, fontWeight: '800' },
   logoWhite: { color: colors.textPrimary },

@@ -1,16 +1,14 @@
 // Stats screen (Tautulli) - Activity/Users/History/Stats/Graphs swipeable
 // tabs, following the same paged-tab template as Downloads/Torrents/
-// Requests: SwipeTabBar driving a paged Animated.ScrollView, hardware-back
-// opens the drawer, each tab lazily loads once per screen visit.
+// Requests: SwipeTabBar driving a paged Animated.ScrollView, each tab
+// lazily loads once per screen visit.
 import { Ionicons } from '@expo/vector-icons';
-import { DrawerActions, useNavigation } from '@react-navigation/native';
 import { Image } from 'expo-image';
-import { router, useFocusEffect } from 'expo-router';
+import { router, Stack, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
-  BackHandler,
   FlatList,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -19,7 +17,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import {
@@ -31,19 +28,23 @@ import {
   TautulliUserRow,
   tautulliApi,
   tautulliImageUrl,
-} from '../../src/api/tautulli';
-import { ServiceConfig } from '../../src/api/types';
-import { Badge, BadgeTone } from '../../src/components/Badge';
-import { NotConfigured } from '../../src/components/NotConfigured';
-import { SwipeTabBar } from '../../src/components/SwipeTabBar';
-import { WebRefreshButton } from '../../src/components/WebRefreshButton';
-import { TautulliHistoryCard } from '../../src/components/TautulliHistoryCard';
-import { useServers } from '../../src/context/ServersContext';
-import { alert } from '../../src/lib/alert';
-import { formatDuration, titleCase } from '../../src/lib/format';
-import { chunk, useColumns } from '../../src/lib/responsive';
-import { useTabBarClearance } from '../../src/lib/tabBarClearance';
-import { colors } from '../../src/theme/colors';
+} from '../src/api/tautulli';
+import { ServiceConfig } from '../src/api/types';
+import { Badge, BadgeTone } from '../src/components/Badge';
+import { NotConfigured } from '../src/components/NotConfigured';
+import { SwipeTabBar } from '../src/components/SwipeTabBar';
+import { WebRefreshButton } from '../src/components/WebRefreshButton';
+import { TautulliHistoryCard } from '../src/components/TautulliHistoryCard';
+import { useServers } from '../src/context/ServersContext';
+import { useSectionNames } from '../src/context/SectionNamesContext';
+import { alert } from '../src/lib/alert';
+import { formatDuration, titleCase } from '../src/lib/format';
+import { chunk, useColumns, useContentWidth } from '../src/lib/responsive';
+import { useTabBarClearance } from '../src/lib/tabBarClearance';
+import { HeaderTitle } from '../src/components/HeaderTitle';
+import { SidebarMenuButton } from '../src/components/SidebarMenuButton';
+import { SECTION_META } from '../src/lib/sectionMeta';
+import { colors } from '../src/theme/colors';
 
 const TABS = ['Activity', 'Users', 'History', 'Stats', 'Graphs'] as const;
 const HISTORY_PAGE_SIZE = 25;
@@ -203,10 +204,10 @@ function StatSection({
 }
 
 export default function TautulliScreen() {
+  const { names } = useSectionNames();
   const { servers } = useServers();
   const config = servers.tautulli;
-  const navigation = useNavigation();
-  const { width } = useWindowDimensions();
+  const width = useContentWidth();
   const columns = useColumns();
   const scrollRef = useRef<ScrollView>(null);
   const tabBarClearance = useTabBarClearance();
@@ -371,16 +372,6 @@ export default function TautulliScreen() {
     }, [activeTab, loadActivity])
   );
 
-  useFocusEffect(
-    useCallback(() => {
-      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-        navigation.dispatch(DrawerActions.openDrawer());
-        return true;
-      });
-      return () => sub.remove();
-    }, [navigation])
-  );
-
   const handleTabChange = (index: number) => {
     setActiveTab(index);
     if (index === 1 && !usersLoaded.current) loadUsers();
@@ -486,6 +477,17 @@ export default function TautulliScreen() {
 
   return (
     <View style={styles.screen}>
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          headerStyle: { backgroundColor: colors.background },
+          headerShadowVisible: false,
+          headerTintColor: colors.textPrimary,
+          headerTitleAlign: 'left',
+          headerLeft: () => <SidebarMenuButton />,
+          headerTitle: () => <HeaderTitle icon={SECTION_META.stats.icon} tint={SECTION_META.stats.tint} title={names.stats} />,
+        }}
+      />
       <View style={styles.tabBarRow}>
         <View style={styles.tabBar}>
           <SwipeTabBar
@@ -635,18 +637,25 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   tabBarRow: { flexDirection: 'row', alignItems: 'center' },
   tabBar: { flex: 1, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6 },
-  // See app/(drawer)/index.tsx's identical comment - fixes "can't scroll"
+  // See app/index.tsx's identical comment - fixes "can't scroll"
   // on the web build without affecting native.
   pager: { flex: 1 },
   page: { flex: 1 },
   list: { padding: 12, gap: 10 },
   userList: { padding: 12, gap: 10 },
   row: { flexDirection: 'row', gap: 10 },
-  rowItem: { flex: 1 },
-  card: { flexDirection: 'row', gap: 12, backgroundColor: colors.surface, borderRadius: 14, padding: 10 },
+  // `minWidth: 0` matters here (and on `info` below) for the same reason
+  // documented elsewhere in this codebase for react-native-web: a flex
+  // item's default `min-width: auto` refuses to shrink below its own
+  // content's natural width, so an unwrapped row wide enough could force
+  // this whole card past its 1/columns share of the row - overflowing the
+  // actual screen width instead of respecting it, especially once 3 columns
+  // only have ~300px each to work with.
+  rowItem: { flex: 1, minWidth: 0 },
+  card: { flexDirection: 'row', gap: 12, backgroundColor: colors.surface, borderRadius: 14, padding: 10, minWidth: 0 },
   poster: { width: 60, height: 90, borderRadius: 8, backgroundColor: colors.surfaceAlt },
   posterPlaceholder: {},
-  info: { flex: 1, justifyContent: 'center', gap: 2 },
+  info: { flex: 1, justifyContent: 'center', gap: 2, minWidth: 0 },
   title: { fontSize: 15, fontWeight: '700', color: colors.textPrimary },
   subtitle: { fontSize: 13, color: colors.textSecondary, marginTop: 4 },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },

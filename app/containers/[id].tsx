@@ -25,10 +25,12 @@ import { useServers } from '../../src/context/ServersContext';
 import { alert } from '../../src/lib/alert';
 import { formatUnixDateTime, titleCase } from '../../src/lib/format';
 import { confirmContainerAction, containerActionDefs, PortainerAction, runContainerAction } from '../../src/lib/portainerActions';
+import { useTabBarClearance } from '../../src/lib/tabBarClearance';
 import { colors } from '../../src/theme/colors';
 
 export default function ContainerDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const tabBarClearance = useTabBarClearance();
   const { servers } = useServers();
   const config = servers.portainer;
 
@@ -124,7 +126,7 @@ export default function ContainerDetailScreen() {
         <View style={{ width: 38 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={[styles.container, { paddingBottom: tabBarClearance }]}>
         <View style={styles.card}>
           <Text style={styles.sectionLabel}>ACTIONS</Text>
           <View style={styles.actionsRow}>

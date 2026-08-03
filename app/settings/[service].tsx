@@ -32,6 +32,7 @@ import { alert } from '../../src/lib/alert';
 import { DEFAULT_SECTION_NAMES } from '../../src/lib/sectionNames';
 import { SERVICE_META } from '../../src/lib/serviceMeta';
 import { DEFAULT_STARTUP_SCREEN, getStartupScreen, setStartupScreen, StartupSectionId } from '../../src/lib/startupScreen';
+import { useTabBarClearance } from '../../src/lib/tabBarClearance';
 import { colors } from '../../src/theme/colors';
 
 // Per-service config page: connection fields, an optional drawer-rename +
@@ -71,6 +72,7 @@ function normalize(config: ServiceConfig): ServiceConfig {
 }
 
 export default function ServiceSettingsScreen() {
+  const tabBarClearance = useTabBarClearance();
   const { service } = useLocalSearchParams<{ service: string }>();
   const meta = SERVICE_META.find((s) => s.name === service);
   const { activeProfileId } = useProfiles();
@@ -267,7 +269,11 @@ export default function ServiceSettingsScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
       >
-        <ScrollView ref={scrollRef} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={[styles.container, { paddingBottom: tabBarClearance }]}
+          keyboardShouldPersistTaps="handled"
+        >
           <Text style={styles.description}>{meta.description}</Text>
 
           {meta.sectionId ? (

@@ -37,8 +37,6 @@ export type SectionId =
 
 export type StartupSectionId = Exclude<SectionId, 'settings'>;
 
-export type NavigationStyle = 'drawer' | 'tabs';
-
 export interface Profile {
   id: string;
   name: string;
@@ -70,7 +68,6 @@ export interface StoreFile {
   sectionNames: Record<string, Partial<Record<SectionId, string>>>;
   serviceEnabled: Record<string, Partial<Record<ServiceName, boolean>>>;
   startupScreen: Record<string, StartupSectionId>;
-  navigationStyle: Record<string, NavigationStyle>;
   tabOrder: Record<string, StartupSectionId[]>;
 }
 
@@ -116,7 +113,6 @@ export function emptyStore(): StoreFile {
     sectionNames: {},
     serviceEnabled: {},
     startupScreen: {},
-    navigationStyle: {},
     tabOrder: {},
   };
 }

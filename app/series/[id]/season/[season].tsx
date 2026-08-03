@@ -17,6 +17,7 @@ import { FileDetailsCard } from '../../../../src/components/FileDetailsCard';
 import { useServers } from '../../../../src/context/ServersContext';
 import { alert } from '../../../../src/lib/alert';
 import { formatBytes, formatDate } from '../../../../src/lib/format';
+import { useTabBarClearance } from '../../../../src/lib/tabBarClearance';
 import { colors } from '../../../../src/theme/colors';
 
 // Season episode drill-down: lists one season's episodes with per-row tap-
@@ -24,6 +25,7 @@ import { colors } from '../../../../src/theme/colors';
 // way, showing file details + auto/manual search actions) plus multi-select
 // long-press for bulk monitor/search/delete across several episodes at once.
 export default function SeasonEpisodesScreen() {
+  const tabBarClearance = useTabBarClearance();
   const { id, season, seriesTitle } = useLocalSearchParams<{ id: string; season: string; seriesTitle?: string }>();
   const seriesId = Number(id);
   const seasonNumber = Number(season);
@@ -214,7 +216,7 @@ export default function SeasonEpisodesScreen() {
         <FlatList
           data={visible}
           keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, { paddingBottom: tabBarClearance }]}
           renderItem={({ item }) => {
             const isSelected = selected.has(item.id);
             const airDate = formatDate(item.airDateUtc);

@@ -7,6 +7,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { ArrRelease } from '../api/types';
 import { formatBytes } from '../lib/format';
+import { useTabBarClearance } from '../lib/tabBarClearance';
 import { colors } from '../theme/colors';
 
 export function ReleasesView({
@@ -29,6 +30,7 @@ export function ReleasesView({
   tintMuted?: string;
 }) {
   const [query, setQuery] = useState('');
+  const tabBarClearance = useTabBarClearance();
 
   // Client-side title filter over the already-fetched release list - the
   // Sonarr/Radarr release-search endpoints have no server-side text filter
@@ -68,7 +70,7 @@ export function ReleasesView({
         <FlatList
           data={visible}
           keyExtractor={(item) => item.guid}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, { paddingBottom: tabBarClearance }]}
           ListEmptyComponent={<Text style={styles.empty}>No releases found.</Text>}
           renderItem={({ item }) => (
             <TouchableOpacity

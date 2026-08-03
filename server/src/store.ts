@@ -12,7 +12,6 @@ import { decrypt, encrypt, EncryptedEnvelope } from './crypto';
 import {
   AdminRecord,
   emptyStore,
-  NavigationStyle,
   Profile,
   SectionId,
   ServiceConfig,
@@ -75,12 +74,12 @@ export function initStore() {
   // Merge over emptyStore()'s defaults rather than trusting the decrypted
   // JSON's shape as-is - an existing install's store predates whichever
   // fields got added to StoreFile most recently (confirmed live: an
-  // already-running install's store had no `navigationStyle`/`tabOrder`
-  // keys at all, since it was created before those fields existed, and
-  // every getter here does `data.<field>[profileId]` with no top-level
-  // undefined check - this crashed with a 500 rather than falling back to
-  // a default). Real fields always win; only genuinely missing keys fall
-  // back to their empty default. Prevents the same class of bug for any
+  // already-running install's store had no `tabOrder` key at all, since
+  // it was created before that field existed, and every getter here does
+  // `data.<field>[profileId]` with no top-level undefined check - this
+  // crashed with a 500 rather than falling back to a default). Real
+  // fields always win; only genuinely missing keys fall back to their
+  // empty default. Prevents the same class of bug for any
   // future new field too.
   data = { ...emptyStore(), ...(JSON.parse(decrypt(masterKey, envelope)) as StoreFile) };
   pruneExpiredSessions();
@@ -202,15 +201,6 @@ export function setStartupScreen(profileId: string, id: StartupSectionId) {
   save();
 }
 
-export function getNavigationStyle(profileId: string): NavigationStyle | undefined {
-  return data.navigationStyle[profileId];
-}
-
-export function setNavigationStyle(profileId: string, style: NavigationStyle) {
-  data.navigationStyle[profileId] = style;
-  save();
-}
-
 export function getTabOrder(profileId: string): StartupSectionId[] | undefined {
   return data.tabOrder[profileId];
 }
@@ -228,7 +218,6 @@ export function deleteProfileData(profileId: string) {
   delete data.sectionNames[profileId];
   delete data.serviceEnabled[profileId];
   delete data.startupScreen[profileId];
-  delete data.navigationStyle[profileId];
   delete data.tabOrder[profileId];
   save();
 }

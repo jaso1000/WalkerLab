@@ -15,6 +15,8 @@ export const colors = {
   background: '#131419',
   surface: '#1D1F27',
   surfaceAlt: '#22242E',
+  // Semi-transparent variant of `surface` for FloatingPill's glass effect.
+  surfaceGlass: 'rgba(29,31,39,0.7)',
   border: 'rgba(255,255,255,0.08)',
 
   // Text hierarchy: primary (headings/values), secondary (labels), muted
