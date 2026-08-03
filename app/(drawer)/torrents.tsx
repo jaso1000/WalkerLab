@@ -32,6 +32,7 @@ import { useServers } from '../../src/context/ServersContext';
 import { alert } from '../../src/lib/alert';
 import { formatBytes } from '../../src/lib/format';
 import { chunk, useColumns } from '../../src/lib/responsive';
+import { useTabBarClearance } from '../../src/lib/tabBarClearance';
 import { colors } from '../../src/theme/colors';
 
 // Torrents screen (qBittorrent) - All/Active/Downloading/Finished/Error
@@ -95,6 +96,7 @@ export default function TorrentsScreen() {
   const { width } = useWindowDimensions();
   const columns = useColumns();
   const scrollRef = useRef<ScrollView>(null);
+  const tabBarClearance = useTabBarClearance();
   const scrollX = useRef(new Animated.Value(0)).current;
 
   const [activeTab, setActiveTab] = useState(0);
@@ -338,7 +340,7 @@ export default function TorrentsScreen() {
               refreshControl={
                 <RefreshControl tintColor={colors.qbittorrent} refreshing={loading} onRefresh={() => load(activeFilter)} />
               }
-              contentContainerStyle={dataByFilter[tab.key].length === 0 ? styles.emptyContainer : styles.list}
+              contentContainerStyle={[dataByFilter[tab.key].length === 0 ? styles.emptyContainer : styles.list, { paddingBottom: tabBarClearance }]}
               ListEmptyComponent={
                 !loading ? <Text style={styles.empty}>{errorByFilter[tab.key] ?? tab.empty}</Text> : null
               }

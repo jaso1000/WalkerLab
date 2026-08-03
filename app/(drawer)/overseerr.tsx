@@ -31,6 +31,7 @@ import { alert } from '../../src/lib/alert';
 import { dedupeById } from '../../src/lib/discoverCategories';
 import { formatDate } from '../../src/lib/format';
 import { chunk, useColumns } from '../../src/lib/responsive';
+import { useTabBarClearance } from '../../src/lib/tabBarClearance';
 import { colors } from '../../src/theme/colors';
 
 // Requests screen (Overseerr, shown as "Seer" in Settings) - a Pending tab
@@ -83,6 +84,7 @@ export default function OverseerrScreen() {
   const { width } = useWindowDimensions();
   const columns = useColumns();
   const scrollRef = useRef<ScrollView>(null);
+  const tabBarClearance = useTabBarClearance();
   const scrollX = useRef(new Animated.Value(0)).current;
 
   const [activeTab, setActiveTab] = useState(0);
@@ -423,7 +425,7 @@ export default function OverseerrScreen() {
             refreshControl={
               <RefreshControl tintColor={colors.overseerr} refreshing={loadingPending} onRefresh={loadPending} />
             }
-            contentContainerStyle={pending.length === 0 ? styles.emptyContainer : styles.list}
+            contentContainerStyle={[pending.length === 0 ? styles.emptyContainer : styles.list, { paddingBottom: tabBarClearance }]}
             onEndReachedThreshold={0.5}
             onEndReached={loadMorePending}
             ListFooterComponent={
@@ -464,7 +466,7 @@ export default function OverseerrScreen() {
             data={chunkedAll}
             keyExtractor={rowKey}
             refreshControl={<RefreshControl tintColor={colors.overseerr} refreshing={loadingAll} onRefresh={loadAll} />}
-            contentContainerStyle={all.length === 0 ? styles.emptyContainer : styles.list}
+            contentContainerStyle={[all.length === 0 ? styles.emptyContainer : styles.list, { paddingBottom: tabBarClearance }]}
             onEndReachedThreshold={0.5}
             onEndReached={loadMoreAll}
             ListFooterComponent={

@@ -42,6 +42,7 @@ import { useServers } from '../../src/context/ServersContext';
 import { alert } from '../../src/lib/alert';
 import { formatDuration, titleCase } from '../../src/lib/format';
 import { chunk, useColumns } from '../../src/lib/responsive';
+import { useTabBarClearance } from '../../src/lib/tabBarClearance';
 import { colors } from '../../src/theme/colors';
 
 const TABS = ['Activity', 'Users', 'History', 'Stats', 'Graphs'] as const;
@@ -208,6 +209,7 @@ export default function TautulliScreen() {
   const { width } = useWindowDimensions();
   const columns = useColumns();
   const scrollRef = useRef<ScrollView>(null);
+  const tabBarClearance = useTabBarClearance();
   const scrollX = useRef(new Animated.Value(0)).current;
 
   const [activeTab, setActiveTab] = useState(0);
@@ -516,7 +518,7 @@ export default function TautulliScreen() {
             data={chunkedSessions}
             keyExtractor={sessionRowKey}
             refreshControl={<RefreshControl tintColor={colors.tautulli} refreshing={loadingActivity} onRefresh={() => loadActivity()} />}
-            contentContainerStyle={sessions.length === 0 ? styles.emptyContainer : styles.list}
+            contentContainerStyle={[sessions.length === 0 ? styles.emptyContainer : styles.list, { paddingBottom: tabBarClearance }]}
             ListEmptyComponent={!loadingActivity ? <Text style={styles.empty}>{activityError ?? 'Nothing playing right now.'}</Text> : null}
             renderItem={({ item: row }) => (
               <View style={styles.row}>
@@ -535,7 +537,7 @@ export default function TautulliScreen() {
             data={users}
             keyExtractor={(item) => String(item.user_id)}
             refreshControl={<RefreshControl tintColor={colors.tautulli} refreshing={loadingUsers} onRefresh={loadUsers} />}
-            contentContainerStyle={users.length === 0 ? styles.emptyContainer : styles.userList}
+            contentContainerStyle={[users.length === 0 ? styles.emptyContainer : styles.userList, { paddingBottom: tabBarClearance }]}
             ListEmptyComponent={!loadingUsers ? <Text style={styles.empty}>No users found.</Text> : null}
             renderItem={({ item }) => renderUserRow(item)}
           />
@@ -546,7 +548,7 @@ export default function TautulliScreen() {
             data={chunkedHistory}
             keyExtractor={historyRowKey}
             refreshControl={<RefreshControl tintColor={colors.tautulli} refreshing={loadingHistory} onRefresh={loadHistory} />}
-            contentContainerStyle={history.length === 0 ? styles.emptyContainer : styles.list}
+            contentContainerStyle={[history.length === 0 ? styles.emptyContainer : styles.list, { paddingBottom: tabBarClearance }]}
             onEndReachedThreshold={0.5}
             onEndReached={loadMoreHistory}
             ListFooterComponent={loadingMoreHistory ? <ActivityIndicator color={colors.tautulli} style={{ marginVertical: 16 }} /> : null}
@@ -565,7 +567,7 @@ export default function TautulliScreen() {
 
         <View style={[styles.page, { width }]}>
           <ScrollView
-            contentContainerStyle={styles.statsContainer}
+            contentContainerStyle={[styles.statsContainer, { paddingBottom: tabBarClearance }]}
             refreshControl={<RefreshControl tintColor={colors.tautulli} refreshing={loadingStats} onRefresh={loadStats} />}
           >
             {loadingStats && statGroups.length === 0 ? (
@@ -618,7 +620,7 @@ export default function TautulliScreen() {
         </View>
 
         <View style={[styles.page, { width }]}>
-          <ScrollView contentContainerStyle={styles.statsContainer}>
+          <ScrollView contentContainerStyle={[styles.statsContainer, { paddingBottom: tabBarClearance }]}>
             <GraphCard title="Plays by Day" data={playsByDate} loading={loadingGraphs} formatCategory={shortDate} />
             <GraphCard title="Plays by Day of Week" data={playsByDayOfWeek} loading={loadingGraphs} />
             <GraphCard title="Plays by Month" data={playsByMonth} loading={loadingGraphs} />

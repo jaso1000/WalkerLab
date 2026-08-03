@@ -26,6 +26,7 @@ import { useServers } from '../../src/context/ServersContext';
 import { alert } from '../../src/lib/alert';
 import { formatMb } from '../../src/lib/format';
 import { chunk, useColumns } from '../../src/lib/responsive';
+import { useTabBarClearance } from '../../src/lib/tabBarClearance';
 import { colors } from '../../src/theme/colors';
 
 // Downloads screen (SABnzbd) - Queue/History swipeable tabs, mirroring
@@ -48,6 +49,7 @@ export default function DownloadsScreen() {
   const { width } = useWindowDimensions();
   const columns = useColumns();
   const scrollRef = useRef<ScrollView>(null);
+  const tabBarClearance = useTabBarClearance();
   const scrollX = useRef(new Animated.Value(0)).current;
 
   const [items, setItems] = useState<SabnzbdQueueItem[]>([]);
@@ -297,7 +299,7 @@ export default function DownloadsScreen() {
             data={chunkedItems}
             keyExtractor={rowKey}
             refreshControl={<RefreshControl tintColor={colors.sabnzbd} refreshing={loading} onRefresh={loadQueue} />}
-            contentContainerStyle={items.length === 0 ? styles.emptyContainer : styles.list}
+            contentContainerStyle={[items.length === 0 ? styles.emptyContainer : styles.list, { paddingBottom: tabBarClearance }]}
             ListEmptyComponent={!loading ? <Text style={styles.empty}>{error ?? 'Your queue is empty.'}</Text> : null}
             initialNumToRender={12}
             maxToRenderPerBatch={12}
@@ -366,7 +368,7 @@ export default function DownloadsScreen() {
             data={chunkedHistory}
             keyExtractor={rowKey}
             refreshControl={<RefreshControl tintColor={colors.sabnzbd} refreshing={loadingHistory} onRefresh={loadHistory} />}
-            contentContainerStyle={history.length === 0 ? styles.emptyContainer : styles.list}
+            contentContainerStyle={[history.length === 0 ? styles.emptyContainer : styles.list, { paddingBottom: tabBarClearance }]}
             ListEmptyComponent={!loadingHistory ? <Text style={styles.empty}>No history yet.</Text> : null}
             initialNumToRender={12}
             maxToRenderPerBatch={12}

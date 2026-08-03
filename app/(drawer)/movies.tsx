@@ -51,6 +51,7 @@ import {
 import { groupConsecutive } from '../../src/lib/groupBy';
 import { getGroupHeaders, getSortPreference, setGroupHeaders, setSortPreference } from '../../src/lib/preferences';
 import { chunk, useColumns } from '../../src/lib/responsive';
+import { useTabBarClearance } from '../../src/lib/tabBarClearance';
 import { colors } from '../../src/theme/colors';
 
 // Movies screen (Radarr) - same shape as the TV Shows screen (`index.tsx`),
@@ -194,6 +195,7 @@ export default function MoviesScreen() {
   const { width } = useWindowDimensions();
   const columns = useColumns();
   const scrollRef = useRef<ScrollView>(null);
+  const tabBarClearance = useTabBarClearance();
   const scrollX = useRef(new Animated.Value(0)).current;
 
   const [movies, setMovies] = useState<RadarrMovie[]>([]);
@@ -678,7 +680,7 @@ export default function MoviesScreen() {
             sections={chunkedAllSections}
             keyExtractor={rowKey}
             refreshControl={<RefreshControl tintColor={colors.accent} refreshing={loading} onRefresh={loadLibrary} />}
-            contentContainerStyle={sorted.length === 0 ? styles.emptyContainer : styles.list}
+            contentContainerStyle={[sorted.length === 0 ? styles.emptyContainer : styles.list, { paddingBottom: tabBarClearance }]}
             ListEmptyComponent={!loading ? <Text style={styles.empty}>{error ?? 'No movies found'}</Text> : null}
             renderSectionHeader={({ section }) =>
               section.title ? (
@@ -713,7 +715,7 @@ export default function MoviesScreen() {
             sections={chunkedMissingSections}
             keyExtractor={rowKey}
             refreshControl={<RefreshControl tintColor={colors.accent} refreshing={loading} onRefresh={loadLibrary} />}
-            contentContainerStyle={missing.length === 0 ? styles.emptyContainer : styles.list}
+            contentContainerStyle={[missing.length === 0 ? styles.emptyContainer : styles.list, { paddingBottom: tabBarClearance }]}
             ListEmptyComponent={!loading ? <Text style={styles.empty}>Nothing missing</Text> : null}
             renderSectionHeader={({ section }) =>
               section.title ? (
@@ -748,7 +750,7 @@ export default function MoviesScreen() {
             sections={chunkedUpcomingSections}
             keyExtractor={rowKey}
             refreshControl={<RefreshControl tintColor={colors.accent} refreshing={loadingUpcoming} onRefresh={loadUpcoming} />}
-            contentContainerStyle={upcoming.length === 0 ? styles.emptyContainer : styles.list}
+            contentContainerStyle={[upcoming.length === 0 ? styles.emptyContainer : styles.list, { paddingBottom: tabBarClearance }]}
             ListEmptyComponent={!loadingUpcoming ? <Text style={styles.empty}>Nothing upcoming</Text> : null}
             renderSectionHeader={({ section }) => <Text style={styles.dayHeader}>{section.title}</Text>}
             renderItem={({ item: row }) => (
@@ -782,7 +784,7 @@ export default function MoviesScreen() {
             data={chunkedActivity}
             keyExtractor={rowKey}
             refreshControl={<RefreshControl tintColor={colors.accent} refreshing={loadingActivity} onRefresh={loadActivity} />}
-            contentContainerStyle={activity.length === 0 ? styles.emptyContainer : styles.list}
+            contentContainerStyle={[activity.length === 0 ? styles.emptyContainer : styles.list, { paddingBottom: tabBarClearance }]}
             ListEmptyComponent={!loadingActivity ? <Text style={styles.empty}>Nothing pending</Text> : null}
             renderItem={({ item: row }) => (
               <View style={styles.row}>
@@ -819,7 +821,7 @@ export default function MoviesScreen() {
             data={chunkedHistory}
             keyExtractor={rowKey}
             refreshControl={<RefreshControl tintColor={colors.accent} refreshing={loadingHistory} onRefresh={loadHistory} />}
-            contentContainerStyle={history.length === 0 ? styles.emptyContainer : styles.list}
+            contentContainerStyle={[history.length === 0 ? styles.emptyContainer : styles.list, { paddingBottom: tabBarClearance }]}
             ListEmptyComponent={!loadingHistory ? <Text style={styles.empty}>No history yet</Text> : null}
             renderItem={({ item: row }) => (
               <View style={styles.row}>

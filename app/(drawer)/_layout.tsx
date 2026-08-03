@@ -23,13 +23,6 @@ import { DEFAULT_STARTUP_SCREEN, getStartupScreen, startupRoute, StartupSectionI
 import { DEFAULT_TAB_ORDER, getTabOrder, splitTabOrder } from '../../src/lib/tabOrder';
 import { colors } from '../../src/theme/colors';
 
-// Height + bottom offset of the floating tab bar, plus a little breathing
-// room - used to push every Tabs-mode screen's content up so nothing sits
-// underneath the bar (needed because it's `position: 'absolute'`, so it no
-// longer reserves its own space in the layout - see the tabBarStyle comment
-// below for why that's required).
-const FLOATING_TAB_BAR_CLEARANCE = 96;
-
 // Colored icon + label combo used as every screen's header title, matching
 // that section's accent color instead of a plain text header.
 function HeaderTitle({ icon, tint, title }: { icon: keyof typeof Ionicons.glyphMap; tint?: string; title: string }) {
@@ -140,6 +133,28 @@ export default function DrawerLayout() {
     <View style={styles.root}>
       {navPrefs.style === 'tabs' ? (
         <Tabs
+          // React Navigation's default is `backBehavior: 'firstRoute'`,
+          // which makes a GO_BACK action return to the first registered tab
+          // (whatever sits at index 0 of the user's chosen order) rather
+          // than the tab you actually came from - see the router's own
+          // `getRouteHistory`, which unshifts `routes[0].key` whenever
+          // `index !== 0`. 'history' returns to the last visited tab
+          // instead, which is what Android's hardware back should do.
+          //
+          // This also measurably improves browser-back on web (confirmed by
+          // the user in real use - back walks back through tabs in the
+          // common cases instead of jumping to the startup screen). Likely
+          // because this router's own `history` array is part of the
+          // navigator state expo-router serializes into browser history, so
+          // it feeds the push/replace decisions there too - i.e. don't
+          // assume this is Android-hardware-back-only just because web back
+          // arrives as a popstate rather than a GO_BACK.
+          //
+          // It does not eliminate the problem: a residual overshoot to the
+          // startup screen still reproduces after enough back-and-forth
+          // cycles (expo/expo#38594 - tab presses don't always push a
+          // history entry). See PLAN.md's top "Current status" entry.
+          backBehavior="history"
           screenOptions={{
             headerShown: true,
             headerStyle: { backgroundColor: colors.background },
@@ -154,20 +169,21 @@ export default function DrawerLayout() {
             // platforms render behind the bar by default) - it's fully owned
             // by tabBarStyle.backgroundColor below.
             tabBarBackground: () => null,
-            // Pushes screen content up so nothing sits underneath the bar -
-            // needed because it's `position: 'absolute'` below, so it no
-            // longer reserves its own space in the layout. `backgroundColor`
-            // here matters just as much as the padding: React Navigation
-            // keeps other (inactive) tab screens mounted behind the active
-            // one at `z-index: -1` - without an opaque background painted
-            // over the padding's own box, that reserved bottom strip was
-            // transparent, and confirmed live to let whatever inactive
-            // screen's content happened to be positioned there show through
-            // right around the pill (looked identical to "a bar behind the
-            // pill" since it was often another card using the same surface
-            // color, but was actually unrelated leaked content, not the tab
-            // bar itself).
-            sceneStyle: { paddingBottom: FLOATING_TAB_BAR_CLEARANCE, backgroundColor: colors.background },
+            // Deliberately NO `sceneStyle` bottom padding here. An earlier
+            // version reserved a 96px-tall strip so
+            // content couldn't sit under the absolutely-positioned bar, and
+            // painted it opaque to stop inactive tab screens (React
+            // Navigation keeps them mounted behind the active one at
+            // `z-index: -1`) bleeding through it. Both were wrong: the
+            // reserved strip sat *outside* the screen's own painted area,
+            // which is the only reason anything could leak there in the
+            // first place, and painting it opaque boxed the pill into a
+            // solid slab instead of letting it float over the content.
+            // Letting the scene fill the full height fixes both - every
+            // screen's root style is `flex: 1` + an opaque
+            // `colors.background` (verified across all 9), so the active
+            // screen covers the whole area and nothing behind it shows,
+            // while content now runs edge to edge under the floating pill.
             // Truly floating pill: `position: 'absolute'` detaches the bar
             // from document/layout flow entirely, which is also what stops
             // React Navigation from applying its own default safe-area-driven

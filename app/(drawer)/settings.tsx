@@ -15,6 +15,7 @@ import { useServiceEnabled } from '../../src/context/ServiceEnabledContext';
 import { DEFAULT_NAVIGATION_STYLE, getNavigationStyle, NavigationStyle } from '../../src/lib/navigationStyle';
 import { SERVICE_META } from '../../src/lib/serviceMeta';
 import { DEFAULT_STARTUP_SCREEN, getStartupScreen, StartupSectionId } from '../../src/lib/startupScreen';
+import { useTabBarClearance } from '../../src/lib/tabBarClearance';
 import { colors } from '../../src/theme/colors';
 
 export default function SettingsScreen() {
@@ -24,6 +25,7 @@ export default function SettingsScreen() {
   const [startupId, setStartupId] = useState<StartupSectionId>(DEFAULT_STARTUP_SCREEN);
   const [navStyle, setNavStyle] = useState<NavigationStyle>(DEFAULT_NAVIGATION_STYLE);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const tabBarClearance = useTabBarClearance();
 
   // Re-reads on every focus (not just once) since navigating back from a
   // service's config page after changing the startup screen there should
@@ -59,7 +61,7 @@ export default function SettingsScreen() {
 
   return (
     <>
-    <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+    <ScrollView style={styles.screen} contentContainerStyle={[styles.container, { paddingBottom: tabBarClearance }]}>
       <Text style={styles.groupLabel}>SERVICES</Text>
       <View style={styles.list}>
         {SERVICE_META.map((service, i) => {

@@ -26,6 +26,7 @@ import { deletedLibrary } from '../../src/lib/deletedLibrary';
 import { getLastQualityProfileId, setLastQualityProfileId } from '../../src/lib/preferences';
 import { CATEGORY_LABELS, DiscoverCategory, fetchDiscoverCategory, MediaKind } from '../../src/lib/discoverCategories';
 import { badgeForMovie, badgeForSeries, buildLibraryIndex, EMPTY_LIBRARY_INDEX, LibraryIndex } from '../../src/lib/libraryStatus';
+import { useTabBarClearance } from '../../src/lib/tabBarClearance';
 import { colors } from '../../src/theme/colors';
 
 // Main Discover screen: universal search with quick-add, a Recently Added
@@ -56,6 +57,7 @@ export default function DiscoverScreen() {
   const radarrConfig = servers.radarr;
   const sonarrConfig = servers.sonarr;
   const navigation = useNavigation();
+  const tabBarClearance = useTabBarClearance();
   const [mediaType, setMediaType] = useState<MediaKind>('movie');
 
   const [categories, setCategories] = useState<Record<DiscoverCategory, (TmdbMovie | TmdbTv)[]>>({
@@ -294,7 +296,7 @@ export default function DiscoverScreen() {
         <FlatList
           data={searchResults}
           keyExtractor={(item) => `${item.media_type}:${item.id}`}
-          contentContainerStyle={styles.searchList}
+          contentContainerStyle={[styles.searchList, { paddingBottom: tabBarClearance }]}
           ListEmptyComponent={
             !searching ? <Text style={styles.emptyText}>No results for &quot;{query}&quot;.</Text> : null
           }
@@ -359,7 +361,10 @@ export default function DiscoverScreen() {
           {loading && categories.trending.length === 0 ? (
             <ActivityIndicator color={colors.sectionGreen} style={{ marginTop: 40 }} />
           ) : (
-            <ScrollView refreshControl={<RefreshControl tintColor={colors.sectionGreen} refreshing={loading} onRefresh={load} />}>
+            <ScrollView
+              contentContainerStyle={{ paddingBottom: tabBarClearance }}
+              refreshControl={<RefreshControl tintColor={colors.sectionGreen} refreshing={loading} onRefresh={load} />}
+            >
               {error ? <Text style={styles.error}>{error}</Text> : null}
               <DiscoverRow title="Recently Added" items={recentlyAdded} onPressItem={openLocalItem} />
               {CATEGORIES.map((category) => (

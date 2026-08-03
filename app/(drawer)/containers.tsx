@@ -39,6 +39,7 @@ import { alert } from '../../src/lib/alert';
 import { titleCase } from '../../src/lib/format';
 import { confirmContainerAction, containerActionDefs, PortainerAction, runContainerAction } from '../../src/lib/portainerActions';
 import { chunk, useColumns } from '../../src/lib/responsive';
+import { useTabBarClearance } from '../../src/lib/tabBarClearance';
 import { colors } from '../../src/theme/colors';
 
 // Containers screen (Portainer) - Containers/Stacks swipeable tabs, mirroring
@@ -89,6 +90,7 @@ export default function ContainersScreen() {
   const { width } = useWindowDimensions();
   const columns = useColumns();
   const scrollRef = useRef<ScrollView>(null);
+  const tabBarClearance = useTabBarClearance();
   const scrollX = useRef(new Animated.Value(0)).current;
 
   const [containers, setContainers] = useState<PortainerContainer[]>([]);
@@ -306,7 +308,7 @@ export default function ContainersScreen() {
             data={chunkedContainers}
             keyExtractor={(row) => row.map((c) => c.Id).join('-')}
             refreshControl={<RefreshControl tintColor={colors.portainer} refreshing={loadingContainers} onRefresh={loadContainers} />}
-            contentContainerStyle={filteredContainers.length === 0 ? styles.emptyContainer : styles.list}
+            contentContainerStyle={[filteredContainers.length === 0 ? styles.emptyContainer : styles.list, { paddingBottom: tabBarClearance }]}
             ListEmptyComponent={
               !loadingContainers ? (
                 <Text style={styles.empty}>{error ?? (search ? `No containers match "${search}".` : 'No containers found.')}</Text>
@@ -351,7 +353,7 @@ export default function ContainersScreen() {
             data={chunkedStacks}
             keyExtractor={(row) => row.map((s) => s.Id).join('-')}
             refreshControl={<RefreshControl tintColor={colors.portainer} refreshing={loadingStacks} onRefresh={loadStacks} />}
-            contentContainerStyle={filteredStacks.length === 0 ? styles.emptyContainer : styles.list}
+            contentContainerStyle={[filteredStacks.length === 0 ? styles.emptyContainer : styles.list, { paddingBottom: tabBarClearance }]}
             ListEmptyComponent={
               !loadingStacks ? (
                 <Text style={styles.empty}>{search ? `No stacks match "${search}".` : 'No stacks found.'}</Text>
