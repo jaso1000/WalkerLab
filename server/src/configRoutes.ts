@@ -8,20 +8,24 @@ import { Router } from 'express';
 import {
   deleteProfileData,
   getActiveProfileId,
+  getNavigationStyle,
   getSectionNameOverrides,
   getServiceConfig,
   getServiceEnabledOverrides,
   getStartupScreen,
+  getTabOrder,
   getProfiles,
   setActiveProfileId,
+  setNavigationStyle,
   setProfiles,
   setSectionNameOverrides,
   setServiceConfig,
   setServiceEnabledOverrides,
   setStartupScreen,
+  setTabOrder,
   clearServiceConfig,
 } from './store';
-import { isServiceName, Profile, SectionId, ServiceConfig, ServiceName, StartupSectionId } from './types';
+import { isServiceName, NavigationStyle, Profile, SectionId, ServiceConfig, ServiceName, StartupSectionId } from './types';
 
 export const configRouter = Router();
 
@@ -177,5 +181,33 @@ configRouter.put('/startup-screen/:profileId', (req, res) => {
     return;
   }
   setStartupScreen(req.params.profileId, id);
+  res.json({ ok: true });
+});
+
+configRouter.get('/navigation-style/:profileId', (req, res) => {
+  res.json({ style: getNavigationStyle(req.params.profileId) ?? null });
+});
+
+configRouter.put('/navigation-style/:profileId', (req, res) => {
+  const style = req.body?.style as NavigationStyle | undefined;
+  if (!style) {
+    res.status(400).json({ error: 'style is required.' });
+    return;
+  }
+  setNavigationStyle(req.params.profileId, style);
+  res.json({ ok: true });
+});
+
+configRouter.get('/tab-order/:profileId', (req, res) => {
+  res.json({ order: getTabOrder(req.params.profileId) ?? null });
+});
+
+configRouter.put('/tab-order/:profileId', (req, res) => {
+  const order = req.body?.order as StartupSectionId[] | undefined;
+  if (!Array.isArray(order)) {
+    res.status(400).json({ error: 'order (array) is required.' });
+    return;
+  }
+  setTabOrder(req.params.profileId, order);
   res.json({ ok: true });
 });

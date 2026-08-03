@@ -9,8 +9,10 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { BackHandler, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { ChangePasswordModal } from '../../src/components/ChangePasswordModal';
+import { SelectRow } from '../../src/components/SelectRow';
 import { useProfiles } from '../../src/context/ProfilesContext';
 import { useServiceEnabled } from '../../src/context/ServiceEnabledContext';
+import { DEFAULT_NAVIGATION_STYLE, getNavigationStyle, NavigationStyle } from '../../src/lib/navigationStyle';
 import { SERVICE_META } from '../../src/lib/serviceMeta';
 import { DEFAULT_STARTUP_SCREEN, getStartupScreen, StartupSectionId } from '../../src/lib/startupScreen';
 import { colors } from '../../src/theme/colors';
@@ -20,6 +22,7 @@ export default function SettingsScreen() {
   const { activeProfileId } = useProfiles();
   const { isEnabled, setEnabled } = useServiceEnabled();
   const [startupId, setStartupId] = useState<StartupSectionId>(DEFAULT_STARTUP_SCREEN);
+  const [navStyle, setNavStyle] = useState<NavigationStyle>(DEFAULT_NAVIGATION_STYLE);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
 
   // Re-reads on every focus (not just once) since navigating back from a
@@ -31,14 +34,27 @@ export default function SettingsScreen() {
     }, [activeProfileId])
   );
 
+  // Same reasoning - reflects a change made on Settings > Navigation
+  // immediately on returning here.
   useFocusEffect(
     useCallback(() => {
+      getNavigationStyle(activeProfileId).then(setNavStyle);
+    }, [activeProfileId])
+  );
+
+  // Only meaningful in Drawer mode - there's no drawer to open in Tabs
+  // mode, so don't attach the listener at all there (leaving it attached
+  // but always `return true`ing would make hardware back dead on this
+  // screen under Tabs).
+  useFocusEffect(
+    useCallback(() => {
+      if (navStyle !== 'drawer') return;
       const sub = BackHandler.addEventListener('hardwareBackPress', () => {
         navigation.dispatch(DrawerActions.openDrawer());
         return true;
       });
       return () => sub.remove();
-    }, [navigation])
+    }, [navigation, navStyle])
   );
 
   return (
@@ -80,6 +96,15 @@ export default function SettingsScreen() {
       </View>
       <Text style={styles.hint}>Turning a service off hides its section from the hamburger menu.</Text>
 
+      <Text style={styles.groupLabel}>NAVIGATION</Text>
+      <View style={styles.navCard}>
+        <SelectRow
+          label="Navigation Style"
+          value={navStyle === 'tabs' ? 'Bottom Tabs' : 'Side Drawer'}
+          onPress={() => router.push('/settings/navigation')}
+        />
+      </View>
+
       {Platform.OS === 'web' ? (
         <>
           <Text style={styles.groupLabel}>ACCOUNT</Text>
@@ -114,6 +139,11 @@ const styles = StyleSheet.create({
     marginBottom: -2,
   },
   list: { backgroundColor: colors.surface, borderRadius: 14, overflow: 'hidden' },
+  // Unlike `list` above (whose SERVICES rows manage their own edge padding
+  // so the full-width divider border isn't cut short), SelectRow expects
+  // its container to supply horizontal padding - see movie/add.tsx's
+  // `card` style for the same convention.
+  navCard: { backgroundColor: colors.surface, borderRadius: 14, paddingHorizontal: 16 },
   row: { flexDirection: 'row', alignItems: 'center' },
   rowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   rowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingLeft: 16 },

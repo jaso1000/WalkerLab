@@ -1,0 +1,54 @@
+// Canonical per-section icon/tint/route data - the single source of truth
+// both the side Drawer and the bottom Tabs bar build their nav items from.
+// Previously this same {icon, tint, href} data was hardcoded independently
+// in both `DrawerContent.tsx` (a local `ITEMS` array) and
+// `app/(drawer)/_layout.tsx` (inline per-`<Drawer.Screen>` literals) - two
+// copies that had to be kept in sync by hand. `src/lib/serviceMeta.ts` is a
+// deliberately separate, NOT-duplicate concern: it's keyed by `ServiceName`
+// (not `SectionId`, and includes services with no section at all, like
+// OMDb), and intentionally uses outline icon variants for the Settings
+// "SERVICES" list's different visual context - don't fold it into this file.
+import { Ionicons } from '@expo/vector-icons';
+import { SectionId } from './sectionNames';
+import { colors } from '../theme/colors';
+
+export interface SectionMeta {
+  icon: keyof typeof Ionicons.glyphMap;
+  // Settings has no per-section accent color (its rows use the neutral
+  // colors.textSecondary throughout), unlike every real nav section.
+  tint?: string;
+  href: string;
+  // The file-based route segment used as `Drawer.Screen`/`Tabs.Screen`'s
+  // `name` prop - not always the same as the section id (tvShows -> index,
+  // requests -> overseerr, stats -> tautulli, since those route to
+  // Sonarr/Overseerr/Tautulli-named files, not section-named ones).
+  screenName: string;
+}
+
+export const SECTION_META: Record<SectionId, SectionMeta> = {
+  discover: { icon: 'compass', tint: colors.sectionGreen, href: '/discover', screenName: 'discover' },
+  tvShows: { icon: 'tv', tint: colors.sonarr, href: '/', screenName: 'index' },
+  movies: { icon: 'film', tint: colors.accent, href: '/movies', screenName: 'movies' },
+  downloads: { icon: 'download', tint: colors.sabnzbd, href: '/downloads', screenName: 'downloads' },
+  torrents: { icon: 'swap-vertical', tint: colors.qbittorrent, href: '/torrents', screenName: 'torrents' },
+  requests: { icon: 'list', tint: colors.overseerr, href: '/overseerr', screenName: 'overseerr' },
+  stats: { icon: 'stats-chart', tint: colors.tautulli, href: '/tautulli', screenName: 'tautulli' },
+  containers: { icon: 'cube', tint: colors.portainer, href: '/containers', screenName: 'containers' },
+  settings: { icon: 'settings-outline', href: '/settings', screenName: 'settings' },
+};
+
+// Default/fallback full display order (Settings always last) - used as the
+// starting point for the user-configurable tab order (see
+// `src/lib/tabOrder.ts`) and anywhere a canonical "all sections" list is
+// needed before any per-profile preference has loaded.
+export const SECTION_ORDER: SectionId[] = [
+  'discover',
+  'tvShows',
+  'movies',
+  'downloads',
+  'torrents',
+  'requests',
+  'stats',
+  'containers',
+  'settings',
+];
