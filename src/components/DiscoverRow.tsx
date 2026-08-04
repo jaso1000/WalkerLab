@@ -3,7 +3,23 @@
 // tappable "See All ›" title that opens the full infinite-scroll grid.
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+// This row is horizontal and lives inside Discover's own outer horizontal
+// swipeable tab pager (see app/discover.tsx) - a plain react-native
+// ScrollView here loses the gesture-capture race to that outer pager on
+// native (Android/iOS's touch responder system just hands a same-direction
+// drag to whichever scrollable claims it first, which is the outer one),
+// so dragging over a row switched tabs instead of scrolling it. Confirmed
+// this only broke on the APK, never web - react-native-web compiles both
+// to real DOM scroll containers, and the browser's own hit-testing already
+// negotiates nested scrollables correctly there. react-native-gesture-
+// handler's ScrollView (the app already depends on it at the root via
+// GestureHandlerRootView in app/_layout.tsx) participates in the same
+// gesture-arbitration system the outer pager's pan gesture does, so it
+// claims the drag while active over its own content and only defers at its
+// own scroll bounds - the standard fix for a horizontal carousel nested
+// inside a horizontally-swiping screen.
+import { ScrollView } from 'react-native-gesture-handler';
 import { MediaKind } from '../lib/discoverCategories';
 import { colors } from '../theme/colors';
 
