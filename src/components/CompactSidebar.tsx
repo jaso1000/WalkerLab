@@ -51,7 +51,7 @@ export function CompactSidebar({ order, onExpand }: { order: StartupSectionId[];
           const active = isSectionActive(pathname, item.href, item.activePrefixes);
           return (
             <TouchableOpacity key={item.href} style={styles.iconButton} onPress={() => router.push(item.href as never)}>
-              <View style={[styles.iconCircle, active && { backgroundColor: `${item.tint}26` }]}>
+              <View style={[styles.iconCircle, active ? { backgroundColor: `${item.tint}26` } : null]}>
                 <Ionicons name={item.icon} size={20} color={active ? item.tint : colors.textSecondary} />
               </View>
             </TouchableOpacity>
@@ -108,6 +108,14 @@ const styles = StyleSheet.create({
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border, width: '100%' },
   list: { paddingTop: 12, paddingBottom: 12, gap: 8, alignItems: 'center' },
   iconButton: { padding: 2 },
-  iconCircle: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  // `overflow: 'hidden'` is a defensive Android-specific fix: without it,
+  // the active-tint background rendered as a square instead of a circle on
+  // the APK (never reproduced on web) - a known react-native-on-Android
+  // quirk where a conditionally-merged style array's `borderRadius` doesn't
+  // reliably clip a later-merged `backgroundColor` without an explicit
+  // clip boundary, even though the same borderRadius/backgroundColor combo
+  // already renders fine elsewhere in this app when applied unconditionally
+  // in one flat object (e.g. discover.tsx's quickAddButton).
+  iconCircle: { width: 40, height: 40, borderRadius: 20, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   footer: { paddingTop: 12, paddingBottom: 8, gap: 8, alignItems: 'center' },
 });
