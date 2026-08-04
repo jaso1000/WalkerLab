@@ -397,7 +397,7 @@ export default function DownloadsScreen() {
         </View>
       </Animated.ScrollView>
 
-      <View style={styles.pauseBar}>
+      <View style={[styles.pauseBar, { bottom: 16 + tabBarClearance }]}>
         <TouchableOpacity style={styles.pauseButton} onPress={togglePause} disabled={busy}>
           <Ionicons name={paused ? 'play' : 'pause'} size={28} color="#1A1300" />
         </TouchableOpacity>
@@ -457,7 +457,10 @@ const styles = StyleSheet.create({
   failMessage: { color: colors.danger, fontSize: 12, marginTop: 8 },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textSecondary },
   emptyContainer: { flexGrow: 1, justifyContent: 'center' },
-  pauseBar: { position: 'absolute', left: 0, right: 0, bottom: 16, alignItems: 'center' },
+  // `bottom` is set inline (base 16px inset, plus tabBarClearance when the
+  // floating pill is showing at phone width) rather than here - otherwise
+  // this button sits right where the pill overlays the screen.
+  pauseBar: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   pauseButton: {
     width: 64,
     height: 64,
