@@ -13,6 +13,7 @@
 // preference was removed rather than kept alongside this.
 import { useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { BlurTargetView } from 'expo-blur';
 import { router } from 'expo-router';
 import { ActionSheet, ActionSheetOption } from './ActionSheet';
 import { FloatingPill, FLOATING_PILL_BOTTOM, FLOATING_PILL_HEIGHT } from './FloatingPill';
@@ -43,6 +44,13 @@ export function AdaptiveNav({ children }: { children: React.ReactNode }) {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const tier = navTierForWidth(width);
+  // Real Android blur (expo-blur's BlurView) needs an explicit ref to the
+  // content sitting behind it to blur - see FloatingPill.tsx, the only
+  // consumer. iOS/web don't need this (their blur just reads whatever's
+  // compositing behind the view directly), but wrapping unconditionally
+  // keeps this simple rather than only mounting BlurTargetView on the
+  // phone tier where the pill actually renders.
+  const contentBlurTarget = useRef<View>(null);
 
   // A live resize (web) crossing a breakpoint away from tabletMedium
   // shouldn't leave the overlay stuck "open" for next time that tier is
@@ -120,8 +128,12 @@ export function AdaptiveNav({ children }: { children: React.ReactNode }) {
         <View style={styles.root}>
           {tier === 'tabletLarge' ? <Sidebar order={enabledOrder} /> : null}
           <View style={styles.content}>
-            {children}
-            {tier === 'phone' && order ? <FloatingPill primaryIds={primaryIds} onMorePress={() => setMoreSheetOpen(true)} /> : null}
+            <BlurTargetView ref={contentBlurTarget} style={styles.contentInner}>
+              {children}
+            </BlurTargetView>
+            {tier === 'phone' && order ? (
+              <FloatingPill primaryIds={primaryIds} onMorePress={() => setMoreSheetOpen(true)} blurTargetRef={contentBlurTarget} />
+            ) : null}
           </View>
           {tier === 'tabletMedium' ? (
             <SidebarOverlay visible={sidebarOpen} order={enabledOrder} onClose={() => setSidebarOpen(false)} />
@@ -147,4 +159,5 @@ const styles = StyleSheet.create({
   // just insufficient on their own, since the container one level up was
   // never actually constrained in the first place.
   content: { flex: 1, minWidth: 0 },
+  contentInner: { flex: 1 },
 });

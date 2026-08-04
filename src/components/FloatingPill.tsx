@@ -11,8 +11,10 @@
 // and being a real navigator meant it could only ever render around the 9
 // screens registered inside it, never any of the app's other screens.
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { router, usePathname } from 'expo-router';
-import { Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { RefObject } from 'react';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { isSectionActive } from '../lib/activeSection';
 import { SECTION_META } from '../lib/sectionMeta';
 import { StartupSectionId } from '../lib/startupScreen';
@@ -22,15 +24,35 @@ export const FLOATING_PILL_HEIGHT = 64;
 export const FLOATING_PILL_BOTTOM = 16;
 const FLOATING_PILL_SIDE = 16;
 
-// backdropFilter isn't a typed React Native style property (native platforms
-// have no concept of it) - only merged into `inner`'s style on web, below.
-const webBlurStyle: any = { backdropFilter: 'blur(20px)' };
-
-export function FloatingPill({ primaryIds, onMorePress }: { primaryIds: StartupSectionId[]; onMorePress: () => void }) {
+export function FloatingPill({
+  primaryIds,
+  onMorePress,
+  blurTargetRef,
+}: {
+  primaryIds: StartupSectionId[];
+  onMorePress: () => void;
+  // Only actually consumed on Android (BlurView's `blurTarget` prop) - real
+  // blur there requires an explicit ref to the content sitting behind it
+  // (see AdaptiveNav.tsx's BlurTargetView, the only thing this ref ever
+  // points at). iOS/web blur whatever's compositing behind the view
+  // directly and just ignore this prop.
+  blurTargetRef: RefObject<View | null>;
+}) {
   const pathname = usePathname();
   return (
     <View style={styles.pill} pointerEvents="box-none">
-      <View style={[styles.inner, Platform.OS === 'web' && webBlurStyle]}>
+      <BlurView
+        blurTarget={blurTargetRef}
+        blurMethod="dimezisBlurView"
+        intensity={60}
+        tint="dark"
+        style={styles.inner}
+      >
+        {/* BlurView's own `tint` is a generic light/dark enum, not our exact
+            brand color - this overlay guarantees the same rgba look on top
+            of the blur (or as a plain translucent fallback if real blur
+            isn't available) across every platform. */}
+        <View style={styles.tintOverlay} pointerEvents="none" />
         {primaryIds.map((id) => {
           const meta = SECTION_META[id];
           const active = isSectionActive(pathname, meta.href);
@@ -43,7 +65,7 @@ export function FloatingPill({ primaryIds, onMorePress }: { primaryIds: StartupS
         <TouchableOpacity style={styles.item} onPress={onMorePress}>
           <Ionicons name="ellipsis-horizontal" size={24} color={colors.textSecondary} />
         </TouchableOpacity>
-      </View>
+      </BlurView>
     </View>
   );
 }
@@ -53,24 +75,31 @@ const styles = StyleSheet.create({
   // its own layout space, which is what lets content run edge to edge and
   // stay visible in the margins around the pill - `pointerEvents: 'box-none'`
   // so the transparent margin area doesn't swallow touches meant for
-  // whatever's rendered underneath it.
+  // whatever's rendered underneath it. Shadow lives here (not on `inner`)
+  // since `inner` needs `overflow: 'hidden'` to clip the blur to its own
+  // rounded corners, which would otherwise clip the shadow too.
   pill: {
     position: 'absolute',
     left: FLOATING_PILL_SIDE,
     right: FLOATING_PILL_SIDE,
     bottom: FLOATING_PILL_BOTTOM,
     height: FLOATING_PILL_HEIGHT,
-  },
-  inner: {
-    flex: 1,
-    flexDirection: 'row',
-    backgroundColor: colors.surfaceGlass,
     borderRadius: FLOATING_PILL_HEIGHT / 2,
     elevation: 8,
     shadowColor: '#000',
     shadowOpacity: 0.3,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
+  },
+  inner: {
+    flex: 1,
+    flexDirection: 'row',
+    borderRadius: FLOATING_PILL_HEIGHT / 2,
+    overflow: 'hidden',
+  },
+  tintOverlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: colors.surfaceGlass,
   },
   item: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });
