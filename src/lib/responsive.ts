@@ -1,11 +1,12 @@
 import { useWindowDimensions } from 'react-native';
-import { SIDEBAR_WIDTH, useNavChrome } from './navChrome';
+import { useNavChrome } from './navChrome';
 
-// Actual available content width - full window width, minus the pinned
-// sidebar's reserved width at the tabletLarge nav tier (a permanent flex-row
-// sibling of content). The tabletMedium tier's sidebar is an absolutely-
-// positioned overlay (see SidebarOverlay.tsx) that never reduces content's
-// real width, so content width equals the full window there, same as phone.
+// Actual available content width - full window width, minus whichever nav
+// rail is currently pinned and reserving real layout space (NavChrome's own
+// `sidebarWidth` - see navChrome.ts for exactly what that resolves to per
+// tier, including the tabletMedium tier's own compact-vs-expanded toggle).
+// Phone width's FloatingPill is absolutely positioned and reserves nothing,
+// so sidebarWidth is 0 there and content width equals the full window.
 //
 // Every screen with a swipeable tab pager (movies.tsx, index.tsx,
 // downloads.tsx, torrents.tsx, overseerr.tsx, tautulli.tsx, containers.tsx,
@@ -21,8 +22,8 @@ import { SIDEBAR_WIDTH, useNavChrome } from './navChrome';
 // were still wrong regardless of how many columns were chosen to fill it.
 export function useContentWidth(): number {
   const { width } = useWindowDimensions();
-  const { tier } = useNavChrome();
-  return tier === 'tabletLarge' ? width - SIDEBAR_WIDTH : width;
+  const { sidebarWidth } = useNavChrome();
+  return width - sidebarWidth;
 }
 
 // Discover's grids (numColumns on a plain FlatList) already scale well across

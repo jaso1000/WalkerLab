@@ -1,14 +1,18 @@
 // Persistent app navigation, rendered once in the root layout around every
 // screen (see app/_layout.tsx) - so unlike the Drawer/Tabs navigator this
 // replaced, it's mounted for the whole app's lifetime, not just for the 9
-// top-level sections. Screen width alone decides the layout, matching
-// Seerr's own web app (checked their actual source for this - Layout/
-// Sidebar/MobileMenu - which uses Tailwind's default 640/1024 breakpoints,
-// see src/lib/navChrome.ts): phone width gets the floating pill bar
-// overlaying content; medium tablet width gets an off-canvas sidebar toggled
-// from each top-level screen's header (SidebarMenuButton); large tablet
-// width and up gets an always-visible side panel with content pushed over to
-// make room. There is no user-facing choice between these anymore - see
+// top-level sections. Screen width alone decides the layout (see
+// src/lib/navChrome.ts for the exact breakpoints): phone width gets the
+// floating pill bar overlaying content; both tablet tiers get a persistent
+// sidebar that toggles between the full labeled Sidebar and the narrower
+// icon-only CompactSidebar via each component's own expand/collapse button
+// - defaulting to compact at tabletMedium (there's less room to spare) and
+// expanded at tabletLarge (there's plenty), but the user can flip either one
+// at will. Nothing is ever fully hidden/off-canvas at either tier (an
+// earlier version used an off-canvas sidebar at medium width, matching
+// Seerr's own web app, but the user asked for something persistent there
+// instead, closer to a reference "compact icon rail" screenshot they
+// shared). There is no OTHER user-facing choice between tiers - see
 // PLAN.md's "Current status" for why the old per-profile Drawer/Tabs
 // preference was removed rather than kept alongside this.
 import { useEffect, useRef, useState } from 'react';
@@ -16,15 +20,15 @@ import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { BlurTargetView } from 'expo-blur';
 import { router } from 'expo-router';
 import { ActionSheet, ActionSheetOption } from './ActionSheet';
+import { CompactSidebar } from './CompactSidebar';
 import { FloatingPill, FLOATING_PILL_BOTTOM, FLOATING_PILL_HEIGHT } from './FloatingPill';
 import { ProfileSwitcher } from './ProfileSwitcher';
 import { Sidebar } from './Sidebar';
-import { SidebarOverlay } from './SidebarOverlay';
 import { useAuth } from '../context/AuthContext';
 import { useProfiles } from '../context/ProfilesContext';
 import { useSectionNames } from '../context/SectionNamesContext';
 import { useServiceEnabled } from '../context/ServiceEnabledContext';
-import { NavChrome, NavChromeContext, navTierForWidth } from '../lib/navChrome';
+import { COMPACT_SIDEBAR_WIDTH, NavChrome, NavChromeContext, navTierForWidth, SIDEBAR_WIDTH } from '../lib/navChrome';
 import { SECTION_META } from '../lib/sectionMeta';
 import { serviceForSection } from '../lib/serviceMeta';
 import { StartupSectionId } from '../lib/startupScreen';
@@ -42,8 +46,22 @@ export function AdaptiveNav({ children }: { children: React.ReactNode }) {
   const orderResolvedRef = useRef(false);
   const [moreSheetOpen, setMoreSheetOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const tier = navTierForWidth(width);
+  // Only meaningful at the two tablet tiers (phone never renders either
+  // Sidebar variant) - lets the user toggle between the full labeled
+  // Sidebar and the narrower icon-only CompactSidebar via each component's
+  // own button. Defaults differ per tier: compact at tabletMedium (less
+  // room to spare), expanded at tabletLarge (plenty of room) - the lazy
+  // initializer reads `tier` directly so the very first render already
+  // picks the right default instead of a wrong one flashing before an
+  // effect corrects it. Resets to that tier's own default whenever the
+  // tier itself changes (a live resize crossing 640/1024), so resizing
+  // away and back always starts fresh rather than an odd remembered state
+  // from a completely different width.
+  const [sidebarExpanded, setSidebarExpanded] = useState(() => tier === 'tabletLarge');
+  useEffect(() => {
+    setSidebarExpanded(tier === 'tabletLarge');
+  }, [tier]);
   // Real Android blur (expo-blur's BlurView) needs an explicit ref to the
   // content sitting behind it to blur - see FloatingPill.tsx, the only
   // consumer. iOS/web don't need this (their blur just reads whatever's
@@ -51,13 +69,6 @@ export function AdaptiveNav({ children }: { children: React.ReactNode }) {
   // keeps this simple rather than only mounting BlurTargetView on the
   // phone tier where the pill actually renders.
   const contentBlurTarget = useRef<View>(null);
-
-  // A live resize (web) crossing a breakpoint away from tabletMedium
-  // shouldn't leave the overlay stuck "open" for next time that tier is
-  // re-entered.
-  useEffect(() => {
-    setSidebarOpen(false);
-  }, [tier]);
 
   // Resolves once per app launch (not on every later profile switch) - a
   // failed lookup still falls back to the default order rather than
@@ -115,18 +126,20 @@ export function AdaptiveNav({ children }: { children: React.ReactNode }) {
   // there's nothing yet to clear.
   const clearance = tier === 'phone' && order ? FLOATING_PILL_HEIGHT + FLOATING_PILL_BOTTOM + FLOATING_BAR_GAP : 0;
 
-  const navChrome: NavChrome = {
-    tier,
-    sidebarOpen,
-    openSidebar: () => setSidebarOpen(true),
-    closeSidebar: () => setSidebarOpen(false),
-  };
+  const sidebarWidth = tier === 'phone' ? 0 : sidebarExpanded ? SIDEBAR_WIDTH : COMPACT_SIDEBAR_WIDTH;
+  const navChrome: NavChrome = { tier, sidebarWidth };
 
   return (
     <NavChromeContext.Provider value={navChrome}>
       <TabBarClearanceContext.Provider value={clearance}>
         <View style={styles.root}>
-          {tier === 'tabletLarge' ? <Sidebar order={enabledOrder} /> : null}
+          {tier !== 'phone' ? (
+            sidebarExpanded ? (
+              <Sidebar order={enabledOrder} onCollapse={() => setSidebarExpanded(false)} />
+            ) : (
+              <CompactSidebar order={enabledOrder} onExpand={() => setSidebarExpanded(true)} />
+            )
+          ) : null}
           <View style={styles.content}>
             <BlurTargetView ref={contentBlurTarget} style={styles.contentInner}>
               {children}
@@ -135,9 +148,6 @@ export function AdaptiveNav({ children }: { children: React.ReactNode }) {
               <FloatingPill primaryIds={primaryIds} onMorePress={() => setMoreSheetOpen(true)} blurTargetRef={contentBlurTarget} />
             ) : null}
           </View>
-          {tier === 'tabletMedium' ? (
-            <SidebarOverlay visible={sidebarOpen} order={enabledOrder} onClose={() => setSidebarOpen(false)} />
-          ) : null}
         </View>
         <ActionSheet visible={moreSheetOpen} title="More" options={moreSheetOptions} onClose={() => setMoreSheetOpen(false)} />
         <ProfileSwitcher visible={profileMenuOpen} onClose={() => setProfileMenuOpen(false)} />

@@ -55,7 +55,7 @@ export function FloatingPill({
         <View style={styles.tintOverlay} pointerEvents="none" />
         {primaryIds.map((id) => {
           const meta = SECTION_META[id];
-          const active = isSectionActive(pathname, meta.href);
+          const active = isSectionActive(pathname, meta.href, meta.activePrefixes);
           return (
             <TouchableOpacity key={id} style={styles.item} onPress={() => router.push(meta.href as never)}>
               <Ionicons name={meta.icon} size={24} color={active ? meta.tint : colors.textSecondary} />

@@ -9,7 +9,6 @@ import { useCallback, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { ChangePasswordModal } from '../src/components/ChangePasswordModal';
 import { HeaderTitle } from '../src/components/HeaderTitle';
-import { SidebarMenuButton } from '../src/components/SidebarMenuButton';
 import { SelectRow } from '../src/components/SelectRow';
 import { useProfiles } from '../src/context/ProfilesContext';
 import { useSectionNames } from '../src/context/SectionNamesContext';
@@ -46,7 +45,6 @@ export default function SettingsScreen() {
         headerShadowVisible: false,
         headerTintColor: colors.textPrimary,
         headerTitleAlign: 'left',
-        headerLeft: () => <SidebarMenuButton />,
         headerTitle: () => <HeaderTitle icon={SECTION_META.settings.icon} title={names.settings} />,
       }}
     />

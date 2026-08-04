@@ -31,7 +31,6 @@ import { formatDate } from '../src/lib/format';
 import { chunk, useColumns, useContentWidth } from '../src/lib/responsive';
 import { useTabBarClearance } from '../src/lib/tabBarClearance';
 import { HeaderTitle } from '../src/components/HeaderTitle';
-import { SidebarMenuButton } from '../src/components/SidebarMenuButton';
 import { SECTION_META } from '../src/lib/sectionMeta';
 import { colors } from '../src/theme/colors';
 
@@ -388,7 +387,6 @@ export default function OverseerrScreen() {
           headerShadowVisible: false,
           headerTintColor: colors.textPrimary,
           headerTitleAlign: 'left',
-          headerLeft: () => <SidebarMenuButton />,
           headerTitle: () => <HeaderTitle icon={SECTION_META.requests.icon} tint={SECTION_META.requests.tint} title={names.requests} />,
         }}
       />

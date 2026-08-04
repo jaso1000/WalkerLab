@@ -39,7 +39,6 @@ import { confirmContainerAction, containerActionDefs, PortainerAction, runContai
 import { chunk, useColumns, useContentWidth } from '../src/lib/responsive';
 import { useTabBarClearance } from '../src/lib/tabBarClearance';
 import { HeaderTitle } from '../src/components/HeaderTitle';
-import { SidebarMenuButton } from '../src/components/SidebarMenuButton';
 import { SECTION_META } from '../src/lib/sectionMeta';
 import { colors } from '../src/theme/colors';
 
@@ -240,7 +239,6 @@ export default function ContainersScreen() {
           headerShadowVisible: false,
           headerTintColor: colors.textPrimary,
           headerTitleAlign: 'left',
-          headerLeft: () => <SidebarMenuButton />,
           headerTitle: () => <HeaderTitle icon={SECTION_META.containers.icon} tint={SECTION_META.containers.tint} title={names.containers} />,
         }}
       />

@@ -1,9 +1,12 @@
-// Always-visible left navigation panel shown at tablet width and up (see
-// src/components/AdaptiveNav.tsx) - phone width gets the floating pill bar
-// instead (src/components/FloatingPill.tsx). Unlike the old hamburger
-// Drawer this replaced, there's no open/close state at all: it's a plain,
-// permanently-mounted column, so navigating just does a normal
-// `router.push()` with no "close" step.
+// The "expanded" (full labeled) state of either tablet tier's persistent
+// sidebar (see src/components/AdaptiveNav.tsx) - tabletLarge defaults here,
+// tabletMedium defaults to the narrower icon-only CompactSidebar instead but
+// can toggle into this via its own expand button. No open/close *overlay*
+// state at all - it's a plain, permanently-mounted column, so navigating
+// just does a normal `router.push()` with no "close" step. `onCollapse` is
+// always passed by AdaptiveNav now (both tiers can collapse to
+// CompactSidebar); it's still typed optional in case a future caller ever
+// wants this rendered with no collapse affordance at all.
 import { Image } from 'expo-image';
 import { router, usePathname } from 'expo-router';
 import { useState } from 'react';
@@ -22,25 +25,8 @@ import { colors } from '../theme/colors';
 
 // `order` is the caller's already-resolved (per-profile, already
 // enabled-service-filtered) list of non-Settings sections to show, in the
-// user's chosen order - see `src/lib/tabOrder.ts`. `onNavigate`/`onClose`/
-// `fullWidth` are only used by the off-canvas overlay variant
-// (SidebarOverlay.tsx, tabletMedium nav tier) - all left undefined by the
-// pinned/tabletLarge caller, which has nothing to close and always renders
-// at the fixed `SIDEBAR_WIDTH`. `onNavigate` closes the overlay after a real
-// navigation; `onClose` (when provided) renders an explicit close button in
-// the header, since the overlay covers the full screen at `fullWidth` -
-// there's no backdrop area left to tap to dismiss it.
-export function Sidebar({
-  order,
-  onNavigate,
-  onClose,
-  fullWidth,
-}: {
-  order: StartupSectionId[];
-  onNavigate?: () => void;
-  onClose?: () => void;
-  fullWidth?: boolean;
-}) {
+// user's chosen order - see `src/lib/tabOrder.ts`.
+export function Sidebar({ order, onCollapse }: { order: StartupSectionId[]; onCollapse?: () => void }) {
   const pathname = usePathname();
   const { names } = useSectionNames();
   const { activeProfile } = useProfiles();
@@ -50,7 +36,7 @@ export function Sidebar({
   const visibleItems = order.map((sectionId) => ({ sectionId, ...SECTION_META[sectionId] }));
 
   return (
-    <SafeAreaView style={[styles.container, fullWidth && styles.containerFullWidth]} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <View style={styles.headerBrand}>
           <Image source={require('../../assets/walkerlab-icon.png')} style={styles.logoIcon} />
@@ -59,9 +45,9 @@ export function Sidebar({
             <Text style={styles.logoAccent}>Lab</Text>
           </Text>
         </View>
-        {onClose ? (
-          <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="close" size={26} color={colors.textSecondary} />
+        {onCollapse ? (
+          <TouchableOpacity onPress={onCollapse} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="chevron-back" size={22} color={colors.textSecondary} />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -69,15 +55,12 @@ export function Sidebar({
 
       <ScrollView contentContainerStyle={styles.list}>
         {visibleItems.map((item) => {
-          const active = isSectionActive(pathname, item.href);
+          const active = isSectionActive(pathname, item.href, item.activePrefixes);
           return (
             <TouchableOpacity
               key={item.href}
               style={[styles.row, active && { backgroundColor: `${item.tint}26` }]}
-              onPress={() => {
-                router.push(item.href as never);
-                onNavigate?.();
-              }}
+              onPress={() => router.push(item.href as never)}
             >
               <View style={[styles.iconCircle, { backgroundColor: `${item.tint}26` }]}>
                 <Ionicons name={item.icon} size={18} color={item.tint} />
@@ -92,13 +75,7 @@ export function Sidebar({
 
       <View style={styles.footer}>
         <View style={styles.divider} />
-        <TouchableOpacity
-          style={styles.row}
-          onPress={() => {
-            router.push('/settings');
-            onNavigate?.();
-          }}
-        >
+        <TouchableOpacity style={styles.row} onPress={() => router.push('/settings')}>
           <View style={styles.iconCircle}>
             <Ionicons name={SECTION_META.settings.icon} size={18} color={colors.textSecondary} />
           </View>
@@ -130,22 +107,7 @@ export function Sidebar({
 }
 
 const styles = StyleSheet.create({
-  // `height: '100%'` matters for the off-canvas overlay case
-  // (SidebarOverlay.tsx): that panel is a column-flex absolutely-positioned
-  // box, where a child only auto-stretches along the CROSS axis (width),
-  // not the main axis (height) - so without an explicit height, Sidebar
-  // sized itself to its own content and left a gap below it instead of
-  // reaching the bottom of the screen. The pinned/tabletLarge case doesn't
-  // need this (it's a row-flex child, where cross-axis stretch already
-  // gives it full height for free) but doesn't regress from it either.
-  container: {
-    width: SIDEBAR_WIDTH,
-    height: '100%',
-    backgroundColor: colors.surface,
-    borderRightWidth: StyleSheet.hairlineWidth,
-    borderRightColor: colors.border,
-  },
-  containerFullWidth: { width: '100%', borderRightWidth: 0 },
+  container: { width: SIDEBAR_WIDTH, backgroundColor: colors.surface, borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: colors.border },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
