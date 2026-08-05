@@ -5,6 +5,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { formatBytes } from '../lib/format';
+import { useTabBarClearance } from '../lib/tabBarClearance';
 import { colors } from '../theme/colors';
 
 // One tappable action row (e.g. "Refresh All", "Search Missing").
@@ -48,9 +49,13 @@ export function ServerPanel({
   onRefresh: () => void;
   tint?: string;
 }) {
+  // Every other scrollable list in the app adds this so its last row clears
+  // the floating pill on phone width (see downloads.tsx/torrents.tsx etc.) -
+  // this screen was missing it, so the last action card sat underneath it.
+  const tabBarClearance = useTabBarClearance();
   return (
     <ScrollView
-      contentContainerStyle={styles.container}
+      contentContainerStyle={[styles.container, { paddingBottom: 16 + tabBarClearance }]}
       refreshControl={<RefreshControl tintColor={tint} refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <View style={styles.header}>

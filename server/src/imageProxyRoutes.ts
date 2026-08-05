@@ -22,7 +22,7 @@ imageProxyRouter.get('/:profileId/:service', async (req, res) => {
     res.status(501).json({ error: `Image proxying for "${service}" isn't implemented.` });
     return;
   }
-  const config = getServiceConfig(profileId, 'tautulli');
+  const config = getServiceConfig(req.userId!, profileId, 'tautulli');
   if (!config) {
     res.status(400).json({ error: 'Tautulli is not configured for this profile.' });
     return;

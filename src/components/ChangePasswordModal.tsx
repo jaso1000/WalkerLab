@@ -1,4 +1,5 @@
-// Web-only "change admin password" dialog, reached from Settings. Mirrors
+// Web-only "change your own password" dialog, reached from Settings -
+// changes whichever account is currently logged in, admin or not. Mirrors
 // PromptModal.tsx's dialog styling, but needs three fields (current/new/
 // confirm) rather than PromptModal's single-field shape, so it's its own
 // small component instead of a chain of PromptModal prompts.
@@ -40,7 +41,7 @@ export function ChangePasswordModal({ visible, onClose }: { visible: boolean; on
       await apiFetch('/api/auth/change-password', { method: 'POST', body: { currentPassword, newPassword } });
       reset();
       onClose();
-      alert('Password changed', 'Your admin password has been updated.');
+      alert('Password changed', 'Your password has been updated.');
     } catch (e) {
       alert('Failed to change password', e instanceof Error ? e.message : 'Unknown error');
     } finally {

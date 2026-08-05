@@ -7,7 +7,7 @@
 
 **Walk your stack with ease.**
 
-A cross-platform (iOS + Android + Docker/web) app for managing your home media server stack — Sonarr, Radarr, SABnzbd/NZBGet, qBittorrent, Overseerr, Tautulli, and Portainer — all in one place, plus a TMDB/OMDb-powered Discover tab for browsing and requesting new movies and shows. Supports multiple isolated server profiles with encrypted backup/restore, so one install can manage more than one stack. Self-hosted and single-admin by design — your credentials, your infrastructure, nothing routed through a third party.
+A cross-platform (iOS + Android + Docker/web) app for managing your home media server stack — Sonarr, Radarr, SABnzbd/NZBGet, qBittorrent, Overseerr, Tautulli, and Portainer — all in one place, plus a TMDB/OMDb-powered Discover tab for browsing and requesting new movies and shows. Supports multiple isolated server profiles with encrypted backup/restore, so one install can manage more than one stack. Self-hosted by design — your credentials, your infrastructure, nothing routed through a third party. The Docker/web build supports multiple user accounts too, each with their own independent set of profiles, managed by a single admin.
 
 ## Features
 
@@ -19,6 +19,7 @@ A cross-platform (iOS + Android + Docker/web) app for managing your home media s
 - **Containers** (Portainer) — start, stop, restart, or recreate any container in your Docker stack, right from the app.
 - **Server Profiles** — manage more than one server stack from a single install, each fully isolated, with encrypted backup and restore.
 - **Self-hosted web option** — run WalkerLab as its own Docker container with a secure admin login, so you can manage your stack remotely without exposing your other services directly to the internet.
+- **Multi-user (Docker/web)** — the admin can create additional accounts from Settings, each with their own completely independent set of Server Profiles on the same shared instance.
 
 ## Tech Stack
 
@@ -53,7 +54,7 @@ docker run -d \
   ghcr.io/jaso1000/walkerlab:latest
 ```
 
-Open the container's address in a browser — the first visit walks you through a setup wizard to create your admin account, then you configure each service under Settings, same as on mobile. Every credential is encrypted at rest server-side and never touches the browser directly. See [`docker-compose.yml`](docker-compose.yml) for optional environment variables (seeding an admin account, supplying your own encryption key).
+Open the container's address in a browser — the first visit walks you through a setup wizard to create your admin account, then you configure each service under Settings, same as on mobile. Every credential is encrypted at rest server-side and never touches the browser directly. From Settings > Manage Users, the admin can add accounts for anyone else who needs access — each one gets their own independent set of Server Profiles. See [`docker-compose.yml`](docker-compose.yml) for optional environment variables (seeding an admin account, supplying your own encryption key).
 
 ### Option 3: Build from source
 

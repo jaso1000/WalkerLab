@@ -11,6 +11,7 @@ import { ChangePasswordModal } from '../src/components/ChangePasswordModal';
 import { HeaderTitle } from '../src/components/HeaderTitle';
 import { SelectRow } from '../src/components/SelectRow';
 import { ThemedSwitch } from '../src/components/ThemedSwitch';
+import { useAuth } from '../src/context/AuthContext';
 import { useProfiles } from '../src/context/ProfilesContext';
 import { useSectionNames } from '../src/context/SectionNamesContext';
 import { useServiceEnabled } from '../src/context/ServiceEnabledContext';
@@ -23,6 +24,7 @@ import { colors } from '../src/theme/colors';
 export default function SettingsScreen() {
   const { names } = useSectionNames();
   const { activeProfileId } = useProfiles();
+  const { role } = useAuth();
   const { isEnabled, setEnabled } = useServiceEnabled();
   const [startupId, setStartupId] = useState<StartupSectionId>(DEFAULT_STARTUP_SCREEN);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
@@ -96,14 +98,28 @@ export default function SettingsScreen() {
         <>
           <Text style={styles.groupLabel}>ACCOUNT</Text>
           <View style={styles.list}>
-            <TouchableOpacity style={styles.rowMain} onPress={() => setChangePasswordOpen(true)}>
-              <View style={[styles.iconCircle, { backgroundColor: `${colors.brand}26` }]}>
-                <Ionicons name="key-outline" size={18} color={colors.brand} />
+            <View style={[styles.row, role === 'admin' && styles.rowDivider]}>
+              <TouchableOpacity style={styles.rowMain} onPress={() => setChangePasswordOpen(true)}>
+                <View style={[styles.iconCircle, { backgroundColor: `${colors.brand}26` }]}>
+                  <Ionicons name="key-outline" size={18} color={colors.brand} />
+                </View>
+                <View style={styles.rowTextGroup}>
+                  <Text style={styles.rowLabel}>Change Password</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+            {role === 'admin' ? (
+              <View style={styles.row}>
+                <TouchableOpacity style={styles.rowMain} onPress={() => router.push('/settings/users')}>
+                  <View style={[styles.iconCircle, { backgroundColor: `${colors.brand}26` }]}>
+                    <Ionicons name="people-outline" size={18} color={colors.brand} />
+                  </View>
+                  <View style={styles.rowTextGroup}>
+                    <Text style={styles.rowLabel}>Manage Users</Text>
+                  </View>
+                </TouchableOpacity>
               </View>
-              <View style={styles.rowTextGroup}>
-                <Text style={styles.rowLabel}>Change Password</Text>
-              </View>
-            </TouchableOpacity>
+            ) : null}
           </View>
         </>
       ) : null}

@@ -4,8 +4,10 @@
 // reverse-proxy setups). RN's networking layer maintains that cookie jar
 // implicitly, the same way a browser would; Node's built-in `fetch` has no
 // implicit cookie jar at all, so this keeps one explicitly, in memory, keyed
-// by profile id - re-logging in and retrying exactly once on a 401/403,
-// mirroring the client's own retry-once behavior precisely.
+// by `${userId}:${profileId}` (a profile id is only unique within one
+// user's own list, not globally across users) - re-logging in and retrying
+// exactly once on a 401/403, mirroring the client's own retry-once
+// behavior precisely.
 import { ProxyRequestBody, ServiceConfig } from '../types';
 
 interface CookieEntry {
@@ -31,7 +33,7 @@ function extractSidCookie(res: Response): string | undefined {
   return undefined;
 }
 
-async function login(profileId: string, config: ServiceConfig): Promise<void> {
+async function login(cacheKey: string, config: ServiceConfig): Promise<void> {
   const base = trimBase(config.baseUrl);
   const body = new URLSearchParams();
   body.set('username', config.username ?? '');
@@ -47,11 +49,11 @@ async function login(profileId: string, config: ServiceConfig): Promise<void> {
     throw new Error("qBittorrent login failed - check the username and password.");
   }
   const cookie = extractSidCookie(res);
-  if (cookie) cookieJar.set(profileId, { cookie });
+  if (cookie) cookieJar.set(cacheKey, { cookie });
 }
 
 export async function qbittorrentProxyRequest<T>(
-  profileId: string,
+  cacheKey: string,
   config: ServiceConfig,
   req: ProxyRequestBody
 ): Promise<T> {
@@ -64,7 +66,7 @@ export async function qbittorrentProxyRequest<T>(
   const doFetch = () => {
     const headers: Record<string, string> = { Referer: base };
     if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-    const stored = cookieJar.get(profileId);
+    const stored = cookieJar.get(cacheKey);
     if (stored) headers.Cookie = stored.cookie;
     if (req.form) headers['Content-Type'] = 'application/x-www-form-urlencoded';
     return fetch(url.toString(), {
@@ -76,7 +78,7 @@ export async function qbittorrentProxyRequest<T>(
 
   let res = await doFetch();
   if ((res.status === 403 || res.status === 401) && !apiKey && (config.username || config.password)) {
-    await login(profileId, config);
+    await login(cacheKey, config);
     res = await doFetch();
   }
 

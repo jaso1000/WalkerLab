@@ -1,7 +1,16 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { authState, changeAdminPassword, clearSession, createAdmin, issueSession, requireAuth, verifyAdminCredentials } from './auth';
-import { getAdmin } from './store';
+import {
+  authState,
+  changeOwnPassword,
+  clearSession,
+  createUserAccount,
+  issueSession,
+  requireAdmin,
+  requireAuth,
+  verifyCredentials,
+} from './auth';
+import { deleteUserData, getUserById, getUserByUsername, getUsers, hasAnyUsers } from './store';
 
 export const authRouter = Router();
 
@@ -24,11 +33,13 @@ authRouter.get('/session', (req, res) => {
   res.json(authState(req));
 });
 
-// Only succeeds while no admin exists yet - re-checked here (not just
+// Only succeeds while no users exist yet at all - re-checked here (not just
 // trusted from the client's own "needs-setup" state), so a second browser
-// tab racing the wizard can't create two admins or silently overwrite one.
+// tab racing the wizard can't create two first-admins or silently overwrite
+// one. The account created here is always the instance's one admin -
+// everyone else comes from the admin-only POST /users below.
 authRouter.post('/setup', authAttemptLimiter, async (req, res) => {
-  if (getAdmin()) {
+  if (hasAnyUsers()) {
     res.status(409).json({ error: 'An admin account already exists.' });
     return;
   }
@@ -37,13 +48,13 @@ authRouter.post('/setup', authAttemptLimiter, async (req, res) => {
     res.status(400).json({ error: 'Username is required and password must be at least 8 characters.' });
     return;
   }
-  await createAdmin(username.trim(), password);
-  issueSession(req, res);
-  res.json({ username: username.trim() });
+  const user = await createUserAccount(username.trim(), password, 'admin');
+  issueSession(req, res, user.id);
+  res.json({ username: user.username });
 });
 
 authRouter.post('/login', authAttemptLimiter, async (req, res) => {
-  if (!getAdmin()) {
+  if (!hasAnyUsers()) {
     res.status(409).json({ error: 'No admin account exists yet.' });
     return;
   }
@@ -52,13 +63,13 @@ authRouter.post('/login', authAttemptLimiter, async (req, res) => {
     res.status(400).json({ error: 'Username and password are required.' });
     return;
   }
-  const ok = await verifyAdminCredentials(username, password);
-  if (!ok) {
+  const user = await verifyCredentials(username, password);
+  if (!user) {
     res.status(401).json({ error: 'Incorrect username or password.' });
     return;
   }
-  issueSession(req, res);
-  res.json({ username });
+  issueSession(req, res, user.id);
+  res.json({ username: user.username });
 });
 
 authRouter.post('/logout', (req, res) => {
@@ -69,21 +80,62 @@ authRouter.post('/logout', (req, res) => {
 // Requires an active session (unlike setup/login above, which by nature
 // can't) - this is a sensitive account mutation, so it's gated the same way
 // every other authenticated route is, on top of also needing the correct
-// current password.
+// current password. Always changes the *calling* user's own password -
+// there's no "change someone else's password" endpoint, even for the admin.
 authRouter.post('/change-password', requireAuth, async (req, res) => {
   const { currentPassword, newPassword } = req.body ?? {};
   if (typeof currentPassword !== 'string' || typeof newPassword !== 'string' || newPassword.length < 8) {
     res.status(400).json({ error: 'Current password and a new password of at least 8 characters are required.' });
     return;
   }
-  const result = await changeAdminPassword(currentPassword, newPassword);
+  const result = await changeOwnPassword(req.userId!, currentPassword, newPassword);
   if (result === 'wrong-password') {
     res.status(401).json({ error: 'Current password is incorrect.' });
     return;
   }
-  if (result === 'no-admin') {
-    res.status(409).json({ error: 'No admin account exists yet.' });
+  if (result === 'no-user') {
+    res.status(409).json({ error: 'User account no longer exists.' });
     return;
   }
+  res.json({ ok: true });
+});
+
+// --- Admin-only user management ---------------------------------------------
+// The only admin-only surface in the app - creating/removing the other
+// accounts that can log into this instance, each with their own
+// independent set of Server Profiles. Never returns passwordHash.
+
+authRouter.get('/users', requireAuth, requireAdmin, (_req, res) => {
+  res.json(getUsers().map((u) => ({ id: u.id, username: u.username, role: u.role, createdAt: u.createdAt })));
+});
+
+authRouter.post('/users', requireAuth, requireAdmin, async (req, res) => {
+  const { username, password } = req.body ?? {};
+  if (typeof username !== 'string' || !username.trim() || typeof password !== 'string' || password.length < 8) {
+    res.status(400).json({ error: 'Username is required and password must be at least 8 characters.' });
+    return;
+  }
+  const trimmed = username.trim();
+  if (getUserByUsername(trimmed)) {
+    res.status(409).json({ error: 'That username is already taken.' });
+    return;
+  }
+  // Always 'user' - the only admin is whoever completed first-run setup;
+  // this endpoint has no way to grant that role to anyone else.
+  const user = await createUserAccount(trimmed, password, 'user');
+  res.json({ id: user.id, username: user.username, role: user.role, createdAt: user.createdAt });
+});
+
+authRouter.delete('/users/:id', requireAuth, requireAdmin, (req, res) => {
+  const target = getUserById(req.params.id);
+  if (!target) {
+    res.status(404).json({ error: 'User not found.' });
+    return;
+  }
+  if (target.role === 'admin') {
+    res.status(400).json({ error: "The admin account can't be deleted." });
+    return;
+  }
+  deleteUserData(req.params.id);
   res.json({ ok: true });
 });

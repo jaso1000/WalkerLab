@@ -1,16 +1,17 @@
 // Encrypted-at-rest credential/config store - a single JSON file (not
-// SQLite/Postgres: this app's whole data footprint is a handful of profiles
-// x 9 services, so a single file means no migration tooling, trivial backup,
-// and no native-compile-step dependency to worry about across Docker
-// host architectures). Loaded fully into memory on boot, re-encrypted and
-// flushed atomically (write to a .tmp file, then rename over the real path)
-// on every mutation.
+// SQLite/Postgres: this app's whole data footprint is a handful of users x
+// profiles x 9 services, so a single file means no migration tooling,
+// trivial backup, and no native-compile-step dependency to worry about
+// across Docker host architectures). Loaded fully into memory on boot,
+// re-encrypted and flushed atomically (write to a .tmp file, then rename
+// over the real path) on every mutation.
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { decrypt, encrypt, EncryptedEnvelope } from './crypto';
 import {
-  AdminRecord,
+  DEFAULT_PROFILE_ID,
+  DEFAULT_PROFILES,
   emptyStore,
   Profile,
   SectionId,
@@ -19,6 +20,7 @@ import {
   SessionRecord,
   StartupSectionId,
   StoreFile,
+  UserRecord,
 } from './types';
 
 const DATA_DIR = process.env.WALKERLAB_DATA_DIR ?? '/data';
@@ -31,7 +33,7 @@ let data: StoreFile;
 // The encryption key: an explicit `WALKERLAB_ENCRYPTION_KEY` env var (base64
 // or hex, 32 bytes) if supplied, otherwise a random key generated on first
 // boot and persisted alongside the store file (mode 0600) - matches the
-// "no config required" default already chosen for the admin account itself.
+// "no config required" default already chosen for the first admin account.
 // Losing this file makes the store unrecoverable, same as losing any
 // self-hosted app's local DB; low stakes since every credential can be
 // manually re-entered.
@@ -62,6 +64,63 @@ function save() {
   atomicWriteSync(STORE_PATH, JSON.stringify(envelope));
 }
 
+// Shape of a pre-multi-user (v1) store file - kept narrow and local (not in
+// types.ts) since it only ever exists transiently, for one read, during
+// migrateToV2 below. `admin`/`profiles`/`activeProfileId`/etc. here are the
+// old single-admin, global (not per-user) fields StoreFile itself used to
+// declare - see git history on types.ts if the exact pre-migration shape
+// ever needs double-checking.
+interface StoreFileV1 {
+  v?: 1;
+  admin?: { username: string; passwordHash: string; createdAt: string };
+  profiles?: Profile[];
+  activeProfileId?: string;
+  serviceConfigs?: Record<string, Partial<Record<ServiceName, ServiceConfig>>>;
+  sectionNames?: Record<string, Partial<Record<SectionId, string>>>;
+  serviceEnabled?: Record<string, Partial<Record<ServiceName, boolean>>>;
+  startupScreen?: Record<string, StartupSectionId>;
+  tabOrder?: Record<string, StartupSectionId[]>;
+}
+
+// Converts a decrypted, parsed JSON blob of unknown vintage into today's
+// (v2, multi-user) StoreFile shape. A v2 file (has `users`) passes through
+// unchanged. A v1 file (single global admin + global profiles) becomes a
+// v2 file with exactly one user - the old admin, now with a real id and
+// `role: 'admin'` - and every one of their existing profiles/service
+// configs/etc. moved under that new user id, so an existing install keeps
+// everything exactly as it was, just now owned by "the first user" instead
+// of being global. Old session tokens are deliberately dropped rather than
+// migrated (the session shape itself changed to carry a userId, and there's
+// no way to know which admin an old anonymous session belonged to that
+// isn't already implied by "the only admin that existed") - anyone with an
+// old session just has to log in again once, a one-time, low-stakes cost
+// for a data-model change like this.
+function migrateToV2(decoded: unknown): StoreFile {
+  const raw = decoded as StoreFileV1 & { users?: unknown };
+  if (raw.users) return decoded as StoreFile;
+
+  const next = emptyStore();
+  if (!raw.admin) return next;
+
+  const userId = `u${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  const user: UserRecord = {
+    id: userId,
+    username: raw.admin.username,
+    passwordHash: raw.admin.passwordHash,
+    role: 'admin',
+    createdAt: raw.admin.createdAt,
+  };
+  next.users[userId] = user;
+  next.profiles[userId] = raw.profiles && raw.profiles.length > 0 ? raw.profiles : DEFAULT_PROFILES;
+  next.activeProfileId[userId] = raw.activeProfileId ?? DEFAULT_PROFILE_ID;
+  next.serviceConfigs[userId] = raw.serviceConfigs ?? {};
+  next.sectionNames[userId] = raw.sectionNames ?? {};
+  next.serviceEnabled[userId] = raw.serviceEnabled ?? {};
+  next.startupScreen[userId] = raw.startupScreen ?? {};
+  next.tabOrder[userId] = raw.tabOrder ?? {};
+  return next;
+}
+
 // Call once at server startup, before any route handler runs.
 export function initStore() {
   masterKey = loadOrCreateMasterKey();
@@ -71,35 +130,82 @@ export function initStore() {
     return;
   }
   const envelope = JSON.parse(fs.readFileSync(STORE_PATH, 'utf8')) as EncryptedEnvelope;
+  const decoded = JSON.parse(decrypt(masterKey, envelope));
   // Merge over emptyStore()'s defaults rather than trusting the decrypted
   // JSON's shape as-is - an existing install's store predates whichever
   // fields got added to StoreFile most recently (confirmed live: an
   // already-running install's store had no `tabOrder` key at all, since
   // it was created before that field existed, and every getter here does
-  // `data.<field>[profileId]` with no top-level undefined check - this
+  // `data.<field>[userId]` with no top-level undefined check - this
   // crashed with a 500 rather than falling back to a default). Real
   // fields always win; only genuinely missing keys fall back to their
-  // empty default. Prevents the same class of bug for any
-  // future new field too.
-  data = { ...emptyStore(), ...(JSON.parse(decrypt(masterKey, envelope)) as StoreFile) };
+  // empty default. Prevents the same class of bug for any future new
+  // field too. migrateToV2 runs first so this merge always sees today's
+  // (v2) shape regardless of what was actually on disk.
+  data = { ...emptyStore(), ...migrateToV2(decoded) };
+  save();
   pruneExpiredSessions();
 }
 
-// --- Admin -----------------------------------------------------------------
+// --- Users -------------------------------------------------------------------
 
-export function getAdmin(): AdminRecord | undefined {
-  return data.admin;
+export function getUsers(): UserRecord[] {
+  return Object.values(data.users);
 }
 
-export function setAdmin(admin: AdminRecord) {
-  data.admin = admin;
+export function getUserById(id: string): UserRecord | undefined {
+  return data.users[id];
+}
+
+export function getUserByUsername(username: string): UserRecord | undefined {
+  return Object.values(data.users).find((u) => u.username === username);
+}
+
+export function hasAnyUsers(): boolean {
+  return Object.keys(data.users).length > 0;
+}
+
+// Seeds the new user with one real, already-persisted "Home Lab" profile -
+// matches how every install (single- or multi-user) has always bootstrapped,
+// rather than relying on the client's own DEFAULT_PROFILES fallback, which
+// only covers rendering before a real list loads, not persistence.
+export function createUser(user: UserRecord) {
+  data.users[user.id] = user;
+  data.profiles[user.id] = DEFAULT_PROFILES.map((p) => ({ ...p }));
+  data.activeProfileId[user.id] = DEFAULT_PROFILE_ID;
+  save();
+}
+
+export function updateUser(id: string, patch: Partial<UserRecord>) {
+  const existing = data.users[id];
+  if (!existing) return;
+  data.users[id] = { ...existing, ...patch };
+  save();
+}
+
+// Removes a user and every piece of data scoped to them (profiles, service
+// configs, everything - see deleteProfileData's own per-profile version of
+// this same idea) plus logs them out of any live session immediately,
+// rather than leaving those sessions valid until they naturally expire.
+export function deleteUserData(userId: string) {
+  delete data.users[userId];
+  delete data.profiles[userId];
+  delete data.activeProfileId[userId];
+  delete data.serviceConfigs[userId];
+  delete data.sectionNames[userId];
+  delete data.serviceEnabled[userId];
+  delete data.startupScreen[userId];
+  delete data.tabOrder[userId];
+  for (const [sessionId, session] of Object.entries(data.sessions)) {
+    if (session.userId === userId) delete data.sessions[sessionId];
+  }
   save();
 }
 
 // --- Sessions ----------------------------------------------------------------
 
-export function createSession(sessionId: string, expiresAt: Date) {
-  data.sessions[sessionId] = { expiresAt: expiresAt.toISOString() };
+export function createSession(sessionId: string, userId: string, expiresAt: Date) {
+  data.sessions[sessionId] = { userId, expiresAt: expiresAt.toISOString() };
   save();
 }
 
@@ -137,87 +243,92 @@ export function pruneExpiredSessions() {
 
 // --- Profiles ----------------------------------------------------------------
 
-export function getProfiles(): Profile[] {
-  return data.profiles;
+export function getProfiles(userId: string): Profile[] {
+  return data.profiles[userId] ?? [];
 }
 
-export function setProfiles(profiles: Profile[]) {
-  data.profiles = profiles;
+export function setProfiles(userId: string, profiles: Profile[]) {
+  data.profiles[userId] = profiles;
   save();
 }
 
-export function getActiveProfileId(): string {
-  return data.activeProfileId;
+export function getActiveProfileId(userId: string): string {
+  return data.activeProfileId[userId] ?? DEFAULT_PROFILE_ID;
 }
 
-export function setActiveProfileId(id: string) {
-  data.activeProfileId = id;
+export function setActiveProfileId(userId: string, id: string) {
+  data.activeProfileId[userId] = id;
   save();
 }
 
 // --- Service configs -----------------------------------------------------
 
-export function getServiceConfig(profileId: string, service: ServiceName): ServiceConfig | undefined {
-  return data.serviceConfigs[profileId]?.[service];
+export function getServiceConfig(userId: string, profileId: string, service: ServiceName): ServiceConfig | undefined {
+  return data.serviceConfigs[userId]?.[profileId]?.[service];
 }
 
-export function setServiceConfig(profileId: string, service: ServiceName, config: ServiceConfig) {
-  if (!data.serviceConfigs[profileId]) data.serviceConfigs[profileId] = {};
-  data.serviceConfigs[profileId][service] = config;
+export function setServiceConfig(userId: string, profileId: string, service: ServiceName, config: ServiceConfig) {
+  if (!data.serviceConfigs[userId]) data.serviceConfigs[userId] = {};
+  if (!data.serviceConfigs[userId][profileId]) data.serviceConfigs[userId][profileId] = {};
+  data.serviceConfigs[userId][profileId][service] = config;
   save();
 }
 
-export function clearServiceConfig(profileId: string, service: ServiceName) {
-  delete data.serviceConfigs[profileId]?.[service];
+export function clearServiceConfig(userId: string, profileId: string, service: ServiceName) {
+  delete data.serviceConfigs[userId]?.[profileId]?.[service];
   save();
 }
 
 // --- Section names / service enabled / startup screen -----------------------
 
-export function getSectionNameOverrides(profileId: string): Partial<Record<SectionId, string>> {
-  return data.sectionNames[profileId] ?? {};
+export function getSectionNameOverrides(userId: string, profileId: string): Partial<Record<SectionId, string>> {
+  return data.sectionNames[userId]?.[profileId] ?? {};
 }
 
-export function setSectionNameOverrides(profileId: string, overrides: Partial<Record<SectionId, string>>) {
-  data.sectionNames[profileId] = overrides;
+export function setSectionNameOverrides(userId: string, profileId: string, overrides: Partial<Record<SectionId, string>>) {
+  if (!data.sectionNames[userId]) data.sectionNames[userId] = {};
+  data.sectionNames[userId][profileId] = overrides;
   save();
 }
 
-export function getServiceEnabledOverrides(profileId: string): Partial<Record<ServiceName, boolean>> {
-  return data.serviceEnabled[profileId] ?? {};
+export function getServiceEnabledOverrides(userId: string, profileId: string): Partial<Record<ServiceName, boolean>> {
+  return data.serviceEnabled[userId]?.[profileId] ?? {};
 }
 
-export function setServiceEnabledOverrides(profileId: string, overrides: Partial<Record<ServiceName, boolean>>) {
-  data.serviceEnabled[profileId] = overrides;
+export function setServiceEnabledOverrides(userId: string, profileId: string, overrides: Partial<Record<ServiceName, boolean>>) {
+  if (!data.serviceEnabled[userId]) data.serviceEnabled[userId] = {};
+  data.serviceEnabled[userId][profileId] = overrides;
   save();
 }
 
-export function getStartupScreen(profileId: string): StartupSectionId | undefined {
-  return data.startupScreen[profileId];
+export function getStartupScreen(userId: string, profileId: string): StartupSectionId | undefined {
+  return data.startupScreen[userId]?.[profileId];
 }
 
-export function setStartupScreen(profileId: string, id: StartupSectionId) {
-  data.startupScreen[profileId] = id;
+export function setStartupScreen(userId: string, profileId: string, id: StartupSectionId) {
+  if (!data.startupScreen[userId]) data.startupScreen[userId] = {};
+  data.startupScreen[userId][profileId] = id;
   save();
 }
 
-export function getTabOrder(profileId: string): StartupSectionId[] | undefined {
-  return data.tabOrder[profileId];
+export function getTabOrder(userId: string, profileId: string): StartupSectionId[] | undefined {
+  return data.tabOrder[userId]?.[profileId];
 }
 
-export function setTabOrder(profileId: string, order: StartupSectionId[]) {
-  data.tabOrder[profileId] = order;
+export function setTabOrder(userId: string, profileId: string, order: StartupSectionId[]) {
+  if (!data.tabOrder[userId]) data.tabOrder[userId] = {};
+  data.tabOrder[userId][profileId] = order;
   save();
 }
 
-// Removes every profile-scoped key for a deleted profile in one place -
-// mirrors having to clear storage/serviceEnabled/sectionNames/startupScreen
-// individually client-side when a profile is deleted.
-export function deleteProfileData(profileId: string) {
-  delete data.serviceConfigs[profileId];
-  delete data.sectionNames[profileId];
-  delete data.serviceEnabled[profileId];
-  delete data.startupScreen[profileId];
-  delete data.tabOrder[profileId];
+// Removes every profile-scoped key for one deleted profile (within a user's
+// own data) - mirrors having to clear storage/serviceEnabled/sectionNames/
+// startupScreen individually client-side when a profile is deleted.
+export function deleteProfileData(userId: string, profileId: string) {
+  delete data.serviceConfigs[userId]?.[profileId];
+  delete data.sectionNames[userId]?.[profileId];
+  delete data.serviceEnabled[userId]?.[profileId];
+  delete data.startupScreen[userId]?.[profileId];
+  delete data.tabOrder[userId]?.[profileId];
   save();
 }

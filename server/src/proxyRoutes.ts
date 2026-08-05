@@ -24,7 +24,7 @@ export const proxyRouter = Router();
 // point, so there's no ordering conflict to worry about).
 proxyRouter.post('/:profileId/portainer/pull-image', async (req, res) => {
   const { profileId } = req.params;
-  const config = getServiceConfig(profileId, 'portainer');
+  const config = getServiceConfig(req.userId!, profileId, 'portainer');
   if (!config) {
     res.status(400).json({ error: "portainer isn't configured for this profile." });
     return;
@@ -49,7 +49,7 @@ proxyRouter.post('/:profileId/:service', async (req, res) => {
     return;
   }
   const body = (req.body ?? {}) as ProxyRequestBody;
-  const config = mergeServiceConfig(getServiceConfig(profileId, service), body.configOverride);
+  const config = mergeServiceConfig(getServiceConfig(req.userId!, profileId, service), body.configOverride);
   if (!config) {
     res.status(400).json({ error: `${service} isn't configured for this profile.` });
     return;
@@ -86,7 +86,9 @@ proxyRouter.post('/:profileId/:service', async (req, res) => {
         result = await omdbProxyRequest(config, body);
         break;
       case 'qbittorrent':
-        result = await qbittorrentProxyRequest(profileId, config, body);
+        // Keyed by user+profile, not just profile - profile ids are only
+        // unique within one user's own list, not globally across users.
+        result = await qbittorrentProxyRequest(`${req.userId}:${profileId}`, config, body);
         break;
       default:
         res.status(501).json({ error: `Proxying for "${service}" isn't implemented yet.` });

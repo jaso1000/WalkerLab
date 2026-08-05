@@ -1,9 +1,14 @@
 // Redacted-secret config CRUD + profile management - everything behind
-// `requireAuth` (mounted in index.ts). Secrets (apiKey/password) are never
-// returned to the browser once set; a PUT only overwrites a secret field
-// when the client explicitly sends a new value, otherwise the existing
-// stored value is preserved (so re-saving just the baseUrl doesn't blank out
-// a key the browser was never shown).
+// `requireAuth` (mounted in index.ts), which guarantees `req.userId` is set
+// by the time any handler here runs. Every route is scoped to the calling
+// user's own data via that id - a user can only ever see/touch their own
+// profiles and service configs, never another user's, even by guessing
+// another user's profile id (profile ids aren't looked up on their own
+// anywhere here, always nested under `req.userId` first). Secrets (apiKey/
+// password) are never returned to the browser once set; a PUT only
+// overwrites a secret field when the client explicitly sends a new value,
+// otherwise the existing stored value is preserved (so re-saving just the
+// baseUrl doesn't blank out a key the browser was never shown).
 import { Router } from 'express';
 import { mergeServiceConfig } from './services/mergeServiceConfig';
 import {
@@ -34,9 +39,13 @@ export const configRouter = Router();
 // ProfilesContext.tsx - which already does client-side id generation and
 // optimistic list updates, with a real prior bug around stale-closure
 // `setState` fixed there - needs zero changes to work against this backend.
+// Notably, none of this needed any client-side changes to support multiple
+// users either: the client never sends a userId anywhere, it's always
+// implicit in the session cookie, so "your own profiles" already meant
+// exactly that once the server started scoping by req.userId here.
 
-configRouter.get('/profiles', (_req, res) => {
-  res.json(getProfiles());
+configRouter.get('/profiles', (req, res) => {
+  res.json(getProfiles(req.userId!));
 });
 
 configRouter.put('/profiles', (req, res) => {
@@ -50,15 +59,15 @@ configRouter.put('/profiles', (req, res) => {
   // stale encrypted credentials behind indefinitely (native's AsyncStorage
   // equivalent doesn't do this cleanup today, but there's no reason a
   // long-lived server-side store shouldn't).
-  const previousIds = getProfiles().map((p) => p.id);
+  const previousIds = getProfiles(req.userId!).map((p) => p.id);
   const nextIds = new Set(next.map((p) => p.id));
-  previousIds.filter((id) => !nextIds.has(id)).forEach(deleteProfileData);
-  setProfiles(next);
+  previousIds.filter((id) => !nextIds.has(id)).forEach((id) => deleteProfileData(req.userId!, id));
+  setProfiles(req.userId!, next);
   res.json({ ok: true });
 });
 
-configRouter.get('/profiles/active', (_req, res) => {
-  res.json({ id: getActiveProfileId() });
+configRouter.get('/profiles/active', (req, res) => {
+  res.json({ id: getActiveProfileId(req.userId!) });
 });
 
 configRouter.put('/profiles/active', (req, res) => {
@@ -67,7 +76,7 @@ configRouter.put('/profiles/active', (req, res) => {
     res.status(400).json({ error: 'id is required.' });
     return;
   }
-  setActiveProfileId(id);
+  setActiveProfileId(req.userId!, id);
   res.json({ ok: true });
 });
 
@@ -79,7 +88,7 @@ configRouter.get('/config/:profileId/:service', (req, res) => {
     res.status(400).json({ error: `Unknown service "${service}".` });
     return;
   }
-  const config = getServiceConfig(profileId, service);
+  const config = getServiceConfig(req.userId!, profileId, service);
   if (!config) {
     res.json({ isConfigured: false });
     return;
@@ -100,17 +109,19 @@ configRouter.get('/config/:profileId/:service', (req, res) => {
 // because Backup needs the real values to encrypt client-side (the same
 // way native already does), otherwise a web-created backup would silently
 // contain blank credentials. Still behind the same session-cookie auth as
-// every other route here - on a single-admin app, the logged-in admin
-// could always change any secret to a known value via PUT and diff anyway,
-// so this doesn't cross a real privilege boundary, just skips a redundant
-// round trip for a case that legitimately needs the real value.
+// every other route here - the logged-in user could always change any of
+// their own secrets to a known value via PUT and diff anyway, so this
+// doesn't cross a real privilege boundary, just skips a redundant round
+// trip for a case that legitimately needs the real value. Scoped to
+// req.userId same as everything else, so it only ever exposes the calling
+// user's own secrets, never another user's.
 configRouter.get('/config/:profileId/:service/unredacted', (req, res) => {
   const { profileId, service } = req.params;
   if (!isServiceName(service)) {
     res.status(400).json({ error: `Unknown service "${service}".` });
     return;
   }
-  res.json(getServiceConfig(profileId, service) ?? null);
+  res.json(getServiceConfig(req.userId!, profileId, service) ?? null);
 });
 
 configRouter.put('/config/:profileId/:service', (req, res) => {
@@ -126,8 +137,8 @@ configRouter.put('/config/:profileId/:service', (req, res) => {
   }
   // `mergeServiceConfig` always returns a real ServiceConfig here (never
   // undefined) since `body` is a real object, not undefined.
-  const next = mergeServiceConfig(getServiceConfig(profileId, service), body) as ServiceConfig;
-  setServiceConfig(profileId, service, next);
+  const next = mergeServiceConfig(getServiceConfig(req.userId!, profileId, service), body) as ServiceConfig;
+  setServiceConfig(req.userId!, profileId, service, next);
   res.json({ ok: true });
 });
 
@@ -137,32 +148,32 @@ configRouter.delete('/config/:profileId/:service', (req, res) => {
     res.status(400).json({ error: `Unknown service "${service}".` });
     return;
   }
-  clearServiceConfig(profileId, service);
+  clearServiceConfig(req.userId!, profileId, service);
   res.json({ ok: true });
 });
 
 // --- Section names / service enabled / startup screen -----------------------
 
 configRouter.get('/section-names/:profileId', (req, res) => {
-  res.json(getSectionNameOverrides(req.params.profileId));
+  res.json(getSectionNameOverrides(req.userId!, req.params.profileId));
 });
 
 configRouter.put('/section-names/:profileId', (req, res) => {
-  setSectionNameOverrides(req.params.profileId, (req.body ?? {}) as Partial<Record<SectionId, string>>);
+  setSectionNameOverrides(req.userId!, req.params.profileId, (req.body ?? {}) as Partial<Record<SectionId, string>>);
   res.json({ ok: true });
 });
 
 configRouter.get('/service-enabled/:profileId', (req, res) => {
-  res.json(getServiceEnabledOverrides(req.params.profileId));
+  res.json(getServiceEnabledOverrides(req.userId!, req.params.profileId));
 });
 
 configRouter.put('/service-enabled/:profileId', (req, res) => {
-  setServiceEnabledOverrides(req.params.profileId, (req.body ?? {}) as Partial<Record<ServiceName, boolean>>);
+  setServiceEnabledOverrides(req.userId!, req.params.profileId, (req.body ?? {}) as Partial<Record<ServiceName, boolean>>);
   res.json({ ok: true });
 });
 
 configRouter.get('/startup-screen/:profileId', (req, res) => {
-  res.json({ id: getStartupScreen(req.params.profileId) ?? null });
+  res.json({ id: getStartupScreen(req.userId!, req.params.profileId) ?? null });
 });
 
 configRouter.put('/startup-screen/:profileId', (req, res) => {
@@ -171,12 +182,12 @@ configRouter.put('/startup-screen/:profileId', (req, res) => {
     res.status(400).json({ error: 'id is required.' });
     return;
   }
-  setStartupScreen(req.params.profileId, id);
+  setStartupScreen(req.userId!, req.params.profileId, id);
   res.json({ ok: true });
 });
 
 configRouter.get('/tab-order/:profileId', (req, res) => {
-  res.json({ order: getTabOrder(req.params.profileId) ?? null });
+  res.json({ order: getTabOrder(req.userId!, req.params.profileId) ?? null });
 });
 
 configRouter.put('/tab-order/:profileId', (req, res) => {
@@ -185,6 +196,6 @@ configRouter.put('/tab-order/:profileId', (req, res) => {
     res.status(400).json({ error: 'order (array) is required.' });
     return;
   }
-  setTabOrder(req.params.profileId, order);
+  setTabOrder(req.userId!, req.params.profileId, order);
   res.json({ ok: true });
 });

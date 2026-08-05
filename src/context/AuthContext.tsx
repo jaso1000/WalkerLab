@@ -15,6 +15,11 @@ import { colors } from '../theme/colors';
 type SessionState = 'loading' | 'needs-setup' | 'needs-login' | 'authenticated';
 
 interface AuthContextValue {
+  // undefined on native (see the default context value below) - always a
+  // real string once `AuthGate` has actually rendered `children` on web,
+  // since that only happens in the 'authenticated' state.
+  username?: string;
+  role?: 'admin' | 'user';
   logout: () => Promise<void>;
 }
 
@@ -34,17 +39,20 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
 function WebAuthGate({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SessionState>('loading');
+  const [account, setAccount] = useState<{ username: string; role: 'admin' | 'user' } | null>(null);
 
   const checkSession = useCallback(async () => {
     try {
       const res = await fetch('/api/auth/session', { credentials: 'include' });
       const body = await res.json();
       setState(body.state);
+      setAccount(body.state === 'authenticated' ? { username: body.username, role: body.role } : null);
     } catch {
       // Backend unreachable (e.g. a plain `expo start --web` dev session
       // with no Node backend running alongside it) - fail toward "needs
       // login" rather than an infinite spinner.
       setState('needs-login');
+      setAccount(null);
     }
   }, []);
 
@@ -55,6 +63,7 @@ function WebAuthGate({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
     setState('needs-login');
+    setAccount(null);
   }, []);
 
   if (state === 'loading') {
@@ -67,7 +76,11 @@ function WebAuthGate({ children }: { children: ReactNode }) {
   if (state === 'needs-setup') return <SetupWizardScreen onComplete={checkSession} />;
   if (state === 'needs-login') return <LoginScreen onComplete={checkSession} />;
 
-  return <AuthContext.Provider value={{ logout }}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ username: account?.username, role: account?.role, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 const styles = StyleSheet.create({
