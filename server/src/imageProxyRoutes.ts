@@ -43,6 +43,11 @@ imageProxyRouter.get('/:profileId/:service', async (req, res) => {
     }
     const buffer = Buffer.from(await upstream.arrayBuffer());
     res.set('Content-Type', upstream.headers.get('content-type') ?? 'image/jpeg');
+    // Tautulli's proxied images never change for a given item - without this
+    // the browser re-fetches (and this server re-proxies) the same
+    // poster/thumbnail on every render. `private` since this route sits
+    // behind session auth, not a shared/CDN cache.
+    res.set('Cache-Control', 'private, max-age=604800, immutable');
     res.send(buffer);
   } catch (e) {
     res.status(502).json({ error: e instanceof Error ? e.message : 'Upstream image request failed.' });

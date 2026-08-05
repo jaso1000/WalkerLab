@@ -8,7 +8,6 @@ import { router, Stack, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Animated,
   FlatList,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -19,6 +18,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import {
   TautulliGraphData,
   TautulliHistoryItem,
@@ -210,7 +210,10 @@ export default function TautulliScreen() {
   const columns = useColumns();
   const scrollRef = useRef<ScrollView>(null);
   const tabBarClearance = useTabBarClearance();
-  const scrollX = useRef(new Animated.Value(0)).current;
+  const scrollX = useSharedValue(0);
+  const onPagerScroll = useAnimatedScrollHandler((event) => {
+    scrollX.value = event.contentOffset.x;
+  });
 
   const [activeTab, setActiveTab] = useState(0);
 
@@ -509,7 +512,7 @@ export default function TautulliScreen() {
         decelerationRate="fast"
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={onMomentumEnd}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: false })}
+        onScroll={onPagerScroll}
         scrollEventThrottle={16}
         style={styles.pager}
       >

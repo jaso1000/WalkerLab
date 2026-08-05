@@ -20,12 +20,33 @@ export interface EncryptedEnvelope {
   ciphertext: string; // hex
 }
 
+// PBKDF2 at 100k iterations takes tens of milliseconds - fine for the one
+// decrypt() call at boot, but store.ts's save() (and therefore encrypt())
+// runs on every single write, including touchSession() on every
+// authenticated request. The master key is already a random 32-byte value
+// with nothing to stretch (PBKDF2 exists to strengthen a guessable
+// *password*), so the slow derivation buys no real security here - it's
+// cached instead, keyed by salt, so it only actually runs once per distinct
+// salt. In practice that means once per process lifetime: decrypt() at boot
+// seeds the cache from the store file's existing salt, and encrypt() reuses
+// whatever salt is already cached rather than minting a new one on every
+// save (a fresh IV, generated per call below, is what GCM actually needs to
+// stay unique - the salt does not need to rotate per write for that).
+let cachedSalt: Buffer | undefined;
+let cachedKey: Buffer | undefined;
+
 function deriveKey(masterKey: Buffer, salt: Buffer): Buffer {
-  return crypto.pbkdf2Sync(masterKey, salt, PBKDF2_ITERATIONS, KEY_LENGTH, 'sha256');
+  if (cachedSalt && cachedKey && cachedSalt.equals(salt)) {
+    return cachedKey;
+  }
+  const key = crypto.pbkdf2Sync(masterKey, salt, PBKDF2_ITERATIONS, KEY_LENGTH, 'sha256');
+  cachedSalt = salt;
+  cachedKey = key;
+  return key;
 }
 
 export function encrypt(masterKey: Buffer, plaintext: string): EncryptedEnvelope {
-  const salt = crypto.randomBytes(SALT_LENGTH);
+  const salt = cachedSalt ?? crypto.randomBytes(SALT_LENGTH);
   const iv = crypto.randomBytes(IV_LENGTH);
   const key = deriveKey(masterKey, salt);
   const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);

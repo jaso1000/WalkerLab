@@ -1,12 +1,32 @@
 // Animated sliding-indicator tab bar driven by a swipeable page view's
-// `scrollX` Animated.Value (see callers pairing this with a horizontal
-// paged ScrollView) - the indicator position/width and label colors
-// interpolate directly off the live scroll position rather than snapping
-// only once a swipe settles, so the highlight tracks your finger in
-// real time. Auto-scrolls horizontally to keep the active tab in view when
-// there are more tabs than fit on screen (e.g. TV Shows' 6 tabs).
+// `scrollX` shared value (see callers pairing this with a horizontal paged
+// ScrollView) - the indicator position/width and label colors interpolate
+// directly off the live scroll position rather than snapping only once a
+// swipe settles, so the highlight tracks your finger in real time. Auto-
+// scrolls horizontally to keep the active tab in view when there are more
+// tabs than fit on screen (e.g. TV Shows' 6 tabs).
+//
+// Built on react-native-reanimated rather than the classic Animated API:
+// the indicator interpolates `left`/`width` and the label interpolates
+// `color`, neither of which the classic API's native driver supports, so a
+// classic-Animated version of this component is stuck running every frame
+// of every swipe on the JS thread. Reanimated's worklets run this same
+// per-frame interpolation on the UI thread instead, so it can't be blocked
+// by JS thread work (data loading, list rendering) happening at the same
+// time - this is the single most-exercised animation in the app (every
+// tabbed screen uses it), so it's the highest-value place for that to
+// matter.
 import { useEffect, useRef, useState } from 'react';
-import { Animated, LayoutChangeEvent, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { LayoutChangeEvent, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import Animated, {
+  Extrapolation,
+  interpolate,
+  interpolateColor,
+  runOnJS,
+  SharedValue,
+  useAnimatedReaction,
+  useAnimatedStyle,
+} from 'react-native-reanimated';
 import { colors } from '../theme/colors';
 
 // Measured on-screen position/width of one tab label, used to place the
@@ -14,6 +34,41 @@ import { colors } from '../theme/colors';
 interface TabLayout {
   x: number;
   width: number;
+}
+
+// One tab's label, split out into its own component so it can call its own
+// `useAnimatedStyle` - the color interpolation depends on this tab's own
+// index, and hooks can't be called a variable number of times inside a
+// `.map()` on the parent.
+function TabLabel({
+  tab,
+  index,
+  active,
+  scrollX,
+  pageWidth,
+  onLayout,
+  onPress,
+}: {
+  tab: string;
+  index: number;
+  active: boolean;
+  scrollX: SharedValue<number>;
+  pageWidth: number;
+  onLayout: (e: LayoutChangeEvent) => void;
+  onPress: () => void;
+}) {
+  const colorStyle = useAnimatedStyle(() => ({
+    color: interpolateColor(
+      scrollX.value,
+      [(index - 1) * pageWidth, index * pageWidth, (index + 1) * pageWidth],
+      [colors.textSecondary, colors.textPrimary, colors.textSecondary]
+    ),
+  }));
+  return (
+    <TouchableOpacity style={styles.tab} onPress={onPress} onLayout={onLayout}>
+      <Animated.Text style={[styles.label, colorStyle, active && styles.labelActive]}>{tab}</Animated.Text>
+    </TouchableOpacity>
+  );
 }
 
 export function SwipeTabBar({
@@ -39,26 +94,28 @@ export function SwipeTabBar({
   // it - calling `onChange` here would re-trigger the caller's own
   // `scrollTo`, fighting the user's finger mid-swipe.
   onSettle?: (index: number) => void;
-  scrollX: Animated.Value;
+  scrollX: SharedValue<number>;
   pageWidth: number;
   tint?: string;
 }) {
   const [layoutsByIndex, setLayoutsByIndex] = useState<Record<number, TabLayout>>({});
   const [viewportWidth, setViewportWidth] = useState(0);
   // Tracks which tab is nearest mid-swipe, purely for the bold font-weight
-  // snap - the text color itself is driven straight off `scrollX` below so
-  // it crossfades live with the drag instead of waiting for the page to
-  // settle (that lag was the actual complaint: swiping felt like the
-  // highlight was a beat behind your finger).
+  // snap - the text color itself is driven straight off `scrollX` on the UI
+  // thread (see TabLabel above) so it crossfades live with the drag instead
+  // of waiting for the page to settle (that lag was the actual complaint:
+  // swiping felt like the highlight was a beat behind your finger).
   const [nearestTab, setNearestTab] = useState(activeTab);
   const scrollRef = useRef<ScrollView>(null);
 
   // `onSettle` is recreated every render in every caller (it's not wrapped
   // in useCallback anywhere) - a ref avoids re-subscribing the scrollX
-  // listener below on every single render while still always calling the
-  // latest version.
+  // reaction below on every single render while still always calling the
+  // latest version. Read from the JS thread only (via runOnJS below), never
+  // from inside the worklet itself.
   const onSettleRef = useRef(onSettle);
   onSettleRef.current = onSettle;
+  const notifySettle = (idx: number) => onSettleRef.current?.(idx);
 
   // Records each tab label's real on-screen position/size as it renders -
   // needed because tab labels are variable-width text, so the indicator's
@@ -75,8 +132,7 @@ export function SwipeTabBar({
   const inputRange = tabs.map((_, i) => i * pageWidth);
 
   // Tracks the nearest tab purely to drive the bold-label snap (see the
-  // class-level comment on `nearestTab` above) - separate from the
-  // continuous color interpolation below, which needs no listener at all.
+  // class-level comment on `nearestTab` above).
   //
   // Also calls `onSettle` directly from this same continuous signal, not
   // just relying on the caller's `onMomentumScrollEnd` - that event is
@@ -93,35 +149,19 @@ export function SwipeTabBar({
   // halfway point rather than waiting for the gesture to fully settle (a
   // minor behavioral difference from native), but that's a reasonable
   // trade for actually being reliable.
-  useEffect(() => {
-    // `scrollX` reports a new value on every scroll frame throughout the
-    // whole gesture (drag + momentum deceleration), not just once when the
-    // swipe actually lands on a new tab - `setNearestTab`'s functional form
-    // already no-ops when `idx` hasn't changed, but `onSettleRef` was being
-    // called unconditionally on every single firing regardless. Each call
-    // re-invokes the caller's `handleTabChange`, which lazily fires that
-    // tab's data load if it hasn't loaded yet - and since that guard is only
-    // set once the load's promise *resolves*, dozens of same-tab listener
-    // firings before the first request completes fired dozens of duplicate
-    // concurrent requests. Imperceptible on native/LAN (each resolves in a
-    // few ms, so the guard flips almost immediately), but a real request
-    // storm once real network latency is in the picture (e.g. proxied
-    // through the Docker/web deployment's cloud tunnel) - confirmed live via
-    // the server's proxy logs showing ~35 identical Sonarr requests fired in
-    // ~4 seconds while sitting on one tab. Track the last-seen index and only
-    // call `onSettle` when it actually changes, matching `onSettle`'s own
-    // "just crossed into a new tab" semantics.
-    let lastIdx = -1;
-    const id = scrollX.addListener(({ value }) => {
-      const idx = Math.max(0, Math.min(tabs.length - 1, Math.round(value / pageWidth)));
-      setNearestTab((prev) => (prev === idx ? prev : idx));
-      if (idx !== lastIdx) {
-        lastIdx = idx;
-        onSettleRef.current?.(idx);
-      }
-    });
-    return () => scrollX.removeListener(id);
-  }, [scrollX, pageWidth, tabs.length]);
+  useAnimatedReaction(
+    () => Math.max(0, Math.min(tabs.length - 1, Math.round(scrollX.value / pageWidth))),
+    (idx, prevIdx) => {
+      // `prevIdx` is `null` on the reaction's first run (mount) - skip it,
+      // `nearestTab` is already initialized to `activeTab` and there's no
+      // real "settle" to report yet, matching the old listener-based
+      // version which only ever fired on an actual scrollX change.
+      if (prevIdx === null || idx === prevIdx) return;
+      runOnJS(setNearestTab)(idx);
+      runOnJS(notifySettle)(idx);
+    },
+    [tabs.length, pageWidth]
+  );
 
   // When the active tab changes (tap, or the swipe-settle path above),
   // scrolls this tab bar horizontally so the newly-active tab is centered
@@ -153,41 +193,54 @@ export function SwipeTabBar({
       onLayout={(e) => setViewportWidth(e.nativeEvent.layout.width)}
       contentContainerStyle={styles.container}
     >
-      {tabs.map((tab, index) => {
-        // Crossfades this label between muted/primary text color as the
-        // swipe passes through its neighbors, live off `scrollX` - this is
-        // what makes the color transition track the drag in real time
-        // instead of only flipping once the page settles.
-        const color = scrollX.interpolate({
-          inputRange: [(index - 1) * pageWidth, index * pageWidth, (index + 1) * pageWidth],
-          outputRange: [colors.textSecondary, colors.textPrimary, colors.textSecondary],
-          extrapolate: 'clamp',
-        });
-        return (
-          <TouchableOpacity key={tab} style={styles.tab} onPress={() => onChange(index)} onLayout={handleLayout(index)}>
-            <Animated.Text style={[styles.label, { color }, nearestTab === index && styles.labelActive]}>
-              {tab}
-            </Animated.Text>
-          </TouchableOpacity>
-        );
-      })}
+      {tabs.map((tab, index) => (
+        <TabLabel
+          key={tab}
+          tab={tab}
+          index={index}
+          active={nearestTab === index}
+          scrollX={scrollX}
+          pageWidth={pageWidth}
+          onLayout={handleLayout(index)}
+          onPress={() => onChange(index)}
+        />
+      ))}
       {measured ? (
         // Interpolates the indicator's left/width directly between each
         // tab's measured layout as `scrollX` moves, so it slides smoothly
         // across variable-width labels instead of jumping discretely.
-        <Animated.View
-          style={[
-            styles.indicator,
-            {
-              backgroundColor: tint,
-              left: scrollX.interpolate({ inputRange, outputRange: layouts.map((l) => l.x), extrapolate: 'clamp' }),
-              width: scrollX.interpolate({ inputRange, outputRange: layouts.map((l) => l.width), extrapolate: 'clamp' }),
-            },
-          ]}
-        />
+        <Indicator tint={tint} scrollX={scrollX} inputRange={inputRange} layouts={layouts as TabLayout[]} />
       ) : null}
     </ScrollView>
   );
+}
+
+function Indicator({
+  tint,
+  scrollX,
+  inputRange,
+  layouts,
+}: {
+  tint: string;
+  scrollX: SharedValue<number>;
+  inputRange: number[];
+  layouts: TabLayout[];
+}) {
+  const indicatorStyle = useAnimatedStyle(() => ({
+    left: interpolate(
+      scrollX.value,
+      inputRange,
+      layouts.map((l) => l.x),
+      Extrapolation.CLAMP
+    ),
+    width: interpolate(
+      scrollX.value,
+      inputRange,
+      layouts.map((l) => l.width),
+      Extrapolation.CLAMP
+    ),
+  }));
+  return <Animated.View style={[styles.indicator, { backgroundColor: tint }, indicatorStyle]} />;
 }
 
 const styles = StyleSheet.create({

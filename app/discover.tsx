@@ -4,7 +4,6 @@ import { router, Stack, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Animated,
   FlatList,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -17,6 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { radarrApi, RadarrMovie } from '../src/api/radarr';
 import { sonarrApi, SonarrSeries } from '../src/api/sonarr';
 import { TMDB_NETWORKS, tmdbApi, tmdbImageUrl, TmdbMovie, TmdbSearchResult, TmdbTv } from '../src/api/tmdb';
@@ -161,7 +161,10 @@ export default function DiscoverScreen() {
   const tabBarClearance = useTabBarClearance();
   const width = useContentWidth();
   const scrollRef = useRef<ScrollView>(null);
-  const scrollX = useRef(new Animated.Value(0)).current;
+  const scrollX = useSharedValue(0);
+  const onPagerScroll = useAnimatedScrollHandler((event) => {
+    scrollX.value = event.contentOffset.x;
+  });
   const [activeTab, setActiveTab] = useState(0);
 
   const [allCategories, setAllCategories] = useState<CategoryData>(EMPTY_CATEGORY_DATA);
@@ -496,7 +499,7 @@ export default function DiscoverScreen() {
             decelerationRate="fast"
             showsHorizontalScrollIndicator={false}
             onMomentumScrollEnd={onMomentumEnd}
-            onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: false })}
+            onScroll={onPagerScroll}
             scrollEventThrottle={16}
             style={styles.pager}
           >

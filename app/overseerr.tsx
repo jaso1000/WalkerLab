@@ -4,7 +4,6 @@ import { Stack, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Animated,
   FlatList,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -16,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { overseerrApi, OverseerrFilter, OverseerrRequest } from '../src/api/overseerr';
 import { tmdbApi, tmdbImageUrl, TmdbMovieDetail, TmdbTvDetail } from '../src/api/tmdb';
 import { ActionSheet, ActionSheetOption } from '../src/components/ActionSheet';
@@ -85,7 +85,10 @@ export default function OverseerrScreen() {
   const columns = useColumns();
   const scrollRef = useRef<ScrollView>(null);
   const tabBarClearance = useTabBarClearance();
-  const scrollX = useRef(new Animated.Value(0)).current;
+  const scrollX = useSharedValue(0);
+  const onPagerScroll = useAnimatedScrollHandler((event) => {
+    scrollX.value = event.contentOffset.x;
+  });
 
   const [activeTab, setActiveTab] = useState(0);
   const [filter, setFilter] = useState<OverseerrFilter>('all');
@@ -413,7 +416,7 @@ export default function OverseerrScreen() {
         decelerationRate="fast"
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={onMomentumEnd}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: false })}
+        onScroll={onPagerScroll}
         scrollEventThrottle={16}
         style={styles.pager}
       >

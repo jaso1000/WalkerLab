@@ -3,7 +3,6 @@ import { Image } from 'expo-image';
 import { router, Stack, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
-  Animated,
   BackHandler,
   FlatList,
   Linking,
@@ -19,6 +18,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import {
   radarrApi,
   RadarrDiskSpace,
@@ -197,7 +197,10 @@ export default function MoviesScreen() {
   const columns = useColumns();
   const scrollRef = useRef<ScrollView>(null);
   const tabBarClearance = useTabBarClearance();
-  const scrollX = useRef(new Animated.Value(0)).current;
+  const scrollX = useSharedValue(0);
+  const onPagerScroll = useAnimatedScrollHandler((event) => {
+    scrollX.value = event.contentOffset.x;
+  });
 
   const [movies, setMovies] = useState<RadarrMovie[]>([]);
   const [profiles, setProfiles] = useState<RadarrQualityProfile[]>([]);
@@ -682,7 +685,7 @@ export default function MoviesScreen() {
           decelerationRate="fast"
           showsHorizontalScrollIndicator={false}
           onMomentumScrollEnd={onMomentumEnd}
-          onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: false })}
+          onScroll={onPagerScroll}
           scrollEventThrottle={16}
           style={styles.pager}
         >

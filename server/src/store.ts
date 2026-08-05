@@ -197,7 +197,10 @@ export function deleteUserData(userId: string) {
   delete data.startupScreen[userId];
   delete data.tabOrder[userId];
   for (const [sessionId, session] of Object.entries(data.sessions)) {
-    if (session.userId === userId) delete data.sessions[sessionId];
+    if (session.userId === userId) {
+      delete data.sessions[sessionId];
+      lastPersistedExpiry.delete(sessionId);
+    }
   }
   save();
 }
@@ -209,23 +212,40 @@ export function createSession(sessionId: string, userId: string, expiresAt: Date
   save();
 }
 
+// Tracks, per session, the expiry that was last actually flushed to disk -
+// deliberately NOT part of `data` (never persisted itself). Lets
+// touchSession below extend a session's real, in-memory expiry on every
+// call (so the rolling window is always accurate to any in-process reader)
+// while only paying for a full encrypt+rewrite of the store file
+// periodically, not on every authenticated request.
+const lastPersistedExpiry = new Map<string, number>();
+const TOUCH_PERSIST_THRESHOLD_MS = 60 * 60 * 1000; // persist at most ~once/hour/session
+
 // Returns the session and refreshes its rolling expiry, or undefined if it
 // doesn't exist or has expired (an expired session is also pruned here).
 export function touchSession(sessionId: string, extendBy: number): SessionRecord | undefined {
   const record = data.sessions[sessionId];
   if (!record) return undefined;
-  if (new Date(record.expiresAt).getTime() < Date.now()) {
+  const now = Date.now();
+  if (new Date(record.expiresAt).getTime() < now) {
     delete data.sessions[sessionId];
+    lastPersistedExpiry.delete(sessionId);
     save();
     return undefined;
   }
-  record.expiresAt = new Date(Date.now() + extendBy).toISOString();
-  save();
+  const newExpiresAt = now + extendBy;
+  record.expiresAt = new Date(newExpiresAt).toISOString();
+  const lastPersisted = lastPersistedExpiry.get(sessionId) ?? 0;
+  if (newExpiresAt - lastPersisted > TOUCH_PERSIST_THRESHOLD_MS) {
+    lastPersistedExpiry.set(sessionId, newExpiresAt);
+    save();
+  }
   return record;
 }
 
 export function deleteSession(sessionId: string) {
   delete data.sessions[sessionId];
+  lastPersistedExpiry.delete(sessionId);
   save();
 }
 
@@ -235,6 +255,7 @@ export function pruneExpiredSessions() {
   for (const [id, record] of Object.entries(data.sessions)) {
     if (new Date(record.expiresAt).getTime() < now) {
       delete data.sessions[id];
+      lastPersistedExpiry.delete(id);
       changed = true;
     }
   }
