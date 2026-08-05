@@ -79,8 +79,13 @@ async function sabRequest<T>(
 }
 
 export const sabnzbdApi = {
-  // Settings' "Test Connection" check.
-  testConnection: (config: ServiceConfig) => sabRequest(config, 'version'),
+  // Settings' "Test Connection" check. Deliberately NOT `mode=version` -
+  // SABnzbd's own API docs exempt `version` (and `auth`) from needing an
+  // apikey at all (by design, for external health checks), so it returns
+  // success for literally any key, right or wrong or blank - confirmed live
+  // as a real false-positive. `queue` is a lightweight endpoint that does
+  // enforce the apikey, so a bad key actually surfaces as a failure here.
+  testConnection: (config: ServiceConfig) => sabRequest(config, 'queue', { limit: '1' }),
 
   // Current download queue - polled every 3s while the Queue tab is focused
   // so progress/speed update live (see Downloads screen).

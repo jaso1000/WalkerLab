@@ -74,4 +74,11 @@ export const colors = {
   // reusing any other service's hue (sonarr/qbittorrent are already blue).
   portainer: '#13C4CC',
   portainerMuted: 'rgba(19,196,204,0.15)',
+
+  // NZBGet - alternate Downloads-section client alongside SABnzbd (see
+  // downloads.tsx). A distinct orange, deliberately not reusing sabnzbd's
+  // yellow or accent's amber so the Downloads screen still reads as
+  // clearly "which client is this" when either one is active.
+  nzbget: '#FF7043',
+  nzbgetMuted: 'rgba(255,112,67,0.15)',
 };

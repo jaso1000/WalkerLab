@@ -7,6 +7,8 @@
 // fetch/tls/https.
 import { Router } from 'express';
 import { arrProxyRequest } from './services/arrProxy';
+import { mergeServiceConfig } from './services/mergeServiceConfig';
+import { nzbgetProxyRequest } from './services/nzbgetProxy';
 import { portainerProxyRequest, portainerPullImage } from './services/portainerProxy';
 import { qbittorrentProxyRequest } from './services/qbittorrentProxy';
 import { omdbProxyRequest, sabnzbdProxyRequest, tautulliProxyRequest, tmdbProxyRequest } from './services/queryKeyProxy';
@@ -46,13 +48,13 @@ proxyRouter.post('/:profileId/:service', async (req, res) => {
     res.status(400).json({ error: `Unknown service "${service}".` });
     return;
   }
-  const config = getServiceConfig(profileId, service);
+  const body = (req.body ?? {}) as ProxyRequestBody;
+  const config = mergeServiceConfig(getServiceConfig(profileId, service), body.configOverride);
   if (!config) {
     res.status(400).json({ error: `${service} isn't configured for this profile.` });
     return;
   }
 
-  const body = (req.body ?? {}) as ProxyRequestBody;
   console.log(`[proxy] ${service} ${body.method ?? 'GET'} ${body.path} params=${JSON.stringify(body.params ?? {})}`);
 
   try {
@@ -70,6 +72,9 @@ proxyRouter.post('/:profileId/:service', async (req, res) => {
         break;
       case 'sabnzbd':
         result = await sabnzbdProxyRequest(config, body);
+        break;
+      case 'nzbget':
+        result = await nzbgetProxyRequest(config, body);
         break;
       case 'tautulli':
         result = await tautulliProxyRequest(config, body);

@@ -409,7 +409,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     height: 48,
   },
-  searchInput: { flex: 1, color: colors.textPrimary, fontSize: 15 },
+  // 16px avoids iOS Safari's auto-zoom-on-focus for small inputs - see movies.tsx.
+  searchInput: { flex: 1, color: colors.textPrimary, fontSize: 16 },
   sortPill: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -7,13 +7,13 @@
 
 **Walk your stack with ease.**
 
-A cross-platform (iOS + Android + Docker/web) app for managing your home media server stack — Sonarr, Radarr, SABnzbd, qBittorrent, Overseerr, Tautulli, and Portainer — all in one place, plus a TMDB/OMDb-powered Discover tab for browsing and requesting new movies and shows. Supports multiple isolated server profiles with encrypted backup/restore, so one install can manage more than one stack. Self-hosted and single-admin by design — your credentials, your infrastructure, nothing routed through a third party.
+A cross-platform (iOS + Android + Docker/web) app for managing your home media server stack — Sonarr, Radarr, SABnzbd/NZBGet, qBittorrent, Overseerr, Tautulli, and Portainer — all in one place, plus a TMDB/OMDb-powered Discover tab for browsing and requesting new movies and shows. Supports multiple isolated server profiles with encrypted backup/restore, so one install can manage more than one stack. Self-hosted and single-admin by design — your credentials, your infrastructure, nothing routed through a third party.
 
 ## Features
 
 - **Discover** — search and browse movies & TV, see what's trending, popular, or upcoming, and add straight to your library in one tap. Detail pages with cast & crew, ratings from IMDb/Rotten Tomatoes/Metacritic/TMDB, and similar-title recommendations.
 - **TV Shows & Movies** (Sonarr/Radarr) — browse your library, drill into seasons and episodes, monitor or search for missing content, view file quality, and manage what's downloaded.
-- **Downloads & Torrents** (SABnzbd/qBittorrent) — live queue and history, with pause/resume/delete and real-time progress.
+- **Downloads & Torrents** (SABnzbd, NZBGet, and qBittorrent) — live queue and history, with pause/resume/delete and real-time progress. SABnzbd and NZBGet each get their own section, independently enabled — most setups only run one, but nothing stops you from enabling both.
 - **Requests** (Overseerr) — review, approve, or decline requests from the people you share your server with.
 - **Stats** (Tautulli) — see what's playing on Plex right now, who's watching, and library-wide watch history and trends.
 - **Containers** (Portainer) — start, stop, restart, or recreate any container in your Docker stack, right from the app.
@@ -23,7 +23,7 @@ A cross-platform (iOS + Android + Docker/web) app for managing your home media s
 ## Tech Stack
 
 - [Expo](https://expo.dev) (SDK 54) + React Native + TypeScript, [Expo Router](https://docs.expo.dev/router/introduction/)
-- On iOS/Android, talks directly to the Sonarr, Radarr, SABnzbd, qBittorrent, Overseerr, TMDB, OMDb, Tautulli, and Portainer APIs
+- On iOS/Android, talks directly to the Sonarr, Radarr, SABnzbd, NZBGet, qBittorrent, Overseerr, TMDB, OMDb, Tautulli, and Portainer APIs
 - The Docker/web build adds a small Express + TypeScript backend (`server/`) that proxies every service call and stores credentials encrypted at rest — see [Installation](#installation) below
 
 ## Installation

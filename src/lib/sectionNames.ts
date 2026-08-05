@@ -11,6 +11,7 @@ export type SectionId =
   | 'tvShows'
   | 'movies'
   | 'downloads'
+  | 'nzbget'
   | 'torrents'
   | 'requests'
   | 'stats'
@@ -23,6 +24,12 @@ export const DEFAULT_SECTION_NAMES: Record<SectionId, string> = {
   tvShows: 'TV Shows',
   movies: 'Movies',
   downloads: 'Downloads',
+  // Defaults to the same label as the `downloads` section - they're both
+  // "your Usenet download queue" to the user, just different clients under
+  // the hood. Still independently renameable per-profile like any other
+  // section (Settings > NZBGet > "Rename in drawer & header") if someone
+  // runs both at once and wants to tell them apart in the nav.
+  nzbget: 'Downloads',
   torrents: 'Torrents',
   requests: 'Requests',
   stats: 'Stats',

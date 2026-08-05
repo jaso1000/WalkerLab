@@ -110,6 +110,8 @@ const styles = StyleSheet.create({
     padding: 10,
     backgroundColor: colors.surfaceAlt,
     color: colors.textPrimary,
+    // 16px avoids iOS Safari's auto-zoom-on-focus for small inputs - see movies.tsx.
+    fontSize: 16,
   },
   buttonRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 20, alignItems: 'center' },
   cancelText: { color: colors.textSecondary, fontSize: 14, fontWeight: '700' },

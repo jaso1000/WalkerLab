@@ -283,6 +283,22 @@ export interface TmdbSearchResult {
   vote_average?: number;
 }
 
+// One entry from the `/movie/{id}/images` or `/tv/{id}/images` endpoints -
+// used to power the full-screen poster gallery on a detail page (as opposed
+// to `poster_path` on the detail payload itself, which is just TMDB's single
+// current pick).
+export interface TmdbImage {
+  file_path: string;
+  width: number;
+  height: number;
+  iso_639_1?: string | null;
+  vote_average?: number;
+}
+
+export interface TmdbImagesResponse {
+  posters: TmdbImage[];
+}
+
 // A TV show's ids on other databases - specifically used to get the
 // `tvdb_id` needed to add a Discover TV result into Sonarr (which keys on
 // tvdbId, not tmdbId).
@@ -462,6 +478,18 @@ export const tmdbApi = {
   // to match Sonarr library entries against Discover's tmdbId-keyed cards.
   findByTvdbId: (config: ServiceConfig, tvdbId: number) =>
     tmdbFetch<{ tv_results: TmdbTv[] }>(config, `/find/${tvdbId}`, { external_source: 'tvdb_id' }),
+
+  // Powers the full-screen poster gallery on the movie/series detail pages -
+  // `include_image_language` widens the default (which otherwise only
+  // returns textless/no-language posters) to also include English-labeled
+  // ones, matching what most releases' actual poster art looks like without
+  // pulling in dozens of near-duplicate foreign-language variants. TMDB
+  // itself returns `posters` sorted by vote_average desc already.
+  movieImages: (config: ServiceConfig, id: number) =>
+    tmdbFetch<TmdbImagesResponse>(config, `/movie/${id}/images`, { include_image_language: 'en,null' }),
+
+  tvImages: (config: ServiceConfig, id: number) =>
+    tmdbFetch<TmdbImagesResponse>(config, `/tv/${id}/images`, { include_image_language: 'en,null' }),
 
   personDetail: (config: ServiceConfig, id: number) => tmdbFetch<TmdbPerson>(config, `/person/${id}`),
 

@@ -924,7 +924,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     height: 48,
   },
-  searchInput: { flex: 1, color: colors.textPrimary, fontSize: 15 },
+  // 16px isn't a stylistic choice - iOS Safari auto-zooms the whole page in
+  // on focus for any text input with a computed font-size under 16px (to
+  // make otherwise-illegible text readable), then zooms back out on blur.
+  // Every text input in this app hit that "weird zoom" on iPhone web until
+  // this was found and swept app-wide - keep any new input at 16+ too.
+  searchInput: { flex: 1, color: colors.textPrimary, fontSize: 16 },
   addButton: {
     width: 48,
     height: 48,

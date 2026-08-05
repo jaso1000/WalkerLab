@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getCertificateInfo } from '../../modules/tls-trust';
+import { nzbgetApi } from '../../src/api/nzbget';
 import { overseerrApi } from '../../src/api/overseerr';
 import { qbittorrentApi } from '../../src/api/qbittorrent';
 import { radarrApi } from '../../src/api/radarr';
@@ -46,6 +47,7 @@ const TEST_CONNECTION: Record<ServiceName, (config: ServiceConfig) => Promise<un
   sonarr: sonarrApi.testConnection,
   radarr: radarrApi.testConnection,
   sabnzbd: sabnzbdApi.testConnection,
+  nzbget: nzbgetApi.testConnection,
   tmdb: tmdbApi.testConnection,
   omdb: omdbApi.testConnection,
   overseerr: overseerrApi.testConnection,
@@ -472,6 +474,8 @@ const styles = StyleSheet.create({
     padding: 10,
     backgroundColor: colors.surfaceAlt,
     color: colors.textPrimary,
+    // 16px avoids iOS Safari's auto-zoom-on-focus for small inputs - see movies.tsx.
+    fontSize: 16,
   },
   certTrustRow: {
     flexDirection: 'row',

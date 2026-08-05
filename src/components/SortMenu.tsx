@@ -3,8 +3,9 @@
 // it ascending if not (see callers' `onSelect` handlers for that toggle
 // logic - this component only reports which key was tapped).
 import { Ionicons } from '@expo/vector-icons';
-import { Modal, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../theme/colors';
+import { ThemedSwitch } from './ThemedSwitch';
 
 export interface SortField {
   key: string;
@@ -90,11 +91,12 @@ export function SortMenu({
           {onToggleGroupHeaders ? (
             <View style={styles.toggleRow}>
               <Text style={styles.label}>Group headers</Text>
-              <Switch
+              <ThemedSwitch
                 value={!!groupHeaders}
                 onValueChange={onToggleGroupHeaders}
                 trackColor={{ false: colors.surfaceAlt, true: colors.accentMuted }}
-                thumbColor={groupHeaders ? colors.accent : colors.textMuted}
+                activeColor={colors.accent}
+                inactiveColor={colors.textMuted}
               />
             </View>
           ) : null}

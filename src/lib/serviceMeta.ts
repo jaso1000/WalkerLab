@@ -68,6 +68,20 @@ export const SERVICE_META: ServiceMeta[] = [
     sectionId: 'downloads',
   },
   {
+    name: 'nzbget',
+    label: 'NZBGet',
+    icon: 'cloud-download-outline',
+    tint: colors.nzbget,
+    description:
+      'NZBGet is a Usenet download client, an alternative to SABnzbd - most home labs only run one or the other, but both get their own section here in case you actually want both enabled.',
+    requiresUrl: true,
+    placeholder: 'http://192.168.1.10:6789',
+    urlExamples: ['http://192.168.1.10:6789 — another device on your network (default port 6789)', 'http://localhost:6789 — same device as this app'],
+    sectionId: 'nzbget',
+    usesCredentials: true,
+    apiKeyOptional: true,
+  },
+  {
     name: 'qbittorrent',
     label: 'qBittorrent',
     icon: 'swap-vertical-outline',
@@ -143,7 +157,17 @@ export const SERVICE_META: ServiceMeta[] = [
   },
 ];
 
-/** The service that owns a given nav section, if any - lets AdaptiveNav hide a section when that service is disabled. */
-export function serviceForSection(sectionId: StartupSectionId): ServiceName | undefined {
-  return SERVICE_META.find((s) => s.sectionId === sectionId)?.name;
+// Whether a nav section should show at all, given which services are
+// currently enabled - lets AdaptiveNav (and the section-order screen) hide
+// a section entirely when nothing backs it. Every section today has exactly
+// one owning service (`SERVICE_META.sectionId`), but this checks ALL of a
+// section's owners rather than just the first one a plain `.find()` would
+// have returned - written this way after SABnzbd/NZBGet briefly shared one
+// "Downloads" section (since reverted to their own sections, each
+// independently toggleable, per the user's own preference) exposed that a
+// single-owner assumption baked into the original code wasn't safe to keep
+// if that ever changes again.
+export function sectionEnabled(sectionId: StartupSectionId, isEnabled: (name: ServiceName) => boolean): boolean {
+  const owners = SERVICE_META.filter((s) => s.sectionId === sectionId);
+  return owners.length === 0 || owners.some((o) => isEnabled(o.name));
 }

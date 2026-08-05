@@ -15,7 +15,7 @@ import { useProfiles } from '../../src/context/ProfilesContext';
 import { useSectionNames } from '../../src/context/SectionNamesContext';
 import { useServiceEnabled } from '../../src/context/ServiceEnabledContext';
 import { SECTION_META } from '../../src/lib/sectionMeta';
-import { serviceForSection } from '../../src/lib/serviceMeta';
+import { sectionEnabled } from '../../src/lib/serviceMeta';
 import { StartupSectionId } from '../../src/lib/startupScreen';
 import { useTabBarClearance } from '../../src/lib/tabBarClearance';
 import { DEFAULT_TAB_ORDER, getTabOrder, PRIMARY_TAB_COUNT, setTabOrder } from '../../src/lib/tabOrder';
@@ -66,8 +66,7 @@ export default function NavigationSettingsScreen() {
             tablet-width screen these appear in an always-visible side panel instead of a bottom bar.
           </Text>
           {order.map((id, index) => {
-            const service = serviceForSection(id);
-            const enabled = !service || isEnabled(service);
+            const enabled = sectionEnabled(id, isEnabled);
             const meta = SECTION_META[id];
             return (
               <View key={id}>

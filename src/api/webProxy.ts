@@ -19,5 +19,28 @@ export async function webProxyFetch<T>(service: ServiceName, config: ServiceConf
   if (!config.profileId) {
     throw new Error(`Missing profileId on ${service}'s config for a web proxy request - this is a bug.`);
   }
-  return apiFetch<T>(`/api/proxy/${config.profileId}/${service}`, { method: 'POST', body: request });
+  return apiFetch<T>(`/api/proxy/${config.profileId}/${service}`, {
+    method: 'POST',
+    body: {
+      ...request,
+      // Forwards whatever connection fields this call was actually given so
+      // the server can merge them over the profile's stored config (see
+      // server/src/services/mergeServiceConfig.ts) instead of always using
+      // whichever config was last saved. For almost every call site `config`
+      // already exactly mirrors the stored value (secrets are always blank
+      // client-side on web, see storage.ts), so this merge is a no-op there
+      // - the one place it isn't is Settings' "Test Connection," which
+      // builds `config` straight from the currently-typed, not-yet-saved
+      // fields, so this is what lets that actually test them instead of
+      // silently testing whatever was last saved (the previous behavior:
+      // this whole `config` object was received and then discarded here).
+      configOverride: {
+        baseUrl: config.baseUrl,
+        apiKey: config.apiKey,
+        username: config.username,
+        password: config.password,
+        trustedCertFingerprint: config.trustedCertFingerprint,
+      },
+    },
+  });
 }

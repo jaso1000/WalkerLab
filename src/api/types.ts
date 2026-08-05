@@ -37,6 +37,7 @@ export type ServiceName =
   | 'sonarr'
   | 'radarr'
   | 'sabnzbd'
+  | 'nzbget'
   | 'tmdb'
   | 'omdb'
   | 'overseerr'

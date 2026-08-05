@@ -355,6 +355,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 10,
     color: colors.textPrimary,
+    // 16px avoids iOS Safari's auto-zoom-on-focus for small inputs - see movies.tsx.
+    fontSize: 16,
   },
   list: { paddingBottom: 100 },
   row: {

@@ -5,6 +5,7 @@
 // stored value is preserved (so re-saving just the baseUrl doesn't blank out
 // a key the browser was never shown).
 import { Router } from 'express';
+import { mergeServiceConfig } from './services/mergeServiceConfig';
 import {
   deleteProfileData,
   getActiveProfileId,
@@ -123,17 +124,9 @@ configRouter.put('/config/:profileId/:service', (req, res) => {
     res.status(400).json({ error: 'baseUrl is required.' });
     return;
   }
-  const existing = getServiceConfig(profileId, service);
-  const next: ServiceConfig = {
-    baseUrl: body.baseUrl,
-    // Only overwrite a secret when the client explicitly sent a non-empty
-    // new value - omitting/blanking it preserves whatever's already stored.
-    apiKey: typeof body.apiKey === 'string' && body.apiKey.length > 0 ? body.apiKey : existing?.apiKey ?? '',
-    username: typeof body.username === 'string' ? body.username : existing?.username,
-    password: typeof body.password === 'string' && body.password.length > 0 ? body.password : existing?.password,
-    trustedCertFingerprint:
-      typeof body.trustedCertFingerprint === 'string' ? body.trustedCertFingerprint : existing?.trustedCertFingerprint,
-  };
+  // `mergeServiceConfig` always returns a real ServiceConfig here (never
+  // undefined) since `body` is a real object, not undefined.
+  const next = mergeServiceConfig(getServiceConfig(profileId, service), body) as ServiceConfig;
   setServiceConfig(profileId, service, next);
   res.json({ ok: true });
 });

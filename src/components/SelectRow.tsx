@@ -1,8 +1,9 @@
 // Small shared settings-list row primitives: a tappable label+value row that
 // opens a picker/screen (`SelectRow`), and a label+toggle row (`SwitchRow`).
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors } from '../theme/colors';
+import { ThemedSwitch } from './ThemedSwitch';
 
 // A row showing a label, the currently-selected value, and a chevron -
 // tapping it hands off to `onPress` (typically opening a picker sheet or
@@ -36,11 +37,12 @@ export function SwitchRow({
   return (
     <View style={styles.row}>
       <Text style={styles.label}>{label}</Text>
-      <Switch
+      <ThemedSwitch
         value={value}
         onValueChange={onChange}
         trackColor={{ false: colors.surfaceAlt, true: `${tint}55` }}
-        thumbColor={value ? tint : colors.textMuted}
+        activeColor={tint}
+        inactiveColor={colors.textMuted}
       />
     </View>
   );

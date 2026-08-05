@@ -99,6 +99,8 @@ const styles = StyleSheet.create({
     padding: 12,
     backgroundColor: colors.surfaceAlt,
     color: colors.textPrimary,
+    // 16px avoids iOS Safari's auto-zoom-on-focus for small inputs - see movies.tsx.
+    fontSize: 16,
   },
   button: { backgroundColor: colors.brand, borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 4 },
   buttonDisabled: { opacity: 0.6 },

@@ -24,6 +24,7 @@ import {
 import { ActionSheet, ActionSheetOption } from '../../../src/components/ActionSheet';
 import { CastCrewSection } from '../../../src/components/CastCrewSection';
 import { DiscoverCardItem, DiscoverRow } from '../../../src/components/DiscoverRow';
+import { PosterGalleryModal } from '../../../src/components/PosterGalleryModal';
 import { ReleaseTriptych } from '../../../src/components/ReleaseTriptych';
 import { ReviewSources } from '../../../src/components/ReviewSources';
 import { SelectRow, SwitchRow } from '../../../src/components/SelectRow';
@@ -88,6 +89,7 @@ export default function DiscoverDetailScreen() {
   const [searchOnAdd, setSearchOnAdd] = useState(true);
   const [adding, setAdding] = useState(false);
   const [menu, setMenu] = useState<{ title: string; options: ActionSheetOption[] } | null>(null);
+  const [posterGalleryOpen, setPosterGalleryOpen] = useState(false);
 
   // Loads the TMDB detail payload (movie or TV depending on `mediaType`)
   // plus its "More Like This" recommendations, independently - a
@@ -290,11 +292,13 @@ export default function DiscoverDetailScreen() {
             </TouchableOpacity>
           </SafeAreaView>
           <View style={styles.heroBottom}>
-            {poster ? (
-              <Image source={{ uri: poster }} style={styles.poster} cachePolicy="memory-disk" />
-            ) : (
-              <View style={[styles.poster, styles.posterPlaceholder]} />
-            )}
+            <TouchableOpacity onPress={() => setPosterGalleryOpen(true)} disabled={!poster}>
+              {poster ? (
+                <Image source={{ uri: poster }} style={styles.poster} cachePolicy="memory-disk" />
+              ) : (
+                <View style={[styles.poster, styles.posterPlaceholder]} />
+              )}
+            </TouchableOpacity>
             <View style={styles.heroInfo}>
               <Text style={styles.title}>{title}</Text>
               <Text style={styles.meta}>{[year, runtime ? `${runtime}m` : null].filter(Boolean).join(' · ')}</Text>
@@ -493,6 +497,14 @@ export default function DiscoverDetailScreen() {
       </ScrollView>
 
       <ActionSheet visible={!!menu} title={menu?.title ?? ''} options={menu?.options ?? []} onClose={() => setMenu(null)} />
+      <PosterGalleryModal
+        visible={posterGalleryOpen}
+        onClose={() => setPosterGalleryOpen(false)}
+        tmdbConfig={tmdbConfig}
+        mediaType={mediaType}
+        tmdbId={tmdbId}
+        fallbackPosterUrl={poster}
+      />
     </View>
   );
 }

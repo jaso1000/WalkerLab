@@ -30,7 +30,7 @@ import { useSectionNames } from '../context/SectionNamesContext';
 import { useServiceEnabled } from '../context/ServiceEnabledContext';
 import { COMPACT_SIDEBAR_WIDTH, NavChrome, NavChromeContext, navTierForWidth, SIDEBAR_WIDTH } from '../lib/navChrome';
 import { SECTION_META } from '../lib/sectionMeta';
-import { serviceForSection } from '../lib/serviceMeta';
+import { sectionEnabled } from '../lib/serviceMeta';
 import { StartupSectionId } from '../lib/startupScreen';
 import { FLOATING_BAR_GAP, TabBarClearanceContext } from '../lib/tabBarClearance';
 import { DEFAULT_TAB_ORDER, getTabOrder, splitTabOrder } from '../lib/tabOrder';
@@ -90,10 +90,7 @@ export function AdaptiveNav({ children }: { children: React.ReactNode }) {
   // Sections whose owning service is disabled drop out entirely (not just
   // hidden) - same "not configured, don't show it anywhere" reasoning this
   // always used, back when it lived in DrawerContent's own filtering.
-  const enabledOrder = resolvedOrder.filter((id) => {
-    const service = serviceForSection(id);
-    return !service || isEnabled(service);
-  });
+  const enabledOrder = resolvedOrder.filter((id) => sectionEnabled(id, isEnabled));
   const { primary: primaryIds, overflow: overflowIds } = splitTabOrder(enabledOrder);
 
   // The persistent sidebar has room to just list every enabled section, so

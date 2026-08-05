@@ -9,6 +9,7 @@ export type ServiceName =
   | 'sonarr'
   | 'radarr'
   | 'sabnzbd'
+  | 'nzbget'
   | 'tmdb'
   | 'omdb'
   | 'overseerr'
@@ -29,6 +30,7 @@ export type SectionId =
   | 'tvShows'
   | 'movies'
   | 'downloads'
+  | 'nzbget'
   | 'torrents'
   | 'requests'
   | 'stats'
@@ -79,6 +81,15 @@ export interface ProxyRequestBody {
   params?: Record<string, string>;
   body?: unknown;
   form?: Record<string, string>;
+  // The client's own in-memory config at the time of the request, merged
+  // over the profile's stored config (see mergeServiceConfig.ts) before
+  // dispatching. For nearly every call site this exactly mirrors the
+  // stored config already (secrets are always blank client-side, so the
+  // merge is a no-op) - the one place it isn't is Settings' "Test
+  // Connection," which sends whatever's currently typed but not yet saved,
+  // so a test can probe those values instead of always hitting whatever
+  // was last saved.
+  configOverride?: Partial<ServiceConfig>;
 }
 
 export function isServiceName(value: string): value is ServiceName {
@@ -89,6 +100,7 @@ export const SERVICE_NAMES: ServiceName[] = [
   'sonarr',
   'radarr',
   'sabnzbd',
+  'nzbget',
   'tmdb',
   'omdb',
   'overseerr',

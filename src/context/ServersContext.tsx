@@ -26,7 +26,7 @@ interface ServersContextValue {
   refresh: () => Promise<void>;
 }
 
-const SERVICE_NAMES: ServiceName[] = ['sonarr', 'radarr', 'sabnzbd', 'tmdb', 'omdb', 'overseerr', 'qbittorrent', 'tautulli', 'portainer'];
+const SERVICE_NAMES: ServiceName[] = ['sonarr', 'radarr', 'sabnzbd', 'nzbget', 'tmdb', 'omdb', 'overseerr', 'qbittorrent', 'tautulli', 'portainer'];
 
 const ServersContext = createContext<ServersContextValue | undefined>(undefined);
 

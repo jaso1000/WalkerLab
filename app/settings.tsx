@@ -6,10 +6,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ChangePasswordModal } from '../src/components/ChangePasswordModal';
 import { HeaderTitle } from '../src/components/HeaderTitle';
 import { SelectRow } from '../src/components/SelectRow';
+import { ThemedSwitch } from '../src/components/ThemedSwitch';
 import { useProfiles } from '../src/context/ProfilesContext';
 import { useSectionNames } from '../src/context/SectionNamesContext';
 import { useServiceEnabled } from '../src/context/ServiceEnabledContext';
@@ -72,12 +73,13 @@ export default function SettingsScreen() {
                   ) : null}
                 </View>
               </TouchableOpacity>
-              <Switch
+              <ThemedSwitch
                 style={styles.rowSwitch}
                 value={enabled}
                 onValueChange={(v) => setEnabled(service.name, v)}
                 trackColor={{ false: colors.surfaceAlt, true: `${service.tint}55` }}
-                thumbColor={enabled ? service.tint : colors.textMuted}
+                activeColor={service.tint}
+                inactiveColor={colors.textMuted}
               />
             </View>
           );
