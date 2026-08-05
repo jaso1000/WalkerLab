@@ -22,7 +22,7 @@ A cross-platform (iOS + Android + Docker/web) app for managing your home media s
 
 ## Tech Stack
 
-- [Expo](https://expo.dev) (SDK 54) + React Native + TypeScript, [Expo Router](https://docs.expo.dev/router/introduction/)
+- [Expo](https://expo.dev) (SDK 57) + React Native + TypeScript, [Expo Router](https://docs.expo.dev/router/introduction/)
 - On iOS/Android, talks directly to the Sonarr, Radarr, SABnzbd, NZBGet, qBittorrent, Overseerr, TMDB, OMDb, Tautulli, and Portainer APIs
 - The Docker/web build adds a small Express + TypeScript backend (`server/`) that proxies every service call and stores credentials encrypted at rest — see [Installation](#installation) below
 
