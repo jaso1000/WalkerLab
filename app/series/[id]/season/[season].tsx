@@ -24,6 +24,13 @@ import { colors } from '../../../../src/theme/colors';
 // to-expand (missing and downloaded episodes both expand inline the same
 // way, showing file details + auto/manual search actions) plus multi-select
 // long-press for bulk monitor/search/delete across several episodes at once.
+
+// The bulk-select bar's own footprint (40px buttons + 10px padding top/
+// bottom = 60px tall, floating 16px above whatever's already below it, plus
+// a little breathing room) - added to the list's own bottom padding while
+// the bar is visible so the last row can actually scroll clear of it,
+// exactly like tabBarClearance does for the floating nav pill underneath it.
+const BULK_BAR_CLEARANCE = 92;
 export default function SeasonEpisodesScreen() {
   const tabBarClearance = useTabBarClearance();
   const { id, season, seriesTitle } = useLocalSearchParams<{ id: string; season: string; seriesTitle?: string }>();
@@ -216,7 +223,10 @@ export default function SeasonEpisodesScreen() {
         <FlatList
           data={visible}
           keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={[styles.list, { paddingBottom: tabBarClearance }]}
+          contentContainerStyle={[
+            styles.list,
+            { paddingBottom: tabBarClearance + (selected.size > 0 ? BULK_BAR_CLEARANCE : 0) },
+          ]}
           renderItem={({ item }) => {
             const isSelected = selected.has(item.id);
             const airDate = formatDate(item.airDateUtc);
@@ -310,7 +320,7 @@ export default function SeasonEpisodesScreen() {
       )}
 
       {selected.size > 0 ? (
-        <View style={styles.bulkBar}>
+        <View style={[styles.bulkBar, { bottom: 16 + tabBarClearance }]}>
           <TouchableOpacity
             style={styles.bulkButton}
             disabled={busy}
