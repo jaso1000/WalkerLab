@@ -642,10 +642,12 @@ export default function DiscoverScreen() {
                     onPressTitle={() => openCategory('upcoming', 'all')}
                   />
                   <LogoRow title="Streaming Service" items={allProviders} onPressItem={(item) => openProvider(item, 'all')} />
-                  {/* White tile background - studio logos are dark ink on
+                  {/* Light tile background - studio logos are dark ink on
                       transparent artwork, meant for a light page, and are
-                      nearly invisible on this app's default dark tile. */}
-                  <LogoRow title="Studios" items={studioItems} onPressItem={openStudio} logoBackground="#FFFFFF" />
+                      nearly invisible on this app's default dark tile. A
+                      soft off-white rather than stark #FFFFFF so it still
+                      reads as part of this dark theme. */}
+                  <LogoRow title="Studios" items={studioItems} onPressItem={openStudio} logoTintColor={colors.textPrimary} />
                   <View style={{ height: 32 }} />
                 </ScrollView>
               )}
@@ -678,10 +680,12 @@ export default function DiscoverScreen() {
                     onPressTitle={() => openCategory('recent', 'movie')}
                   />
                   <LogoRow title="Streaming Service" items={movieProviders} onPressItem={(item) => openProvider(item, 'movie')} />
-                  {/* White tile background - studio logos are dark ink on
+                  {/* Light tile background - studio logos are dark ink on
                       transparent artwork, meant for a light page, and are
-                      nearly invisible on this app's default dark tile. */}
-                  <LogoRow title="Studios" items={studioItems} onPressItem={openStudio} logoBackground="#FFFFFF" />
+                      nearly invisible on this app's default dark tile. A
+                      soft off-white rather than stark #FFFFFF so it still
+                      reads as part of this dark theme. */}
+                  <LogoRow title="Studios" items={studioItems} onPressItem={openStudio} logoTintColor={colors.textPrimary} />
                   <View style={{ height: 32 }} />
                 </ScrollView>
               )}

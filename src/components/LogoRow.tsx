@@ -23,18 +23,26 @@ export function LogoRow({
   items,
   onPressItem,
   logoBackground = colors.surfaceAlt,
+  logoTintColor,
 }: {
   title: string;
   items: LogoRowItem[];
   onPressItem: (item: LogoRowItem) => void;
+  logoBackground?: string;
   // Streaming-provider logos are TMDB's own app-icon-style tiles - always
   // opaque, already high-contrast against anything. Studio logos are plain
   // flat artwork (often black ink, transparent background) meant to sit on
   // a light page background, the way they'd appear on a studio's own site -
-  // against this app's default dark tile they can be nearly invisible
+  // against this app's default dark tile they were nearly invisible
   // (confirmed live: Disney/Pixar/Lucasfilm's logos all but disappeared).
-  // Callers with that kind of logo should pass a light tile color instead.
-  logoBackground?: string;
+  // Rather than lighten the tile to match, callers with that kind of logo
+  // can pass a solid tint instead: expo-image's `tintColor` treats the
+  // source as an alpha mask and recolors every opaque pixel to this color,
+  // turning e.g. a black-ink logo into a clean white silhouette that stays
+  // legible on the app's normal dark tile. Multi-color logos lose their
+  // real color this way (flattened to one solid tint) - an intentional
+  // tradeoff for consistent legibility over exact studio branding.
+  logoTintColor?: string;
 }) {
   if (items.length === 0) return null;
   return (
@@ -47,7 +55,13 @@ export function LogoRow({
           <Pressable key={item.id} style={styles.card} onPress={() => onPressItem(item)}>
             <View style={[styles.logoBox, { backgroundColor: logoBackground }]}>
               {item.logoUrl ? (
-                <Image source={{ uri: item.logoUrl }} style={styles.logo} contentFit="contain" cachePolicy="memory-disk" />
+                <Image
+                  source={{ uri: item.logoUrl }}
+                  style={styles.logo}
+                  contentFit="contain"
+                  cachePolicy="memory-disk"
+                  tintColor={logoTintColor}
+                />
               ) : null}
             </View>
             <Text style={styles.cardTitle} numberOfLines={2}>
