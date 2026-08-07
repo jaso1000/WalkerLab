@@ -48,3 +48,20 @@ export async function getLastQualityProfileId(scope: string): Promise<number | n
 export async function setLastQualityProfileId(scope: string, id: number): Promise<void> {
   await AsyncStorage.setItem(qualityProfileKeyFor(scope), String(id));
 }
+
+// Discover's "streaming availability" region (TMDB watch-provider filter,
+// Streaming Service row) - set from Settings > TMDB (Discover)'s "Default
+// Region" picker. Falls back to `FALLBACK_WATCH_REGION` when the user
+// hasn't picked one yet, not TMDB's own US-centric default - most of this
+// app's actual install base isn't in the US.
+const DEFAULT_REGION_KEY = 'walkerlab_default_region';
+export const FALLBACK_WATCH_REGION = 'AU';
+
+export async function getDefaultRegion(): Promise<string> {
+  const raw = await AsyncStorage.getItem(DEFAULT_REGION_KEY);
+  return raw || FALLBACK_WATCH_REGION;
+}
+
+export async function setDefaultRegion(code: string): Promise<void> {
+  await AsyncStorage.setItem(DEFAULT_REGION_KEY, code);
+}

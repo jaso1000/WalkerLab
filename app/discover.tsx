@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router, Stack, useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -19,14 +19,17 @@ import {
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { radarrApi, RadarrMovie } from '../src/api/radarr';
 import { sonarrApi, SonarrSeries } from '../src/api/sonarr';
-import { TMDB_NETWORKS, tmdbApi, tmdbImageUrl, TmdbMovie, TmdbSearchResult, TmdbTv } from '../src/api/tmdb';
+import { TMDB_STUDIOS, tmdbApi, tmdbImageUrl, TmdbMovie, TmdbSearchResult, TmdbTv, TmdbWatchProvider } from '../src/api/tmdb';
+import { ServiceConfig } from '../src/api/types';
 import { DiscoverCardItem, DiscoverRow } from '../src/components/DiscoverRow';
+import { LogoRow, LogoRowItem } from '../src/components/LogoRow';
 import { SwipeTabBar } from '../src/components/SwipeTabBar';
 import { useServers } from '../src/context/ServersContext';
 import { useSectionNames } from '../src/context/SectionNamesContext';
 import { alert } from '../src/lib/alert';
 import { deletedLibrary } from '../src/lib/deletedLibrary';
-import { getLastQualityProfileId, setLastQualityProfileId } from '../src/lib/preferences';
+import { getCachedProviders, getCachedStudios, setCachedProviders, setCachedStudios } from '../src/lib/discoverCache';
+import { FALLBACK_WATCH_REGION, getDefaultRegion, getLastQualityProfileId, setLastQualityProfileId } from '../src/lib/preferences';
 import {
   CATEGORY_LABELS,
   DiscoverCategory,
@@ -55,6 +58,7 @@ import { colors } from '../src/theme/colors';
 // date across both libraries. All is both the default tab and the only one
 // loaded eagerly; Movies/TV Shows lazy-load on first swipe to them.
 const PREVIEW_COUNT = 15;
+const PROVIDER_PREVIEW_COUNT = 20;
 const CATEGORIES: DiscoverCategory[] = ['trending', 'popular', 'upcoming'];
 const TABS = ['All', 'Movies', 'TV Shows'] as const;
 
@@ -122,6 +126,42 @@ function toLocalSeriesCardItems(series: SonarrSeries[]): DiscoverCardItem[] {
     }));
 }
 
+function providersToItems(providers: TmdbWatchProvider[]): LogoRowItem[] {
+  return providers.slice(0, PROVIDER_PREVIEW_COUNT).map((p) => ({
+    id: p.provider_id,
+    name: p.provider_name,
+    logoUrl: tmdbImageUrl(p.logo_path, 'w185'),
+  }));
+}
+
+// Cache-first: a region's streaming catalog doesn't change minute to
+// minute, so a warm cache hit turns this into a local AsyncStorage read
+// instead of a real TMDB round-trip - the "All" tab's own load function
+// calls this on *every* focus (same as it already did for Trending/Popular/
+// Upcoming before Streaming Service existed), so this is what actually
+// keeps repeat visits fast (see discoverCache.ts's own header comment for
+// the full story on why this was added).
+async function loadProviders(config: ServiceConfig, mediaType: 'movie' | 'tv', region: string): Promise<LogoRowItem[]> {
+  const cached = await getCachedProviders(mediaType, region);
+  if (cached) return cached;
+  const fresh = await tmdbApi.watchProviders(config, mediaType, region).catch(() => [] as TmdbWatchProvider[]);
+  const items = providersToItems(fresh);
+  if (items.length > 0) setCachedProviders(mediaType, region, items);
+  return items;
+}
+
+// "All" tab's Streaming Service row merges both catalogs (deduped by id -
+// the same service carries the same provider id across movie/tv catalogs
+// in the same region) since a single row has to represent both.
+function mergeProviderItems(a: LogoRowItem[], b: LogoRowItem[]): LogoRowItem[] {
+  const seen = new Set<number>();
+  return [...a, ...b].filter((p) => {
+    if (seen.has(p.id)) return false;
+    seen.add(p.id);
+    return true;
+  });
+}
+
 // "All" tab's Recently Added - true chronological merge of both libraries by
 // their real `added` timestamp (not alternating, unlike Popular/Upcoming
 // below - both already carry a real added date to sort by).
@@ -179,6 +219,45 @@ export default function DiscoverScreen() {
   const movieLoaded = useRef(false);
   const tvLoaded = useRef(false);
 
+  // Streaming Service / Studios rows (all 3 tabs). Providers are region+
+  // media-type scoped so each tab fetches its own; Studios is a fixed
+  // curated list (`TMDB_STUDIOS`) with real logos resolved once and shared
+  // across all three tabs. Region comes from Settings > TMDB (Discover) >
+  // Default Region (`FALLBACK_WATCH_REGION` only until that loads) - loadAll/
+  // loadMovies/loadTv all depend on it, so the one-time async load
+  // transitioning from the fallback to the real saved value naturally
+  // triggers a re-fetch with the correct region once it resolves.
+  const [region, setRegion] = useState(FALLBACK_WATCH_REGION);
+  useEffect(() => {
+    getDefaultRegion().then(setRegion);
+  }, []);
+
+  const [allProviders, setAllProviders] = useState<LogoRowItem[]>([]);
+  const [movieProviders, setMovieProviders] = useState<LogoRowItem[]>([]);
+  const [tvProviders, setTvProviders] = useState<LogoRowItem[]>([]);
+  const [studioItems, setStudioItems] = useState<LogoRowItem[]>([]);
+  const studiosLoaded = useRef(false);
+
+  useEffect(() => {
+    if (!config || studiosLoaded.current) return;
+    studiosLoaded.current = true;
+    // Cache-first: a studio's logo essentially never changes, so this skips
+    // all 14 real `/company/{id}` calls entirely once cached.
+    getCachedStudios().then((cached) => {
+      if (cached) {
+        setStudioItems(cached);
+        return;
+      }
+      Promise.all(TMDB_STUDIOS.map((s) => tmdbApi.company(config, s.id).catch(() => ({ id: s.id, name: s.name, logo_path: undefined }))))
+        .then((companies) => {
+          const items = companies.map((c) => ({ id: c.id, name: c.name, logoUrl: tmdbImageUrl(c.logo_path, 'w185') }));
+          setStudioItems(items);
+          setCachedStudios(items);
+        })
+        .catch(() => {});
+    });
+  }, [config]);
+
   const [libraryMovies, setLibraryMovies] = useState<RadarrMovie[]>([]);
   const [librarySeries, setLibrarySeries] = useState<SonarrSeries[]>([]);
   const [library, setLibrary] = useState<LibraryIndex>(EMPTY_LIBRARY_INDEX);
@@ -198,12 +277,17 @@ export default function DiscoverScreen() {
     setLoadingAll(true);
     setErrorAll(null);
     try {
-      const [trendingRes, popularMovies, popularTv, upcomingMovies, upcomingTv] = await Promise.all([
+      const [trendingRes, popularMovies, popularTv, upcomingMovies, upcomingTv, movieProv, tvProv] = await Promise.all([
         tmdbApi.trendingAll(config, 'week', 1),
         tmdbApi.popularMovies(config, 1),
         tmdbApi.popularTv(config, 1),
         tmdbApi.upcomingMovies(config, 1),
         tmdbApi.upcomingTv(config, 1),
+        // Cache-first (see loadProviders) - this fires on *every* focus, so
+        // a warm cache is what keeps repeat visits from re-hitting TMDB for
+        // data that barely changes.
+        loadProviders(config, 'movie', region),
+        loadProviders(config, 'tv', region),
       ]);
       setAllCategories({
         trending: trendingRes.results.filter((r) => r.media_type !== 'person'),
@@ -211,41 +295,50 @@ export default function DiscoverScreen() {
         upcoming: interleave<TmdbMovie | TmdbTv>(upcomingMovies.results, upcomingTv.results),
         recent: [],
       });
+      setAllProviders(mergeProviderItems(movieProv, tvProv));
     } catch (e) {
       setErrorAll(e instanceof Error ? e.message : 'Failed to load Discover');
     } finally {
       setLoadingAll(false);
     }
-  }, [config]);
+  }, [config, region]);
 
   const loadMovies = useCallback(async () => {
     if (!config) return;
     setLoadingMovies(true);
     setErrorMovies(null);
     try {
-      const [t, p, u] = await Promise.all(CATEGORIES.map((c) => fetchDiscoverCategory(config, c, 'movie', 1)));
-      const r = await fetchDiscoverCategory(config, 'recent', 'movie', 1);
+      const [[t, p, u], r, providers] = await Promise.all([
+        Promise.all(CATEGORIES.map((c) => fetchDiscoverCategory(config, c, 'movie', 1))),
+        fetchDiscoverCategory(config, 'recent', 'movie', 1),
+        loadProviders(config, 'movie', region),
+      ]);
       setMovieCategories({ trending: t.results, popular: p.results, upcoming: u.results, recent: r.results });
+      setMovieProviders(providers);
     } catch (e) {
       setErrorMovies(e instanceof Error ? e.message : 'Failed to load Movies');
     } finally {
       setLoadingMovies(false);
     }
-  }, [config]);
+  }, [config, region]);
 
   const loadTv = useCallback(async () => {
     if (!config) return;
     setLoadingTv(true);
     setErrorTv(null);
     try {
-      const [t, p, u] = await Promise.all(CATEGORIES.map((c) => fetchDiscoverCategory(config, c, 'tv', 1)));
+      const [[t, p, u], providers] = await Promise.all([
+        Promise.all(CATEGORIES.map((c) => fetchDiscoverCategory(config, c, 'tv', 1))),
+        loadProviders(config, 'tv', region),
+      ]);
       setTvCategories({ trending: t.results, popular: p.results, upcoming: u.results, recent: [] });
+      setTvProviders(providers);
     } catch (e) {
       setErrorTv(e instanceof Error ? e.message : 'Failed to load TV Shows');
     } finally {
       setLoadingTv(false);
     }
-  }, [config]);
+  }, [config, region]);
 
   // Loads the real Radarr/Sonarr library (for the Recently Added rows) and
   // rebuilds the tmdbId-keyed library index (for poster status badges) -
@@ -382,6 +475,18 @@ export default function DiscoverScreen() {
   const openLocalItem = (id: number, mediaType: MediaKind) => router.push(mediaType === 'movie' ? `/movie/${id}` : `/series/${id}`);
   const openCategory = (category: DiscoverCategory, mediaType: DiscoverMediaFilter) =>
     router.push(`/discover/category/${category}?mediaType=${mediaType}`);
+
+  // Lands directly on the (pre-filtered) category screen rather than an
+  // unfiltered one - "popular" is the underlying category since neither
+  // concept has a "trending"/"upcoming" equivalent, but the screen shows
+  // the provider/studio name as its title instead once deep-linked in like
+  // this (see app/discover/category/[category].tsx).
+  const openProvider = (item: LogoRowItem, mediaType: DiscoverMediaFilter) =>
+    router.push(`/discover/category/popular?mediaType=${mediaType}&providerId=${item.id}&providerName=${encodeURIComponent(item.name)}`);
+  // Always movie mediaType regardless of which tab the row is shown on -
+  // TMDB's studio/production-company filter only ever applies to movies.
+  const openStudio = (item: LogoRowItem) =>
+    router.push(`/discover/category/popular?mediaType=movie&studioId=${item.id}&studioName=${encodeURIComponent(item.name)}`);
 
   // Central place to react to the active tab changing (tap or swipe). All
   // (index 0) is loaded eagerly on every focus above; Movies/TV Shows lazy-
@@ -536,6 +641,11 @@ export default function DiscoverScreen() {
                     onPressItem={(id, t) => openDiscoverItem(id, t!)}
                     onPressTitle={() => openCategory('upcoming', 'all')}
                   />
+                  <LogoRow title="Streaming Service" items={allProviders} onPressItem={(item) => openProvider(item, 'all')} />
+                  {/* White tile background - studio logos are dark ink on
+                      transparent artwork, meant for a light page, and are
+                      nearly invisible on this app's default dark tile. */}
+                  <LogoRow title="Studios" items={studioItems} onPressItem={openStudio} logoBackground="#FFFFFF" />
                   <View style={{ height: 32 }} />
                 </ScrollView>
               )}
@@ -567,6 +677,11 @@ export default function DiscoverScreen() {
                     onPressItem={(id) => openDiscoverItem(id, 'movie')}
                     onPressTitle={() => openCategory('recent', 'movie')}
                   />
+                  <LogoRow title="Streaming Service" items={movieProviders} onPressItem={(item) => openProvider(item, 'movie')} />
+                  {/* White tile background - studio logos are dark ink on
+                      transparent artwork, meant for a light page, and are
+                      nearly invisible on this app's default dark tile. */}
+                  <LogoRow title="Studios" items={studioItems} onPressItem={openStudio} logoBackground="#FFFFFF" />
                   <View style={{ height: 32 }} />
                 </ScrollView>
               )}
@@ -574,18 +689,6 @@ export default function DiscoverScreen() {
 
             {/* TV Shows - same content as before this screen had swipeable tabs */}
             <View style={[styles.page, { width }]}>
-              <View style={styles.networkRow}>
-                {TMDB_NETWORKS.map((network) => (
-                  <TouchableOpacity
-                    key={network.id}
-                    style={[styles.networkChip, { borderColor: network.color }]}
-                    onPress={() => router.push(`/discover/network/${network.id}?name=${encodeURIComponent(network.name)}`)}
-                  >
-                    <View style={[styles.networkDot, { backgroundColor: network.color }]} />
-                    <Text style={styles.networkChipText}>{network.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
               {loadingTv && tvCategories.trending.length === 0 ? (
                 <ActivityIndicator color={colors.sectionGreen} style={{ marginTop: 40 }} />
               ) : (
@@ -604,6 +707,7 @@ export default function DiscoverScreen() {
                       onPressTitle={() => openCategory(category, 'tv')}
                     />
                   ))}
+                  <LogoRow title="Streaming Service" items={tvProviders} onPressItem={(item) => openProvider(item, 'tv')} />
                   <View style={{ height: 32 }} />
                 </ScrollView>
               )}
@@ -655,17 +759,4 @@ const styles = StyleSheet.create({
   pager: { flex: 1 },
   page: { flex: 1 },
   error: { color: colors.danger, marginHorizontal: 16, marginTop: 12 },
-  networkRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 10 },
-  networkChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 20,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    backgroundColor: colors.surface,
-  },
-  networkDot: { width: 8, height: 8, borderRadius: 4 },
-  networkChipText: { color: colors.textPrimary, fontWeight: '600', fontSize: 13 },
 });

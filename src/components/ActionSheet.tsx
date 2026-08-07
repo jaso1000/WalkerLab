@@ -3,7 +3,7 @@
 // alternative to `PromptModal` for a simple list of tappable choices plus a
 // Cancel button.
 import { Ionicons } from '@expo/vector-icons';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions } from 'react-native';
 import { colors } from '../theme/colors';
 
 export interface ActionSheetOption {
@@ -30,28 +30,37 @@ export function ActionSheet({
   options: ActionSheetOption[];
   onClose: () => void;
 }) {
+  // A plain (non-scrolling) stack of options overflowed straight off the
+  // bottom of the screen with no way to reach the rest, confirmed live
+  // against the ~190-entry watch-region picker (a short list like a sort
+  // menu never showed this - it just never had enough rows to hit the
+  // ceiling). Cancel stays outside the ScrollView, pinned and always
+  // reachable, matching the standard action-sheet convention.
+  const { height: windowHeight } = useWindowDimensions();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <Text style={styles.title}>{title}</Text>
-          {options.map((option) => (
-            <Pressable
-              key={option.label}
-              style={[styles.option, styles.optionRow]}
-              onPress={() => {
-                onClose();
-                option.onPress();
-              }}
-            >
-              {option.icon ? (
-                <Ionicons name={option.icon} size={18} color={option.tint ?? colors.textSecondary} />
-              ) : null}
-              <Text style={[styles.optionText, option.destructive && styles.optionTextDestructive]}>
-                {option.label}
-              </Text>
-            </Pressable>
-          ))}
+          <ScrollView style={{ maxHeight: windowHeight * 0.6 }}>
+            {options.map((option) => (
+              <Pressable
+                key={option.label}
+                style={[styles.option, styles.optionRow]}
+                onPress={() => {
+                  onClose();
+                  option.onPress();
+                }}
+              >
+                {option.icon ? (
+                  <Ionicons name={option.icon} size={18} color={option.tint ?? colors.textSecondary} />
+                ) : null}
+                <Text style={[styles.optionText, option.destructive && styles.optionTextDestructive]}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
           <Pressable style={[styles.option, styles.cancel]} onPress={onClose}>
             <Text style={styles.optionText}>Cancel</Text>
           </Pressable>

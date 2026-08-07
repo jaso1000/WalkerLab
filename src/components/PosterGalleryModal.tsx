@@ -1,9 +1,10 @@
 // Full-screen, swipeable poster viewer opened by tapping a poster on a
-// movie/series detail page (never from a list/grid view). Lazily fetches
-// every available poster from TMDB's `/movie|tv/{id}/images` endpoint (the
-// detail payload itself only ever carries one, TMDB's own current pick) -
-// falls back to just that single already-known poster if TMDB isn't
-// configured, the id hasn't resolved yet, or the fetch comes back empty.
+// movie/series detail page, or a photo on a person page (never from a
+// list/grid view). Lazily fetches every available image from TMDB's
+// `/movie|tv/{id}/images` or `/person/{id}/images` endpoint (the detail
+// payload itself only ever carries one, TMDB's own current pick) - falls
+// back to just that single already-known image if TMDB isn't configured,
+// the id hasn't resolved yet, or the fetch comes back empty.
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useEffect, useRef, useState } from 'react';
@@ -35,11 +36,11 @@ export function PosterGalleryModal({
   visible: boolean;
   onClose: () => void;
   tmdbConfig: ServiceConfig | undefined;
-  mediaType: 'movie' | 'tv';
+  mediaType: 'movie' | 'tv' | 'person';
   tmdbId: number | undefined;
-  // The poster already on hand from the detail page itself - shown
+  // The poster/photo already on hand from the detail page itself - shown
   // immediately as the only page if the full gallery can't be fetched, so
-  // tapping the poster always opens to *something* full-screen.
+  // tapping it always opens to *something* full-screen.
   fallbackPosterUrl?: string;
 }) {
   const { width, height } = useWindowDimensions();
@@ -60,10 +61,15 @@ export function PosterGalleryModal({
       return;
     }
     setPosters(null);
-    const fetchImages = mediaType === 'movie' ? tmdbApi.movieImages(tmdbConfig, tmdbId) : tmdbApi.tvImages(tmdbConfig, tmdbId);
+    const fetchImages =
+      mediaType === 'movie'
+        ? tmdbApi.movieImages(tmdbConfig, tmdbId).then((res) => res.posters)
+        : mediaType === 'tv'
+          ? tmdbApi.tvImages(tmdbConfig, tmdbId).then((res) => res.posters)
+          : tmdbApi.personImages(tmdbConfig, tmdbId).then((res) => res.profiles);
     fetchImages
-      .then((res) => {
-        const items = res.posters
+      .then((images) => {
+        const items = images
           .map((p) => {
             const full = tmdbImageUrl(p.file_path, 'w780');
             const thumb = tmdbImageUrl(p.file_path, 'w185');
@@ -118,7 +124,7 @@ export function PosterGalleryModal({
           </View>
         ) : posters.length === 0 ? (
           <View style={styles.center}>
-            <Text style={styles.emptyText}>No posters available.</Text>
+            <Text style={styles.emptyText}>{mediaType === 'person' ? 'No photos available.' : 'No posters available.'}</Text>
           </View>
         ) : (
           <>

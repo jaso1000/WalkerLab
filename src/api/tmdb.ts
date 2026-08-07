@@ -60,6 +60,42 @@ export interface TmdbKeyword {
   name: string;
 }
 
+// Discover filter option shapes - genres/languages/certifications ship
+// baked into the app (TMDB's own lists), everything else is looked up live.
+export interface TmdbGenre {
+  id: number;
+  name: string;
+}
+
+export interface TmdbCompany {
+  id: number;
+  name: string;
+  logo_path?: string;
+}
+
+export interface TmdbWatchProvider {
+  provider_id: number;
+  provider_name: string;
+  logo_path?: string;
+}
+
+export interface TmdbWatchRegion {
+  iso_3166_1: string;
+  english_name: string;
+}
+
+export interface TmdbLanguage {
+  iso_639_1: string;
+  english_name: string;
+  name: string;
+}
+
+export interface TmdbCertification {
+  certification: string;
+  meaning: string;
+  order: number;
+}
+
 // Resolves a title's `original_language` ISO code (e.g. "ja") to a readable
 // name (e.g. "Japanese") by cross-referencing its own `spoken_languages`
 // list, falling back to the raw code if no match is found.
@@ -269,6 +305,19 @@ export interface TmdbPersonCredit {
   popularity?: number;
 }
 
+// Discover's Actors filter - the search-result/selected-chip shape (mirrors
+// `TmdbCompany`'s role for the Studio filter).
+export interface TmdbPersonSearchResult {
+  id: number;
+  name: string;
+  profile_path?: string;
+  known_for_department?: string;
+}
+
+export interface TmdbPersonImagesResponse {
+  profiles: TmdbImage[];
+}
+
 // One row from `/search/multi` - can be a movie, TV show, or person, hence
 // `media_type` and the mostly-optional fields (only the relevant subset is
 // populated depending on which type it is).
@@ -307,31 +356,40 @@ export interface TmdbExternalIds {
   imdb_id?: string;
 }
 
-export interface TmdbNetwork {
-  id: number;
-  name: string;
-  color: string;
-}
-
-// Fixed list powering Discover's "Browse by Network" filter bar (TV only) -
-// TMDB doesn't expose a clean "list all networks" endpoint suitable for a
-// browse UI, so this is a curated set of the major streaming networks with
-// their real brand colors, matched against TMDB's own numeric network ids.
-export const TMDB_NETWORKS: TmdbNetwork[] = [
-  { id: 213, name: 'Netflix', color: '#E50914' },
-  { id: 2739, name: 'Disney+', color: '#113CCF' },
-  { id: 3186, name: 'HBO Max', color: '#8E44EF' },
-  { id: 1024, name: 'Prime Video', color: '#00A8E1' },
-  { id: 2552, name: 'Apple TV+', color: '#A3AAAE' },
-  { id: 453, name: 'Hulu', color: '#1CE783' },
-  { id: 4330, name: 'Paramount+', color: '#0064FF' },
-  { id: 3353, name: 'Peacock', color: '#F5A623' },
+// Fixed list powering Discover's "Studios" row (movie-only - TMDB's studio/
+// production-company concept doesn't really extend to TV the way it does
+// for movies) - TMDB doesn't expose a "list all studios" endpoint suitable
+// for a browse UI, so this is a curated set of major/notable studios
+// instead (the app's old TV-only "Network" equivalent of this was removed
+// once the Streaming Service row/filter made it redundant - real watch-
+// provider data, not a fixed 8-network list). Every id below was
+// individually verified against TMDB's own
+// company pages (not guessed) before being added - two initial guesses
+// during that process turned out to resolve to entirely different
+// companies, which is exactly the failure mode verifying each one guards
+// against. Logos are fetched live per-id via `tmdbApi.company` (real
+// `logo_path`, not hardcoded) since this list only carries id/name.
+export const TMDB_STUDIOS: { id: number; name: string }[] = [
+  { id: 2, name: 'Walt Disney Pictures' },
+  { id: 3, name: 'Pixar' },
+  { id: 420, name: 'Marvel Studios' },
+  { id: 1, name: 'Lucasfilm' },
+  { id: 174, name: 'Warner Bros. Pictures' },
+  { id: 12, name: 'New Line Cinema' },
+  { id: 33, name: 'Universal Pictures' },
+  { id: 521, name: 'DreamWorks Animation' },
+  { id: 4, name: 'Paramount Pictures' },
+  { id: 5, name: 'Columbia Pictures' },
+  { id: 25, name: '20th Century Studios' },
+  { id: 923, name: 'Legendary Pictures' },
+  { id: 3172, name: 'Blumhouse Productions' },
+  { id: 41077, name: 'A24' },
 ];
 
 // Builds a full image URL from a TMDB-relative path (e.g. `/abc123.jpg`) at
 // one of TMDB's fixed CDN size buckets. Returns `undefined` unchanged so
 // callers can conditionally render a placeholder when there's no image.
-export function tmdbImageUrl(path: string | undefined, size: 'w185' | 'w342' | 'w780' = 'w342'): string | undefined {
+export function tmdbImageUrl(path: string | undefined, size: 'w45' | 'w185' | 'w342' | 'w780' = 'w342'): string | undefined {
   return path ? `${IMAGE_BASE}/${size}${path}` : undefined;
 }
 
@@ -388,22 +446,22 @@ export const tmdbApi = {
   // TMDB's `/movie/upcoming` endpoint matches if ANY of a movie's many
   // release-date entries (any region, any type) falls in its internal
   // upcoming window - including regional theatrical re-releases and
-  // anniversary re-issues of old catalog titles. The plain `release_date`
-  // field on each result stays that movie's real primary release date
-  // though (e.g. a 1984 film re-released this year still reports
-  // "1984-10-26"), so filtering out results whose own `release_date` isn't
-  // actually recent/near-future reliably excludes these without a second
-  // API call per movie - confirmed this is what was happening (not
-  // guessed): the old titles the user saw were showing their real,
-  // decades-old year on the card, TMDB's own endpoint just included them.
-  upcomingMovies: async (config: ServiceConfig, page = 1) => {
-    const data = await tmdbFetch<{ results: TmdbMovie[]; total_pages: number }>(config, '/movie/upcoming', {
-      page: String(page),
+  // anniversary re-issues of old catalog titles, which used to require a
+  // client-side cutoff filter to hide (confirmed live: the old titles the
+  // user saw were showing their real, decades-old `release_date`, TMDB's
+  // own endpoint just included them anyway). Switched to the same strategy
+  // Seerr uses: `/discover/movie` with `primary_release_date.gte` filters
+  // on that real primary-release-date field directly, so the workaround
+  // isn't needed at all - same shape as `upcomingTv` below, which already
+  // used `/discover/tv` for the equivalent reason (no dedicated endpoint).
+  upcomingMovies: (config: ServiceConfig, page = 1) => {
+    const today = new Date().toISOString().slice(0, 10);
+    return tmdbFetch<{ results: TmdbMovie[]; total_pages: number }>(config, '/discover/movie', {
+      'primary_release_date.gte': today,
+      sort_by: 'popularity.desc',
       region: 'US',
+      page: String(page),
     });
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 30);
-    return { ...data, results: data.results.filter((m) => !m.release_date || new Date(m.release_date) >= cutoff) };
   },
 
   // TV has no dedicated "/upcoming" endpoint like movies do, so this uses
@@ -442,13 +500,49 @@ export const tmdbApi = {
     return tmdbFetch<{ results: TmdbMovie[]; total_pages: number }>(config, '/discover/movie', params);
   },
 
-  // Discover's "Browse by Network" screen - one TMDB network id per pill.
-  tvByNetwork: (config: ServiceConfig, networkId: number, page = 1) =>
-    tmdbFetch<{ results: TmdbTv[]; total_pages: number }>(config, '/discover/tv', {
-      with_networks: String(networkId),
-      sort_by: 'popularity.desc',
-      page: String(page),
-    }),
+  // The two general-purpose Discover Movies/TV browse screens' workhorse
+  // calls - `params` is a fully-built TMDB query (see
+  // `src/lib/discoverFilters.ts`'s `buildDiscoverParams`), this stays a thin
+  // passthrough so the filter-to-query-param mapping lives in one place.
+  discoverMovies: (config: ServiceConfig, params: Record<string, string>, page = 1) =>
+    tmdbFetch<{ results: TmdbMovie[]; total_pages: number }>(config, '/discover/movie', { ...params, page: String(page) }),
+
+  discoverTv: (config: ServiceConfig, params: Record<string, string>, page = 1) =>
+    tmdbFetch<{ results: TmdbTv[]; total_pages: number }>(config, '/discover/tv', { ...params, page: String(page) }),
+
+  movieGenres: (config: ServiceConfig) => tmdbFetch<{ genres: TmdbGenre[] }>(config, '/genre/movie/list').then((r) => r.genres),
+
+  tvGenres: (config: ServiceConfig) => tmdbFetch<{ genres: TmdbGenre[] }>(config, '/genre/tv/list').then((r) => r.genres),
+
+  searchKeywords: (config: ServiceConfig, query: string) =>
+    tmdbFetch<{ results: TmdbKeyword[] }>(config, '/search/keyword', { query }).then((r) => r.results),
+
+  // Studio picker (movie-only filter, matches Seerr's own CompanySelector).
+  searchCompanies: (config: ServiceConfig, query: string) =>
+    tmdbFetch<{ results: TmdbCompany[] }>(config, '/search/company', { query }).then((r) => r.results),
+
+  watchProviders: (config: ServiceConfig, mediaType: 'movie' | 'tv', region: string) =>
+    tmdbFetch<{ results: TmdbWatchProvider[] }>(config, `/watch/providers/${mediaType}`, { watch_region: region }).then(
+      (r) => r.results
+    ),
+
+  watchProviderRegions: (config: ServiceConfig) =>
+    tmdbFetch<{ results: TmdbWatchRegion[] }>(config, '/watch/providers/regions').then((r) => r.results),
+
+  languages: (config: ServiceConfig) => tmdbFetch<TmdbLanguage[]>(config, '/configuration/languages'),
+
+  // US-only, matching Seerr's own `USCertificationSelector` - TMDB's
+  // certification system is genuinely per-country (different rating boards),
+  // and US is this app's only real-world install base so far.
+  movieCertifications: (config: ServiceConfig) =>
+    tmdbFetch<{ certifications: Record<string, TmdbCertification[]> }>(config, '/certification/movie/list').then(
+      (r) => r.certifications.US ?? []
+    ),
+
+  // Discover's "Studios" row - `TMDB_STUDIOS` only carries id/name, so this
+  // resolves each entry's real logo (and confirms the name still matches)
+  // straight from TMDB rather than hardcoding logo paths too.
+  company: (config: ServiceConfig, id: number) => tmdbFetch<TmdbCompany>(config, `/company/${id}`),
 
   // "More Like This" row on the detail page.
   movieRecommendations: (config: ServiceConfig, id: number) =>
@@ -498,4 +592,13 @@ export const tmdbApi = {
   // `media_type` still distinguishes them).
   personCombinedCredits: (config: ServiceConfig, id: number) =>
     tmdbFetch<{ cast: TmdbPersonCredit[]; crew: TmdbPersonCredit[] }>(config, `/person/${id}/combined_credits`),
+
+  // Discover filter sheet's Actors search (debounced call site).
+  searchPeople: (config: ServiceConfig, query: string) =>
+    tmdbFetch<{ results: TmdbPersonSearchResult[] }>(config, '/search/person', { query }).then((r) => r.results),
+
+  // Powers the person page's photo gallery, the same role `movieImages`/
+  // `tvImages` play for a title's poster gallery - person images live under
+  // `profiles` instead of `posters`, otherwise the same `TmdbImage` shape.
+  personImages: (config: ServiceConfig, id: number) => tmdbFetch<TmdbPersonImagesResponse>(config, `/person/${id}/images`),
 };

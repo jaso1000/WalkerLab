@@ -23,13 +23,15 @@ import { sonarrApi } from '../../src/api/sonarr';
 import { omdbApi } from '../../src/api/omdb';
 import { portainerApi } from '../../src/api/portainer';
 import { tautulliApi } from '../../src/api/tautulli';
-import { tmdbApi } from '../../src/api/tmdb';
+import { tmdbApi, TmdbWatchRegion } from '../../src/api/tmdb';
 import { ServiceConfig, ServiceName } from '../../src/api/types';
+import { ActionSheet } from '../../src/components/ActionSheet';
 import { SwitchRow } from '../../src/components/SelectRow';
 import { useProfiles } from '../../src/context/ProfilesContext';
 import { useSectionNames } from '../../src/context/SectionNamesContext';
 import { useServers } from '../../src/context/ServersContext';
 import { alert } from '../../src/lib/alert';
+import { FALLBACK_WATCH_REGION, getDefaultRegion, setDefaultRegion } from '../../src/lib/preferences';
 import { DEFAULT_SECTION_NAMES } from '../../src/lib/sectionNames';
 import { SERVICE_META } from '../../src/lib/serviceMeta';
 import { DEFAULT_STARTUP_SCREEN, getStartupScreen, setStartupScreen, StartupSectionId } from '../../src/lib/startupScreen';
@@ -116,6 +118,29 @@ export default function ServiceSettingsScreen() {
   const [testing, setTesting] = useState(false);
   const [nameValue, setNameValue] = useState(meta?.sectionId ? names[meta.sectionId] : '');
   const [startupId, setStartupId] = useState<StartupSectionId>(DEFAULT_STARTUP_SCREEN);
+
+  // TMDB-only: Discover's "Default Region" (Streaming Service row + the
+  // filter panel's watch-provider search both fall back to this whenever
+  // the user hasn't picked a one-off region for that particular screen).
+  const [defaultRegionCode, setDefaultRegionCode] = useState(FALLBACK_WATCH_REGION);
+  const [regionOptions, setRegionOptions] = useState<TmdbWatchRegion[]>([]);
+  const [regionSheetOpen, setRegionSheetOpen] = useState(false);
+  useEffect(() => {
+    getDefaultRegion().then(setDefaultRegionCode);
+  }, []);
+  const regionName = regionOptions.find((r) => r.iso_3166_1 === defaultRegionCode)?.english_name ?? defaultRegionCode;
+  // The region list comes from TMDB itself, so it needs a real saved
+  // connection - lazily fetched the first time the picker actually opens,
+  // not on every visit to this screen.
+  const openRegionPicker = () => {
+    if (!existing?.apiKey && !existing?.hasApiKey) {
+      alert('Save your TMDB connection first', 'The region list is looked up from TMDB itself.');
+      return;
+    }
+    if (regionOptions.length === 0) tmdbApi.watchProviderRegions(existing!).then(setRegionOptions).catch(() => {});
+    setRegionSheetOpen(true);
+  };
+
   const scrollRef = useRef<ScrollView>(null);
   // Each card is a direct child of the ScrollView's content, so its own
   // onLayout `y` is already a scroll-content-relative offset. Each field's
@@ -437,8 +462,38 @@ export default function ServiceSettingsScreen() {
               </TouchableOpacity>
             </View>
           </View>
+
+          {meta.name === 'tmdb' ? (
+            <View style={styles.card}>
+              <Text style={styles.sectionLabel}>DISCOVER PREFERENCES</Text>
+              <Text style={styles.fieldLabel}>Default Region</Text>
+              <Text style={styles.fieldHint}>
+                Used for Discover's Streaming Service row and the filter panel's watch-provider search, whenever a
+                screen hasn&apos;t had a one-off region picked for it.
+              </Text>
+              <TouchableOpacity style={styles.regionField} onPress={openRegionPicker}>
+                <Text style={styles.regionFieldText}>{regionName}</Text>
+                <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <ActionSheet
+        visible={regionSheetOpen}
+        title="Default Region"
+        onClose={() => setRegionSheetOpen(false)}
+        options={[...regionOptions]
+          .sort((a, b) => a.english_name.localeCompare(b.english_name))
+          .map((r) => ({
+            label: r.english_name,
+            onPress: () => {
+              setDefaultRegionCode(r.iso_3166_1);
+              setDefaultRegion(r.iso_3166_1);
+            },
+          }))}
+      />
     </SafeAreaView>
   );
 }
@@ -495,4 +550,15 @@ const styles = StyleSheet.create({
   testButtonText: { color: colors.textPrimary, fontWeight: '600' },
   saveButtonText: { fontWeight: '700' },
   buttonDisabled: { opacity: 0.5 },
+  regionField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    marginTop: 4,
+  },
+  regionFieldText: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
 });
