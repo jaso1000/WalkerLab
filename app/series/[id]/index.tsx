@@ -434,14 +434,14 @@ export default function SeriesDetailScreen() {
           >
             <Text style={styles.actionChipText}>{profileName ?? 'Quality'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionChip} onPress={searchWholeSeries} disabled={busy}>
-            <Ionicons name="search" size={18} color={colors.textPrimary} />
-          </TouchableOpacity>
           {totalSize ? (
             <View style={[styles.actionChip, styles.actionChipWide]}>
               <Text style={styles.actionChipText}>{formatBytes(totalSize)}</Text>
             </View>
           ) : null}
+          <TouchableOpacity style={styles.actionChip} onPress={searchWholeSeries} disabled={busy}>
+            <Ionicons name="search" size={18} color={colors.textPrimary} />
+          </TouchableOpacity>
           <TouchableOpacity style={styles.actionChip} onPress={openSeriesMenu} disabled={busy}>
             <Ionicons name="ellipsis-vertical" size={18} color={colors.textPrimary} />
           </TouchableOpacity>
