@@ -56,6 +56,18 @@ export const SERVICE_META: ServiceMeta[] = [
     sectionId: 'movies',
   },
   {
+    name: 'lidarr',
+    label: 'Lidarr',
+    icon: 'musical-notes-outline',
+    tint: colors.lidarr,
+    description:
+      'Lidarr does for music what Sonarr does for TV — it monitors your artist collection and automatically grabs new album releases as they become available.',
+    requiresUrl: true,
+    placeholder: 'http://192.168.1.10:8686',
+    urlExamples: ['http://192.168.1.10:8686 — another device on your network (default port 8686)', 'http://localhost:8686 — same device as this app'],
+    sectionId: 'music',
+  },
+  {
     name: 'sabnzbd',
     label: 'SABnzbd',
     icon: 'download-outline',

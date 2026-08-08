@@ -8,6 +8,7 @@
 export type ServiceName =
   | 'sonarr'
   | 'radarr'
+  | 'lidarr'
   | 'sabnzbd'
   | 'nzbget'
   | 'tmdb'
@@ -29,6 +30,7 @@ export type SectionId =
   | 'discover'
   | 'tvShows'
   | 'movies'
+  | 'music'
   | 'downloads'
   | 'nzbget'
   | 'torrents'
@@ -110,6 +112,7 @@ export function isServiceName(value: string): value is ServiceName {
 export const SERVICE_NAMES: ServiceName[] = [
   'sonarr',
   'radarr',
+  'lidarr',
   'sabnzbd',
   'nzbget',
   'tmdb',

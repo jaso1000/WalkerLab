@@ -81,4 +81,11 @@ export const colors = {
   // clearly "which client is this" when either one is active.
   nzbget: '#FF7043',
   nzbgetMuted: 'rgba(255,112,67,0.15)',
+
+  // Lidarr/Music green - Lidarr's own real brand color, verified against
+  // their logo SVG in the Lidarr/Lidarr GitHub repo (both
+  // frontend/src/Content/Images/logo.svg and Logo/Lidarr.svg use #009252),
+  // not guessed.
+  lidarr: '#009252',
+  lidarrMuted: 'rgba(0,146,82,0.15)',
 };

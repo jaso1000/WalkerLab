@@ -32,16 +32,22 @@ export function PosterGalleryModal({
   mediaType,
   tmdbId,
   fallbackPosterUrl,
+  images,
 }: {
   visible: boolean;
   onClose: () => void;
-  tmdbConfig: ServiceConfig | undefined;
-  mediaType: 'movie' | 'tv' | 'person';
-  tmdbId: number | undefined;
+  tmdbConfig?: ServiceConfig;
+  mediaType?: 'movie' | 'tv' | 'person';
+  tmdbId?: number;
   // The poster/photo already on hand from the detail page itself - shown
   // immediately as the only page if the full gallery can't be fetched, so
   // tapping it always opens to *something* full-screen.
   fallbackPosterUrl?: string;
+  // Pre-loaded images (e.g. Lidarr's own artist/album artwork, already
+  // resolved to real URLs) - bypasses the TMDB fetch entirely when given,
+  // for callers with no `tmdbConfig`/`tmdbId` to fetch from at all. Still
+  // just renders through the same pager/thumb-strip below, unmodified.
+  images?: GalleryPoster[];
 }) {
   const { width, height } = useWindowDimensions();
   const [posters, setPosters] = useState<GalleryPoster[] | null>(null);
@@ -56,7 +62,11 @@ export function PosterGalleryModal({
     if (!visible) return;
     setIndex(0);
     const fallback: GalleryPoster[] = fallbackPosterUrl ? [{ full: fallbackPosterUrl, thumb: fallbackPosterUrl }] : [];
-    if (!tmdbConfig || !tmdbId) {
+    if (images) {
+      setPosters(images.length > 0 ? images : fallback);
+      return;
+    }
+    if (!tmdbConfig || !tmdbId || !mediaType) {
       setPosters(fallback);
       return;
     }
@@ -79,7 +89,7 @@ export function PosterGalleryModal({
         setPosters(items.length > 0 ? items : fallback);
       })
       .catch(() => setPosters(fallback));
-  }, [visible, tmdbConfig, tmdbId, mediaType, fallbackPosterUrl]);
+  }, [visible, tmdbConfig, tmdbId, mediaType, fallbackPosterUrl, images]);
 
   // Tapping a thumbnail jumps the main pager straight to it - `index`
   // updates optimistically rather than waiting for the resulting `onScroll`
@@ -124,7 +134,7 @@ export function PosterGalleryModal({
           </View>
         ) : posters.length === 0 ? (
           <View style={styles.center}>
-            <Text style={styles.emptyText}>{mediaType === 'person' ? 'No photos available.' : 'No posters available.'}</Text>
+            <Text style={styles.emptyText}>{mediaType === 'tv' || mediaType === 'movie' ? 'No posters available.' : 'No photos available.'}</Text>
           </View>
         ) : (
           <>

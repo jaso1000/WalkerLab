@@ -18,6 +18,7 @@ const ROUTE_FOR: Record<StartupSectionId, string> = {
   discover: '/discover',
   tvShows: '/',
   movies: '/movies',
+  music: '/music',
   downloads: '/downloads',
   nzbget: '/nzbget',
   torrents: '/torrents',

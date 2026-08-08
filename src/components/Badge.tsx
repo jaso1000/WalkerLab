@@ -5,7 +5,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { colors } from '../theme/colors';
 
-export type BadgeTone = 'success' | 'accent' | 'danger' | 'info' | 'sonarr' | 'muted';
+export type BadgeTone = 'success' | 'accent' | 'danger' | 'info' | 'sonarr' | 'lidarr' | 'muted';
 
 const TONE_STYLES: Record<BadgeTone, { bg: string; fg: string }> = {
   success: { bg: colors.successMuted, fg: colors.success },
@@ -13,6 +13,7 @@ const TONE_STYLES: Record<BadgeTone, { bg: string; fg: string }> = {
   danger: { bg: colors.dangerMuted, fg: colors.danger },
   info: { bg: colors.infoMuted, fg: colors.info },
   sonarr: { bg: colors.sonarrMuted, fg: colors.sonarr },
+  lidarr: { bg: colors.lidarrMuted, fg: colors.lidarr },
   muted: { bg: colors.surfaceAlt, fg: colors.textSecondary },
 };
 

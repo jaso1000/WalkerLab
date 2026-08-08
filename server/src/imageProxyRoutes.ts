@@ -11,6 +11,12 @@
 // TMDB doesn't need this: `tmdbImageUrl()` points straight at TMDB's own
 // public CDN (image.tmdb.org), which every browser can already reach
 // directly, tunnel or not - no credentials involved either.
+//
+// Lidarr also uses this (see `lidarrImageUrl()` in `src/api/lidarr.ts`),
+// same reasoning as Tautulli - the real API key never reaches the browser
+// on web, so a direct `<Image src>` can't authenticate itself against
+// Lidarr's `/api/v1/mediacover/...` route the way a native request (which
+// does have the real key) can.
 import { Router } from 'express';
 import { getServiceConfig } from './store';
 
@@ -18,6 +24,36 @@ export const imageProxyRouter = Router();
 
 imageProxyRouter.get('/:profileId/:service', async (req, res) => {
   const { profileId, service } = req.params;
+
+  if (service === 'lidarr') {
+    const config = getServiceConfig(req.userId!, profileId, 'lidarr');
+    if (!config) {
+      res.status(400).json({ error: 'Lidarr is not configured for this profile.' });
+      return;
+    }
+    const { entityType, entityId, filename } = req.query;
+    if (typeof entityType !== 'string' || typeof entityId !== 'string' || typeof filename !== 'string') {
+      res.status(400).json({ error: 'Missing entityType/entityId/filename.' });
+      return;
+    }
+    const url = new URL(`${config.baseUrl.replace(/\/+$/, '')}/api/v1/mediacover/${entityType}/${entityId}/${filename}`);
+    url.searchParams.set('apikey', config.apiKey);
+    try {
+      const upstream = await fetch(url.toString());
+      if (!upstream.ok) {
+        res.status(502).json({ error: `Lidarr image request failed: ${upstream.status}` });
+        return;
+      }
+      const buffer = Buffer.from(await upstream.arrayBuffer());
+      res.set('Content-Type', upstream.headers.get('content-type') ?? 'image/jpeg');
+      res.set('Cache-Control', 'private, max-age=604800, immutable');
+      res.send(buffer);
+    } catch (e) {
+      res.status(502).json({ error: e instanceof Error ? e.message : 'Upstream image request failed.' });
+    }
+    return;
+  }
+
   if (service !== 'tautulli') {
     res.status(501).json({ error: `Image proxying for "${service}" isn't implemented.` });
     return;

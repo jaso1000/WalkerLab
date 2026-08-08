@@ -22,3 +22,19 @@ export const SONARR_MONITOR_OPTIONS = [
 ] as const;
 
 export type SonarrMonitorOption = (typeof SONARR_MONITOR_OPTIONS)[number]['value'];
+
+// Lidarr's addOptions.monitor values (Lidarr's real `MonitorTypes` enum,
+// verified against Lidarr's own openapi.json - a genuinely different set
+// from Sonarr's above, e.g. `first`/`latest` here vs `firstSeason`/
+// `latestSeason` there). Matches Lidarr's own "Add Artist" screen.
+export const LIDARR_MONITOR_OPTIONS = [
+  { value: 'all', label: 'All Albums' },
+  { value: 'future', label: 'Future Albums' },
+  { value: 'missing', label: 'Missing Albums' },
+  { value: 'existing', label: 'Existing Albums' },
+  { value: 'first', label: 'First Album' },
+  { value: 'latest', label: 'Latest Album' },
+  { value: 'none', label: 'None' },
+] as const;
+
+export type LidarrMonitorOption = (typeof LIDARR_MONITOR_OPTIONS)[number]['value'];

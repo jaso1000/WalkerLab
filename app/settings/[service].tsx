@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getCertificateInfo } from '../../modules/tls-trust';
+import { lidarrApi } from '../../src/api/lidarr';
 import { nzbgetApi } from '../../src/api/nzbget';
 import { overseerrApi } from '../../src/api/overseerr';
 import { qbittorrentApi } from '../../src/api/qbittorrent';
@@ -48,6 +49,7 @@ import { colors } from '../../src/theme/colors';
 const TEST_CONNECTION: Record<ServiceName, (config: ServiceConfig) => Promise<unknown>> = {
   sonarr: sonarrApi.testConnection,
   radarr: radarrApi.testConnection,
+  lidarr: lidarrApi.testConnection,
   sabnzbd: sabnzbdApi.testConnection,
   nzbget: nzbgetApi.testConnection,
   tmdb: tmdbApi.testConnection,

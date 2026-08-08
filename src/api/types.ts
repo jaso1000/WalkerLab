@@ -36,6 +36,7 @@ export interface ServiceConfig {
 export type ServiceName =
   | 'sonarr'
   | 'radarr'
+  | 'lidarr'
   | 'sabnzbd'
   | 'nzbget'
   | 'tmdb'

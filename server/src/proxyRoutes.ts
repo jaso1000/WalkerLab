@@ -62,6 +62,7 @@ proxyRouter.post('/:profileId/:service', async (req, res) => {
     switch (service) {
       case 'sonarr':
       case 'radarr':
+      case 'lidarr':
       case 'overseerr':
         result = await arrProxyRequest(config, body);
         break;

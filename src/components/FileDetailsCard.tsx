@@ -6,7 +6,7 @@
 // actually renders are identical between the two.
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Badge } from './Badge';
+import { Badge, BadgeTone } from './Badge';
 import { formatBytes, formatDate } from '../lib/format';
 import { colors } from '../theme/colors';
 
@@ -62,7 +62,7 @@ export function FileDetailsCard({
   onDelete: () => void;
   deleting?: boolean;
   tint?: string;
-  badgeTone?: 'accent' | 'sonarr';
+  badgeTone?: BadgeTone;
 }) {
   // Expansion state, delete handling, and the underlying data all live in
   // the caller - this component is purely a controlled presentational shell.

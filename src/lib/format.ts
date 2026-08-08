@@ -157,6 +157,20 @@ export function seriesStatusTone(status: string): BadgeTone {
   }
 }
 
+// Same idea as `seriesStatusTone` above, for Lidarr's artist status
+// (`continuing | ended | deleted`, verified against Lidarr's own
+// ArtistStatusType enum - it has no `upcoming` value, unlike Sonarr's).
+export function artistStatusTone(status: string): BadgeTone {
+  switch (status) {
+    case 'continuing':
+      return 'success';
+    case 'ended':
+      return 'lidarr';
+    default:
+      return 'danger';
+  }
+}
+
 // Friendlier labels for Sonarr/Radarr history event types that don't read
 // well in raw camelCase form. Anything not listed here falls back to
 // `titleCase` via `historyEventLabel` below.
@@ -169,6 +183,13 @@ const HISTORY_EVENT_LABELS: Record<string, string> = {
   episodeFileRenamed: 'Renamed',
   movieFileRenamed: 'Renamed',
   seriesFolderImported: 'Imported',
+  // Lidarr's track-specific event types, verified against Lidarr's own
+  // EntityHistoryEventType enum.
+  trackFileImported: 'Imported',
+  trackFileDeleted: 'File Deleted',
+  trackFileRenamed: 'Renamed',
+  trackFileRetagged: 'Retagged',
+  artistFolderImported: 'Imported',
 };
 
 // Looks up a friendly label for a Sonarr/Radarr history `eventType`, falling

@@ -14,7 +14,7 @@ import { getServiceConfig, setServiceConfig } from './storage';
 import { getServiceEnabledOverrides, setServiceEnabledOverrides } from './serviceEnabled';
 import { DEFAULT_STARTUP_SCREEN, getStartupScreen, setStartupScreen, StartupSectionId } from './startupScreen';
 
-const SERVICE_NAMES: ServiceName[] = ['sonarr', 'radarr', 'sabnzbd', 'nzbget', 'tmdb', 'omdb', 'overseerr', 'qbittorrent', 'tautulli', 'portainer'];
+const SERVICE_NAMES: ServiceName[] = ['sonarr', 'radarr', 'lidarr', 'sabnzbd', 'nzbget', 'tmdb', 'omdb', 'overseerr', 'qbittorrent', 'tautulli', 'portainer'];
 
 // `getServiceConfig` (storage.ts) is redacted on web - the real apiKey/
 // password never reach the browser during normal use (see storage.ts's own

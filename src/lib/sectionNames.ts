@@ -10,6 +10,7 @@ export type SectionId =
   | 'discover'
   | 'tvShows'
   | 'movies'
+  | 'music'
   | 'downloads'
   | 'nzbget'
   | 'torrents'
@@ -23,6 +24,7 @@ export const DEFAULT_SECTION_NAMES: Record<SectionId, string> = {
   discover: 'Discover',
   tvShows: 'TV Shows',
   movies: 'Movies',
+  music: 'Music',
   downloads: 'Downloads',
   // Defaults to the same label as the `downloads` section - they're both
   // "your Usenet download queue" to the user, just different clients under
