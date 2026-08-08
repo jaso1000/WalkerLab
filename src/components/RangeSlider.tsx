@@ -133,9 +133,21 @@ const styles = StyleSheet.create({
   // resting at the track's min/max (its usual starting position) sits only
   // a few px from the true screen edge - well inside the iOS/Android
   // edge-swipe-back gesture's hot zone, so a drag meant for the thumb gets
-  // stolen by the OS back gesture instead. This padding is what keeps the
-  // thumbs' full range of motion clear of that zone.
-  wrapper: { paddingVertical: 8, paddingHorizontal: 16 },
+  // stolen by the OS back gesture instead.
+  // A first pass at this (16px here, on top of the filter sheet's own 16px
+  // content padding) still wasn't enough in practice - confirmed live, back
+  // gestures were still winning. The reason: what actually matters is the
+  // *touchable* zone's distance from the true edge, not the padding number
+  // itself. A thumb at position 0 is drawn centered on the track's edge (so
+  // half its own width, THUMB_SIZE/2, already overhangs into the padding),
+  // and each thumb's Pan gesture below adds `hitSlop(14)` on top of that to
+  // make it easier to grab - both eat back into the padding before the OS's
+  // hot zone is actually cleared. 32px here (on top of the sheet's 16px)
+  // nets out to roughly 32+16-12-14 = 22px of real clearance, comfortably
+  // past typical edge-gesture zones (~20-24dp, more on some phones/
+  // sensitivity settings) - if this ever needs revisiting, account for that
+  // full formula, not just this raw number.
+  wrapper: { paddingVertical: 8, paddingHorizontal: 32 },
   labelsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
   label: { color: colors.textPrimary, fontSize: 13, fontWeight: '700' },
   track: { height: THUMB_SIZE, justifyContent: 'center' },
