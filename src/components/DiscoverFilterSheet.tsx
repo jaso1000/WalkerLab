@@ -10,6 +10,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import {
   TmdbCertification,
@@ -170,13 +171,13 @@ export function DiscoverFilterSheet({
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.screen}>
-        <View style={styles.header}>
+        <SafeAreaView edges={['top']} style={styles.header}>
           <TouchableOpacity style={styles.closeButton} onPress={onClose} hitSlop={8}>
             <Ionicons name="close" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Filters</Text>
           <View style={{ width: 32 }} />
-        </View>
+        </SafeAreaView>
 
         <ScrollView contentContainerStyle={styles.content}>
           <Section title="Sort By">
