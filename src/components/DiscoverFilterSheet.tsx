@@ -20,7 +20,7 @@ import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, Touch
 // gesture-handler's own ScrollView participates in that same arbitration
 // system instead, the standard fix already established elsewhere in this
 // codebase for any RNGH gesture nested inside a scrollable container.
-import { ScrollView } from 'react-native-gesture-handler';
+import { GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import {
@@ -181,6 +181,16 @@ export function DiscoverFilterSheet({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      {/* react-native's core Modal renders into its own separate native
+          window on Android (outside the single GestureHandlerRootView that
+          wraps the rest of the app in app/_layout.tsx), so any
+          react-native-gesture-handler gesture used inside it - RangeSlider's
+          Gesture.Pan(), here - silently fails to respond to touches on
+          native without its own nested root here. Confirmed: this is what
+          was actually blocking the Runtime/User Score/Vote Count sliders on
+          native, not the ScrollView type they're nested in (that was a
+          real, separate issue, already fixed, but insufficient on its own). */}
+      <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={styles.screen}>
         <SafeAreaView edges={['top']} style={styles.header}>
           <TouchableOpacity style={styles.closeButton} onPress={onClose} hitSlop={8}>
@@ -376,6 +386,7 @@ export function DiscoverFilterSheet({
           </TouchableOpacity>
         </View>
       </View>
+      </GestureHandlerRootView>
 
       <ActionSheet
         visible={nestedSheet === 'sort'}

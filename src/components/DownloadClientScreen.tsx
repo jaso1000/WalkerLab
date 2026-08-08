@@ -272,6 +272,7 @@ export function DownloadClientScreen({
       <Stack.Screen
         options={{
           headerShown: true,
+          headerBackVisible: false,
           headerLeft: () => null,
           headerStyle: { backgroundColor: colors.background },
           headerShadowVisible: false,

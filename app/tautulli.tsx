@@ -482,6 +482,7 @@ export default function TautulliScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
+          headerBackVisible: false,
           headerLeft: () => null,
           headerStyle: { backgroundColor: colors.background },
           headerShadowVisible: false,
