@@ -238,6 +238,7 @@ export default function ContainersScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
+          headerLeft: () => null,
           headerStyle: { backgroundColor: colors.background },
           headerShadowVisible: false,
           headerTintColor: colors.textPrimary,

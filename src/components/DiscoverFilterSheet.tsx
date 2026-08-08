@@ -9,7 +9,18 @@
 // keystroke/slider drag/chip tap while the sheet is open.
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+// The sheet's own content is vertical, but RangeSlider's thumbs use
+// react-native-gesture-handler's Gesture.Pan() - a plain react-native
+// ScrollView's classic touch-responder system doesn't negotiate with that
+// gesture-handler's own arbitration system on native, so the outer scroll
+// can steal a thumb drag before the Pan gesture ever activates (confirmed:
+// only broke on the native APK, not web - see DiscoverRow.tsx for the same
+// underlying issue with a horizontal row nested in a horizontal pager).
+// gesture-handler's own ScrollView participates in that same arbitration
+// system instead, the standard fix already established elsewhere in this
+// codebase for any RNGH gesture nested inside a scrollable container.
+import { ScrollView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import {
