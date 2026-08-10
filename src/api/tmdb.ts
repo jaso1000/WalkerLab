@@ -84,6 +84,22 @@ export interface TmdbWatchRegion {
   english_name: string;
 }
 
+// One region's entry from the per-title `/movie|tv/{id}/watch/providers`
+// endpoint - distinct from `TmdbWatchProvider` above (that one's the flat
+// region-wide catalog used for Discover's browse-by-provider row); this is
+// "where is THIS specific title streaming," split by offer type. `flatrate`/
+// `free`/`ads` are the "included, no extra purchase" types the "Currently
+// Streaming On" section surfaces; `rent`/`buy` are a different one-off-
+// payment concept and intentionally excluded from that section.
+export interface TmdbWatchProvidersRegion {
+  link?: string;
+  flatrate?: TmdbWatchProvider[];
+  free?: TmdbWatchProvider[];
+  ads?: TmdbWatchProvider[];
+  rent?: TmdbWatchProvider[];
+  buy?: TmdbWatchProvider[];
+}
+
 export interface TmdbLanguage {
   iso_639_1: string;
   english_name: string;
@@ -528,6 +544,20 @@ export const tmdbApi = {
 
   watchProviderRegions: (config: ServiceConfig) =>
     tmdbFetch<{ results: TmdbWatchRegion[] }>(config, '/watch/providers/regions').then((r) => r.results),
+
+  // Per-title "where is this streaming" lookup for the "Currently Streaming
+  // On" section - as opposed to `watchProviders` above (the region-wide
+  // catalog). Response is keyed by region, one entry per country TMDB has
+  // data for; callers pick their own region out of `results`.
+  movieWatchProviders: (config: ServiceConfig, id: number) =>
+    tmdbFetch<{ id: number; results: Record<string, TmdbWatchProvidersRegion> }>(config, `/movie/${id}/watch/providers`).then(
+      (r) => r.results
+    ),
+
+  tvWatchProviders: (config: ServiceConfig, id: number) =>
+    tmdbFetch<{ id: number; results: Record<string, TmdbWatchProvidersRegion> }>(config, `/tv/${id}/watch/providers`).then(
+      (r) => r.results
+    ),
 
   languages: (config: ServiceConfig) => tmdbFetch<TmdbLanguage[]>(config, '/configuration/languages'),
 

@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   ImageBackground,
@@ -15,19 +15,21 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { omdbApi, OmdbRatings } from '../../../src/api/omdb';
 import { radarrApi, RadarrMovie, RadarrMovieFile, RadarrQualityProfile } from '../../../src/api/radarr';
-import { extractCrewCredits, extractKeywords, tmdbApi, TmdbCredits } from '../../../src/api/tmdb';
+import { extractCrewCredits, extractKeywords, tmdbApi, TmdbCredits, TmdbWatchProvidersRegion } from '../../../src/api/tmdb';
 import { ActionSheet, ActionSheetOption } from '../../../src/components/ActionSheet';
 import { Badge } from '../../../src/components/Badge';
 import { CastCrewSection } from '../../../src/components/CastCrewSection';
 import { FileDetailsCard } from '../../../src/components/FileDetailsCard';
 import { ReleaseTriptych } from '../../../src/components/ReleaseTriptych';
 import { ReviewSources } from '../../../src/components/ReviewSources';
+import { StreamingProviders, streamingProviders } from '../../../src/components/StreamingProviders';
 import { TagList } from '../../../src/components/TagList';
 import { useServers } from '../../../src/context/ServersContext';
 import { alert } from '../../../src/lib/alert';
 import { AVAILABILITY_OPTIONS } from '../../../src/lib/constants';
 import { deletedLibrary } from '../../../src/lib/deletedLibrary';
 import { formatDate } from '../../../src/lib/format';
+import { FALLBACK_WATCH_REGION, getDefaultRegion } from '../../../src/lib/preferences';
 import { useTabBarClearance } from '../../../src/lib/tabBarClearance';
 import { colors } from '../../../src/theme/colors';
 
@@ -119,6 +121,8 @@ export default function MovieDetailScreen() {
   const [productionCountry, setProductionCountry] = useState<string | undefined>(undefined);
   const [tags, setTags] = useState<string[]>([]);
   const [omdbRatings, setOmdbRatings] = useState<OmdbRatings | null>(null);
+  const [watchProviders, setWatchProviders] = useState<Record<string, TmdbWatchProvidersRegion> | null>(null);
+  const [region, setRegion] = useState(FALLBACK_WATCH_REGION);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [searchMenuOpen, setSearchMenuOpen] = useState(false);
@@ -131,6 +135,10 @@ export default function MovieDetailScreen() {
   // data when those services are configured - each independently falls back
   // to an empty/null state on its own failure so one missing/misconfigured
   // service doesn't block the rest of the page from rendering.
+  useEffect(() => {
+    getDefaultRegion().then(setRegion);
+  }, []);
+
   const load = useCallback(async () => {
     if (!config) return;
     setLoading(true);
@@ -156,10 +164,15 @@ export default function MovieDetailScreen() {
             setProductionCountry(undefined);
             setTags([]);
           });
+        tmdbApi
+          .movieWatchProviders(tmdbConfig, m.tmdbId)
+          .then(setWatchProviders)
+          .catch(() => setWatchProviders(null));
       } else {
         setCredits(null);
         setProductionCountry(undefined);
         setTags([]);
+        setWatchProviders(null);
       }
       if (omdbConfig && m.imdbId) {
         omdbApi
@@ -468,6 +481,11 @@ export default function MovieDetailScreen() {
             onPress={() => setAvailabilityMenuOpen(true)}
           />
           <InfoRow icon="folder-outline" label="Root Path" value={movie.rootFolderPath} />
+          <StreamingProviders
+            providers={streamingProviders(watchProviders?.[region])}
+            link={watchProviders?.[region]?.link}
+            tint={colors.accent}
+          />
         </View>
 
         <TagList tags={tags} tint={colors.accent} />

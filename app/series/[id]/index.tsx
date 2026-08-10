@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   ImageBackground,
@@ -16,16 +16,25 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { omdbApi, OmdbRatings } from '../../../src/api/omdb';
 import { sonarrApi, SonarrEpisode, SonarrQualityProfile, SonarrSeries } from '../../../src/api/sonarr';
-import { extractCrewCredits, extractKeywords, normalizeAggregateCredits, tmdbApi, TmdbCredits } from '../../../src/api/tmdb';
+import {
+  extractCrewCredits,
+  extractKeywords,
+  normalizeAggregateCredits,
+  tmdbApi,
+  TmdbCredits,
+  TmdbWatchProvidersRegion,
+} from '../../../src/api/tmdb';
 import { ActionSheet, ActionSheetOption } from '../../../src/components/ActionSheet';
 import { Badge } from '../../../src/components/Badge';
 import { CastCrewSection } from '../../../src/components/CastCrewSection';
 import { ReviewSources } from '../../../src/components/ReviewSources';
+import { StreamingProviders, streamingProviders } from '../../../src/components/StreamingProviders';
 import { TagList } from '../../../src/components/TagList';
 import { useServers } from '../../../src/context/ServersContext';
 import { alert } from '../../../src/lib/alert';
 import { deletedLibrary } from '../../../src/lib/deletedLibrary';
 import { formatBytes, formatDate, seriesStatusTone, titleCase } from '../../../src/lib/format';
+import { FALLBACK_WATCH_REGION, getDefaultRegion } from '../../../src/lib/preferences';
 import { useTabBarClearance } from '../../../src/lib/tabBarClearance';
 import { colors } from '../../../src/theme/colors';
 
@@ -74,6 +83,8 @@ export default function SeriesDetailScreen() {
   const [tmdbSeriesId, setTmdbSeriesId] = useState<number | undefined>(undefined);
   const [productionCountry, setProductionCountry] = useState<string | undefined>(undefined);
   const [tags, setTags] = useState<string[]>([]);
+  const [watchProviders, setWatchProviders] = useState<Record<string, TmdbWatchProvidersRegion> | null>(null);
+  const [region, setRegion] = useState(FALLBACK_WATCH_REGION);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState<{ title: string; options: ActionSheetOption[] } | null>(null);
@@ -85,6 +96,10 @@ export default function SeriesDetailScreen() {
   // all come from that resolved tmdbId) and OMDb (extra ratings) data.
   // Mirrors the movie detail page's independent-fallback pattern: any one
   // optional service failing doesn't block the rest of the page.
+  useEffect(() => {
+    getDefaultRegion().then(setRegion);
+  }, []);
+
   const load = useCallback(async () => {
     if (!config) return;
     setLoading(true);
@@ -103,7 +118,14 @@ export default function SeriesDetailScreen() {
           .then((res) => {
             const tvId = res.tv_results[0]?.id;
             setTmdbSeriesId(tvId);
-            if (!tvId) return null;
+            if (!tvId) {
+              setWatchProviders(null);
+              return null;
+            }
+            tmdbApi
+              .tvWatchProviders(tmdbConfig, tvId)
+              .then(setWatchProviders)
+              .catch(() => setWatchProviders(null));
             return tmdbApi.tvDetail(tmdbConfig, tvId);
           })
           .then((d) => {
@@ -124,6 +146,7 @@ export default function SeriesDetailScreen() {
         setTmdbRating(undefined);
         setProductionCountry(undefined);
         setTags([]);
+        setWatchProviders(null);
       }
       if (omdbConfig && s.imdbId) {
         omdbApi
@@ -518,6 +541,11 @@ export default function SeriesDetailScreen() {
           <InfoRow icon="calendar-outline" label="Added" value={formatDate(series.added) ?? undefined} />
           <InfoRow icon="albums-outline" label="Series Type" value={series.seriesType ? titleCase(series.seriesType) : undefined} />
           <InfoRow icon="folder-outline" label="Root Path" value={series.rootFolderPath} />
+          <StreamingProviders
+            providers={streamingProviders(watchProviders?.[region])}
+            link={watchProviders?.[region]?.link}
+            tint={colors.sonarr}
+          />
         </View>
 
         <TagList tags={tags} tint={colors.sonarr} />

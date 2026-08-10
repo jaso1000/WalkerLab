@@ -20,6 +20,7 @@ import {
   TmdbMovieDetail,
   TmdbTv,
   TmdbTvDetail,
+  TmdbWatchProvidersRegion,
 } from '../../../src/api/tmdb';
 import { ActionSheet, ActionSheetOption } from '../../../src/components/ActionSheet';
 import { CastCrewSection } from '../../../src/components/CastCrewSection';
@@ -27,13 +28,14 @@ import { DiscoverCardItem, DiscoverRow } from '../../../src/components/DiscoverR
 import { ReleaseTriptych } from '../../../src/components/ReleaseTriptych';
 import { ReviewSources } from '../../../src/components/ReviewSources';
 import { SelectRow, SwitchRow } from '../../../src/components/SelectRow';
+import { StreamingProviders, streamingProviders } from '../../../src/components/StreamingProviders';
 import { TagList } from '../../../src/components/TagList';
 import { useServers } from '../../../src/context/ServersContext';
 import { alert } from '../../../src/lib/alert';
 import { AVAILABILITY_OPTIONS, SONARR_MONITOR_OPTIONS, SonarrMonitorOption } from '../../../src/lib/constants';
 import { deletedLibrary } from '../../../src/lib/deletedLibrary';
 import { formatDate } from '../../../src/lib/format';
-import { getLastQualityProfileId, setLastQualityProfileId } from '../../../src/lib/preferences';
+import { FALLBACK_WATCH_REGION, getDefaultRegion, getLastQualityProfileId, setLastQualityProfileId } from '../../../src/lib/preferences';
 import { useTabBarClearance } from '../../../src/lib/tabBarClearance';
 import { colors } from '../../../src/theme/colors';
 
@@ -70,6 +72,8 @@ export default function DiscoverDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [recommendations, setRecommendations] = useState<(TmdbMovie | TmdbTv)[]>([]);
   const [previouslyDeleted, setPreviouslyDeleted] = useState(false);
+  const [watchProviders, setWatchProviders] = useState<Record<string, TmdbWatchProvidersRegion> | null>(null);
+  const [region, setRegion] = useState(FALLBACK_WATCH_REGION);
 
   const [lookupMovie, setLookupMovie] = useState<RadarrMovie | null>(null);
   const [lookupSeries, setLookupSeries] = useState<SonarrSeries | null>(null);
@@ -106,8 +110,16 @@ export default function DiscoverDetailScreen() {
       fetchRecs
         .then((r) => setRecommendations(r.results))
         .catch(() => setRecommendations([]));
+
+      const fetchProviders =
+        mediaType === 'movie' ? tmdbApi.movieWatchProviders(tmdbConfig, tmdbId) : tmdbApi.tvWatchProviders(tmdbConfig, tmdbId);
+      fetchProviders.then(setWatchProviders).catch(() => setWatchProviders(null));
     }, [tmdbConfig, tmdbId, mediaType])
   );
+
+  useEffect(() => {
+    getDefaultRegion().then(setRegion);
+  }, []);
 
   // Checks the local "previously deleted" flag (see `deletedLibrary.ts`) so
   // the banner below can show even though the real Radarr/Sonarr record is
@@ -480,6 +492,11 @@ export default function DiscoverDetailScreen() {
               <InfoRow icon="flag-outline" label="Production Country" value={productionCountry} />
             </>
           )}
+          <StreamingProviders
+            providers={streamingProviders(watchProviders?.[region])}
+            link={watchProviders?.[region]?.link}
+            tint={colors.sectionGreen}
+          />
         </View>
 
         <TagList tags={tags} tint={colors.sectionGreen} />
