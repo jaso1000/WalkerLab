@@ -3,6 +3,7 @@
 // each card is a service/studio logo tile instead of a title's poster, and
 // there's no "See All" (both are fixed, curated lists, not paginated
 // categories).
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 // Horizontal and lives inside this screen's own outer horizontal swipeable
@@ -24,6 +25,7 @@ export function LogoRow({
   onPressItem,
   logoBackground = colors.surfaceAlt,
   logoTintColor,
+  fallbackIcon,
 }: {
   title: string;
   items: LogoRowItem[];
@@ -43,6 +45,11 @@ export function LogoRow({
   // real color this way (flattened to one solid tint) - an intentional
   // tradeoff for consistent legibility over exact studio branding.
   logoTintColor?: string;
+  // Shown centered in the tile for items with no `logoUrl` at all (as
+  // opposed to a logo that's still loading) - e.g. Discover Music's Genres
+  // row, where there's no per-genre artwork to show, only a name. Left
+  // undefined, those tiles just render empty (the original behavior).
+  fallbackIcon?: keyof typeof Ionicons.glyphMap;
 }) {
   if (items.length === 0) return null;
   return (
@@ -62,6 +69,8 @@ export function LogoRow({
                   cachePolicy="memory-disk"
                   tintColor={logoTintColor}
                 />
+              ) : fallbackIcon ? (
+                <Ionicons name={fallbackIcon} size={32} color={logoTintColor ?? colors.textMuted} />
               ) : null}
             </View>
             <Text style={styles.cardTitle} numberOfLines={2}>

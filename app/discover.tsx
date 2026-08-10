@@ -17,10 +17,15 @@ import {
   View,
 } from 'react-native';
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
+import { AppleAlbum, itunesApi } from '../src/api/itunes';
+import { lastfmApi, LastfmArtist, LastfmTag } from '../src/api/lastfm';
+import { lidarrApi, LidarrArtist } from '../src/api/lidarr';
 import { radarrApi, RadarrMovie } from '../src/api/radarr';
 import { sonarrApi, SonarrSeries } from '../src/api/sonarr';
 import { TMDB_STUDIOS, tmdbApi, tmdbImageUrl, TmdbMovie, TmdbSearchResult, TmdbTv, TmdbWatchProvider } from '../src/api/tmdb';
 import { ServiceConfig } from '../src/api/types';
+import { AlbumRow, AlbumRowItem } from '../src/components/AlbumRow';
+import { ArtistRow, ArtistRowItem } from '../src/components/ArtistRow';
 import { DiscoverCardItem, DiscoverRow } from '../src/components/DiscoverRow';
 import { LogoRow, LogoRowItem } from '../src/components/LogoRow';
 import { SwipeTabBar } from '../src/components/SwipeTabBar';
@@ -39,6 +44,7 @@ import {
   MediaKind,
   resolveMediaKind,
 } from '../src/lib/discoverCategories';
+import { capitalizeWords } from '../src/lib/format';
 import { badgeForMovie, badgeForSeries, buildLibraryIndex, EMPTY_LIBRARY_INDEX, LibraryIndex } from '../src/lib/libraryStatus';
 import { useContentWidth } from '../src/lib/responsive';
 import { useTabBarClearance } from '../src/lib/tabBarClearance';
@@ -60,7 +66,8 @@ import { colors } from '../src/theme/colors';
 const PREVIEW_COUNT = 15;
 const PROVIDER_PREVIEW_COUNT = 20;
 const CATEGORIES: DiscoverCategory[] = ['trending', 'popular', 'upcoming'];
-const TABS = ['All', 'Movies', 'TV Shows'] as const;
+const TABS = ['All', 'Movies', 'TV Shows', 'Music'] as const;
+const MUSIC_PREVIEW_COUNT = 15;
 
 interface CategoryData {
   trending: (TmdbMovie | TmdbTv)[];
@@ -124,6 +131,69 @@ function toLocalSeriesCardItems(series: SonarrSeries[]): DiscoverCardItem[] {
       posterUrl: s.images.find((i) => i.coverType === 'poster')?.remoteUrl,
       rating: s.ratings?.value,
     }));
+}
+
+// Music tab's Recently Added row - sourced from the real Lidarr library
+// (same as Movies/TV's own Recently Added rows), sorted newest-first by
+// Lidarr's own `added` timestamp. Each item carries its real Lidarr `id` so
+// `ArtistRow`'s shared press handler routes straight to `/artist/{id}`
+// instead of the Discover artist-by-name detail page.
+function toRecentArtistItems(artists: LidarrArtist[]): ArtistRowItem[] {
+  return [...artists]
+    .filter((a) => a.added)
+    .sort((a, b) => new Date(b.added!).getTime() - new Date(a.added!).getTime())
+    .slice(0, MUSIC_PREVIEW_COUNT)
+    .map((a) => ({ id: a.id, name: a.artistName }));
+}
+
+// Music tab's New Releases row - Apple's chart response already carries
+// real per-album artwork, unlike ArtistRow's cards (which resolve their own
+// art async), so this is a plain synchronous map.
+function toAlbumItems(albums: AppleAlbum[]): AlbumRowItem[] {
+  return albums.slice(0, MUSIC_PREVIEW_COUNT).map((a) => ({
+    id: a.id,
+    title: a.name,
+    artistName: a.artistName,
+    artworkUrl: a.artworkUrl100,
+  }));
+}
+
+// Music tab's search result row - same visual shape as the movie/TV search
+// rows (`styles.searchRowItem`), but resolves its own art asynchronously via
+// iTunes (same "fetch, then fill in" pattern `ArtistRow`'s cards use) since
+// Last.fm's search results carry no usable image, and has no quick-add
+// button - tapping goes straight to the Discover artist page, which has its
+// own inline Add to Lidarr form (see app/discover/music/[name].tsx).
+function MusicSearchRow({ artist }: { artist: LastfmArtist }) {
+  const [artUrl, setArtUrl] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    itunesApi.searchArtistArtwork(artist.name).then((url) => {
+      if (!cancelled) setArtUrl(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [artist.name]);
+
+  return (
+    <Pressable style={styles.searchRowItem} onPress={() => router.push(`/discover/music/${encodeURIComponent(artist.name)}`)}>
+      {artUrl ? (
+        <Image source={{ uri: artUrl }} style={styles.searchPoster} cachePolicy="memory-disk" />
+      ) : (
+        <View style={[styles.searchPoster, styles.posterPlaceholder]} />
+      )}
+      <View style={styles.searchInfo}>
+        <Text style={styles.searchTitle} numberOfLines={1}>
+          {artist.name}
+        </Text>
+        {artist.listeners ? (
+          <Text style={styles.searchMeta}>{Number(artist.listeners).toLocaleString()} listeners</Text>
+        ) : null}
+      </View>
+    </Pressable>
+  );
 }
 
 function providersToItems(providers: TmdbWatchProvider[]): LogoRowItem[] {
@@ -198,6 +268,8 @@ export default function DiscoverScreen() {
   const config = servers.tmdb;
   const radarrConfig = servers.radarr;
   const sonarrConfig = servers.sonarr;
+  const lastfmConfig = servers.lastfm;
+  const lidarrConfig = servers.lidarr;
   const tabBarClearance = useTabBarClearance();
   const width = useContentWidth();
   const scrollRef = useRef<ScrollView>(null);
@@ -213,11 +285,19 @@ export default function DiscoverScreen() {
   const [loadingAll, setLoadingAll] = useState(false);
   const [loadingMovies, setLoadingMovies] = useState(false);
   const [loadingTv, setLoadingTv] = useState(false);
+  const [loadingMusic, setLoadingMusic] = useState(false);
   const [errorAll, setErrorAll] = useState<string | null>(null);
   const [errorMovies, setErrorMovies] = useState<string | null>(null);
   const [errorTv, setErrorTv] = useState<string | null>(null);
+  const [errorMusic, setErrorMusic] = useState<string | null>(null);
   const movieLoaded = useRef(false);
   const tvLoaded = useRef(false);
+  const musicLoaded = useRef(false);
+
+  const [musicArtists, setMusicArtists] = useState<LastfmArtist[]>([]);
+  const [musicTags, setMusicTags] = useState<LastfmTag[]>([]);
+  const [musicRecentlyAdded, setMusicRecentlyAdded] = useState<LidarrArtist[]>([]);
+  const [musicNewReleases, setMusicNewReleases] = useState<AppleAlbum[]>([]);
 
   // Streaming Service / Studios rows (all 3 tabs). Providers are region+
   // media-type scoped so each tab fetches its own; Studios is a fixed
@@ -265,6 +345,7 @@ export default function DiscoverScreen() {
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<TmdbSearchResult[]>([]);
+  const [musicSearchResults, setMusicSearchResults] = useState<LastfmArtist[]>([]);
   const [quickAddBusy, setQuickAddBusy] = useState<Set<string>>(new Set());
   const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -340,6 +421,41 @@ export default function DiscoverScreen() {
     }
   }, [config, region]);
 
+  // Music tab: Last.fm's global Top Artists chart + top genre tags, plus
+  // the real Lidarr library for Recently Added - independent try/catch per
+  // source so a missing/misconfigured Lidarr doesn't block the Last.fm rows
+  // (and vice versa), same "each piece degrades independently" shape the
+  // rest of this screen already follows.
+  const loadMusic = useCallback(async () => {
+    if (!lastfmConfig) return;
+    setLoadingMusic(true);
+    setErrorMusic(null);
+    try {
+      const [artists, tags] = await Promise.all([
+        lastfmApi.topArtists(lastfmConfig, 1, MUSIC_PREVIEW_COUNT),
+        lastfmApi.topTags(lastfmConfig, MUSIC_PREVIEW_COUNT),
+      ]);
+      setMusicArtists(artists);
+      setMusicTags(tags);
+    } catch (e) {
+      setErrorMusic(e instanceof Error ? e.message : 'Failed to load Music');
+    } finally {
+      setLoadingMusic(false);
+    }
+    // Apple's own chart, independent of Last.fm - falls back to an empty
+    // row on failure rather than surfacing an error, same as this screen's
+    // Streaming Service/Studios rows already do for a failed TMDB fetch.
+    itunesApi.newReleaseAlbums().then(setMusicNewReleases);
+    if (lidarrConfig) {
+      lidarrApi
+        .getArtists(lidarrConfig)
+        .then(setMusicRecentlyAdded)
+        .catch(() => setMusicRecentlyAdded([]));
+    } else {
+      setMusicRecentlyAdded([]);
+    }
+  }, [lastfmConfig, lidarrConfig]);
+
   // Loads the real Radarr/Sonarr library (for the Recently Added rows) and
   // rebuilds the tmdbId-keyed library index (for poster status badges) -
   // each service's library fetch independently falls back to an empty list
@@ -366,14 +482,39 @@ export default function DiscoverScreen() {
     }, [loadLibrary])
   );
 
-  // Debounced universal search (`/search/multi`) - same 350ms pattern as
-  // the Add Movie/Series screens' searches, filtered down to movie/tv
-  // results only (search/multi can also return people, which this row
-  // doesn't render).
+  // Debounced search, same 350ms pattern as the Add Movie/Series screens -
+  // branches on the active tab rather than always hitting TMDB: the Music
+  // tab searches Last.fm's own artist catalog instead (doesn't require
+  // Lidarr to be connected, consistent with the rest of this tab only
+  // gating the "Add" action on Lidarr, not browsing). `handleTabChange`
+  // already clears `query` on every tab switch, so there's no "stale
+  // results from the other search" case to handle here.
   const runSearch = useCallback(
     (text: string) => {
       if (searchDebounce.current) clearTimeout(searchDebounce.current);
-      if (!config || !text.trim()) {
+      if (!text.trim()) {
+        setSearchResults([]);
+        setMusicSearchResults([]);
+        setSearching(false);
+        return;
+      }
+      if (activeTab === 3) {
+        if (!lastfmConfig) {
+          setMusicSearchResults([]);
+          setSearching(false);
+          return;
+        }
+        setSearching(true);
+        searchDebounce.current = setTimeout(() => {
+          lastfmApi
+            .searchArtists(lastfmConfig, text.trim())
+            .then(setMusicSearchResults)
+            .catch(() => setMusicSearchResults([]))
+            .finally(() => setSearching(false));
+        }, 350);
+        return;
+      }
+      if (!config) {
         setSearchResults([]);
         setSearching(false);
         return;
@@ -387,7 +528,7 @@ export default function DiscoverScreen() {
           .finally(() => setSearching(false));
       }, 350);
     },
-    [config]
+    [config, lastfmConfig, activeTab]
   );
 
   const handleQueryChange = (text: string) => {
@@ -473,6 +614,17 @@ export default function DiscoverScreen() {
 
   const openDiscoverItem = (id: number, mediaType: MediaKind) => router.push(`/discover/${mediaType}/${id}`);
   const openLocalItem = (id: number, mediaType: MediaKind) => router.push(mediaType === 'movie' ? `/movie/${id}` : `/series/${id}`);
+  // Already-in-library items (Recently Added) carry a real Lidarr `id` and
+  // route straight there; everything else (Top Artists, chart results) has
+  // no id yet and opens the Discover artist-by-name detail page instead -
+  // same `if (item.id) {...}` idiom `app/artist/add.tsx`'s own results use.
+  const openMusicArtist = (item: ArtistRowItem) => {
+    if (item.id) {
+      router.push(`/artist/${item.id}`);
+      return;
+    }
+    router.push(`/discover/music/${encodeURIComponent(item.name)}`);
+  };
   const openCategory = (category: DiscoverCategory, mediaType: DiscoverMediaFilter) =>
     router.push(`/discover/category/${category}?mediaType=${mediaType}`);
 
@@ -501,6 +653,10 @@ export default function DiscoverScreen() {
     if (index === 2 && !tvLoaded.current) {
       tvLoaded.current = true;
       loadTv();
+    }
+    if (index === 3 && !musicLoaded.current) {
+      musicLoaded.current = true;
+      loadMusic();
     }
   };
 
@@ -532,7 +688,7 @@ export default function DiscoverScreen() {
           <Ionicons name="search" size={16} color={colors.textSecondary} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search movies & TV shows..."
+            placeholder={activeTab === 3 ? 'Search artists...' : 'Search movies & TV shows...'}
             placeholderTextColor={colors.textMuted}
             value={query}
             onChangeText={handleQueryChange}
@@ -545,7 +701,22 @@ export default function DiscoverScreen() {
         </View>
       </View>
 
-      {query.trim() ? (
+      {query.trim() && activeTab === 3 ? (
+        <FlatList
+          data={musicSearchResults}
+          keyExtractor={(item, i) => `${item.mbid || item.name}-${i}`}
+          contentContainerStyle={[styles.searchList, { paddingBottom: tabBarClearance }]}
+          ListEmptyComponent={
+            !searching ? (
+              <Text style={styles.emptyText}>
+                {lastfmConfig ? `No results for "${query}".` : 'Connect Last.fm in Settings to search artists.'}
+              </Text>
+            ) : null
+          }
+          ListHeaderComponent={searching ? <ActivityIndicator color={colors.lastfm} style={{ marginBottom: 12 }} /> : null}
+          renderItem={({ item }) => <MusicSearchRow artist={item} />}
+        />
+      ) : query.trim() ? (
         <FlatList
           data={searchResults}
           keyExtractor={(item) => `${item.media_type}:${item.id}`}
@@ -714,6 +885,66 @@ export default function DiscoverScreen() {
                     />
                   ))}
                   <LogoRow title="Streaming Service" items={tvProviders} onPressItem={(item) => openProvider(item, 'tv')} />
+                  <View style={{ height: 32 }} />
+                </ScrollView>
+              )}
+            </View>
+
+            {/* Music - Last.fm-backed (charts/genres/artist bios), separate
+                from the TMDB-backed tabs above; iTunes resolves cover art
+                per-card (see ArtistRow) since Last.fm's own images are
+                broken. New Releases is Apple's own chart instead (Last.fm
+                has no release-date-based chart at all - see itunes.ts). */}
+            <View style={[styles.page, { width }]}>
+              {!lastfmConfig ? (
+                <View style={styles.center}>
+                  <Text style={styles.emptyTitle}>Music Discover isn&apos;t set up yet</Text>
+                  <Text style={styles.emptyText}>Add a free Last.fm API key in Settings to browse top artists and genres.</Text>
+                  <TouchableOpacity style={[styles.settingsButton, { backgroundColor: colors.lastfm }]} onPress={() => router.push('/settings')}>
+                    <Text style={styles.settingsButtonText}>Go to Settings</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : loadingMusic && musicArtists.length === 0 ? (
+                <ActivityIndicator color={colors.lastfm} style={{ marginTop: 40 }} />
+              ) : (
+                <ScrollView
+                  contentContainerStyle={{ paddingBottom: tabBarClearance }}
+                  refreshControl={<RefreshControl tintColor={colors.lastfm} refreshing={loadingMusic} onRefresh={loadMusic} />}
+                >
+                  {errorMusic ? <Text style={styles.error}>{errorMusic}</Text> : null}
+                  <ArtistRow
+                    title="Recently Added"
+                    items={toRecentArtistItems(musicRecentlyAdded)}
+                    onPressItem={openMusicArtist}
+                    tint={colors.lastfm}
+                  />
+                  <ArtistRow
+                    title="Top Artists"
+                    items={musicArtists.map((a) => ({ name: a.name }))}
+                    onPressItem={openMusicArtist}
+                    onPressTitle={() => router.push('/discover/music/category')}
+                    tint={colors.lastfm}
+                  />
+                  <AlbumRow
+                    title="New Releases"
+                    items={toAlbumItems(musicNewReleases)}
+                    onPressItem={(item) => router.push(`/discover/music/${encodeURIComponent(item.artistName)}`)}
+                  />
+                  <LogoRow
+                    title="Genres"
+                    items={musicTags.map((t, i) => ({ id: i, name: capitalizeWords(t.name) }))}
+                    onPressItem={(item) => {
+                      // Displayed name is capitalized for the tile caption;
+                      // the actual tag query needs Last.fm's own original
+                      // (lowercase) spelling, looked up by index rather than
+                      // trusting the capitalized display text.
+                      const rawTag = musicTags[item.id]?.name ?? item.name;
+                      router.push(`/discover/music/category?tag=${encodeURIComponent(rawTag)}`);
+                    }}
+                    logoBackground={colors.lastfmMuted}
+                    logoTintColor={colors.lastfm}
+                    fallbackIcon="musical-notes"
+                  />
                   <View style={{ height: 32 }} />
                 </ScrollView>
               )}

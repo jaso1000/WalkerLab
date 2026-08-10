@@ -88,4 +88,9 @@ export const colors = {
   // not guessed.
   lidarr: '#009252',
   lidarrMuted: 'rgba(0,146,82,0.15)',
+
+  // Last.fm's own real brand red, verified against their published brand
+  // palette, not guessed.
+  lastfm: '#D51007',
+  lastfmMuted: 'rgba(213,16,7,0.15)',
 };

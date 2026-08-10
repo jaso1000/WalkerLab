@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getCertificateInfo } from '../../modules/tls-trust';
+import { lastfmApi } from '../../src/api/lastfm';
 import { lidarrApi } from '../../src/api/lidarr';
 import { nzbgetApi } from '../../src/api/nzbget';
 import { overseerrApi } from '../../src/api/overseerr';
@@ -54,6 +55,7 @@ const TEST_CONNECTION: Record<ServiceName, (config: ServiceConfig) => Promise<un
   nzbget: nzbgetApi.testConnection,
   tmdb: tmdbApi.testConnection,
   omdb: omdbApi.testConnection,
+  lastfm: lastfmApi.testConnection,
   overseerr: overseerrApi.testConnection,
   qbittorrent: qbittorrentApi.testConnection,
   tautulli: tautulliApi.testConnection,

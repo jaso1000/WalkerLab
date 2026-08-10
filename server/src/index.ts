@@ -6,6 +6,7 @@ import { requireAuth, seedAdminFromEnvIfAbsent } from './auth';
 import { authRouter } from './authRoutes';
 import { configRouter } from './configRoutes';
 import { imageProxyRouter } from './imageProxyRoutes';
+import { itunesRouter } from './itunesRoutes';
 import { proxyRouter } from './proxyRoutes';
 import { initStore } from './store';
 import { tlsRouter } from './tlsRoutes';
@@ -45,6 +46,7 @@ async function main() {
   app.use('/api', requireAuth, configRouter);
   app.use('/api/proxy', requireAuth, proxyRouter);
   app.use('/api/image-proxy', requireAuth, imageProxyRouter);
+  app.use('/api/itunes', requireAuth, itunesRouter);
   app.use('/api/tls', requireAuth, tlsRouter);
 
   app.use(express.static(PUBLIC_DIR));

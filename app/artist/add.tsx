@@ -1,33 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { ActivityIndicator, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { lidarrApi, lidarrImageUrl, LidarrArtist, LidarrMetadataProfile, LidarrQualityProfile, LidarrRootFolder } from '../../src/api/lidarr';
-import { ActionSheet, ActionSheetOption } from '../../src/components/ActionSheet';
-import { SelectRow, SwitchRow } from '../../src/components/SelectRow';
+import { lidarrApi, lidarrImageUrl, LidarrArtist } from '../../src/api/lidarr';
 import { useServers } from '../../src/context/ServersContext';
 import { alert } from '../../src/lib/alert';
-import { LIDARR_MONITOR_OPTIONS, LidarrMonitorOption } from '../../src/lib/constants';
-import { getLastQualityProfileId, setLastQualityProfileId } from '../../src/lib/preferences';
 import { useTabBarClearance } from '../../src/lib/tabBarClearance';
 import { colors } from '../../src/theme/colors';
 
-// Add Artist flow: Lidarr's own name search, then this screen's own
-// lightweight config form. Simpler than `series/add.tsx` - there's no
-// Discover/TMDB surface for music to resolve into, so an already-searched
-// result either opens the real artist detail page or goes straight to the
-// config form, no intermediate resolve step.
+// Add Artist flow: Lidarr's own name search, then straight into the real
+// Discover artist page (`app/discover/music/[name].tsx`) for anything not
+// already in the library - that page has the bio/tags/similar-artists info
+// plus its own inline "Add to Lidarr" form, so this screen doesn't need a
+// second copy of that form; it's purely search-and-redirect.
 export default function AddArtistScreen() {
   const tabBarClearance = useTabBarClearance();
   const { servers } = useServers();
@@ -36,42 +23,7 @@ export default function AddArtistScreen() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<LidarrArtist[]>([]);
   const [searching, setSearching] = useState(false);
-  const [selected, setSelected] = useState<LidarrArtist | null>(null);
   const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const [profiles, setProfiles] = useState<LidarrQualityProfile[]>([]);
-  const [metadataProfiles, setMetadataProfiles] = useState<LidarrMetadataProfile[]>([]);
-  const [rootFolders, setRootFolders] = useState<LidarrRootFolder[]>([]);
-  const [qualityProfileId, setQualityProfileId] = useState<number | null>(null);
-  const [metadataProfileId, setMetadataProfileId] = useState<number | null>(null);
-  const [rootFolderPath, setRootFolderPath] = useState<string | null>(null);
-  const [monitorOption, setMonitorOption] = useState<LidarrMonitorOption>('all');
-  const [searchOnAdd, setSearchOnAdd] = useState(true);
-  const [adding, setAdding] = useState(false);
-  const [menu, setMenu] = useState<{ title: string; options: ActionSheetOption[] } | null>(null);
-
-  // Loads Lidarr's profile/root-folder options once, defaulting the
-  // quality profile to whatever was last used for a Lidarr add, and the
-  // metadata profile (a separate required field this app was missing
-  // entirely - see `lidarrApi.addArtist`'s own comment) to the first one.
-  useFocusEffect(
-    useCallback(() => {
-      if (!config) return;
-      lidarrApi.getQualityProfiles(config).then(async (list) => {
-        setProfiles(list);
-        const remembered = await getLastQualityProfileId('lidarr');
-        setQualityProfileId((prev) => prev ?? list.find((p) => p.id === remembered)?.id ?? list[0]?.id ?? null);
-      });
-      lidarrApi.getMetadataProfiles(config).then((list) => {
-        setMetadataProfiles(list);
-        setMetadataProfileId((prev) => prev ?? list[0]?.id ?? null);
-      });
-      lidarrApi.getRootFolders(config).then((list) => {
-        setRootFolders(list);
-        setRootFolderPath((prev) => prev ?? list[0]?.path ?? null);
-      });
-    }, [config])
-  );
 
   // Debounced Lidarr name search, same 350ms pattern as Add Series/Movie.
   const runSearch = useCallback(
@@ -99,136 +51,20 @@ export default function AddArtistScreen() {
     runSearch(text);
   };
 
-  // Already-in-library results just open the real artist detail page. New
-  // results show this screen's own config form.
+  // Already-in-library results open the real artist detail page directly.
+  // New results go to the Discover artist page instead of a local form.
   const openResult = (item: LidarrArtist) => {
     if (item.id) {
       router.push(`/artist/${item.id}`);
       return;
     }
-    setSelected(item);
-  };
-
-  // Adds the selected artist using this form's own config fields,
-  // remembers the chosen quality profile for next time, and returns on
-  // success.
-  const submit = async () => {
-    if (!config || !selected || !qualityProfileId || !metadataProfileId || !rootFolderPath || !selected.foreignArtistId) return;
-    setAdding(true);
-    try {
-      await lidarrApi.addArtist(config, {
-        artistName: selected.artistName,
-        foreignArtistId: selected.foreignArtistId,
-        qualityProfileId,
-        metadataProfileId,
-        rootFolderPath,
-        monitorOption,
-        searchOnAdd,
-      });
-      await setLastQualityProfileId('lidarr', qualityProfileId);
-      alert('Added', `${selected.artistName} was added to Lidarr.`);
-      router.back();
-    } catch (e) {
-      alert('Failed to add', e instanceof Error ? e.message : 'Unknown error');
-    } finally {
-      setAdding(false);
-    }
+    router.push(`/discover/music/${encodeURIComponent(item.artistName)}`);
   };
 
   if (!config) {
     return (
       <SafeAreaView style={styles.center}>
         <Text style={styles.emptyText}>Lidarr isn&apos;t connected.</Text>
-      </SafeAreaView>
-    );
-  }
-
-  if (selected) {
-    const poster = selected.images.find((i) => i.coverType === 'poster');
-    const posterUrl = lidarrImageUrl(poster, config, { type: 'artist', id: selected.id });
-    return (
-      <SafeAreaView style={styles.screen} edges={['top']}>
-        <View style={styles.topBar}>
-          <TouchableOpacity style={styles.iconButton} onPress={() => setSelected(null)}>
-            <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
-          </TouchableOpacity>
-          <Text style={styles.topBarTitle}>Add Artist</Text>
-          <View style={{ width: 38 }} />
-        </View>
-        <ScrollView contentContainerStyle={[styles.configContainer, { paddingBottom: tabBarClearance }]}>
-          <View style={styles.configHeader}>
-            {posterUrl ? (
-              <Image source={{ uri: posterUrl }} style={styles.poster} cachePolicy="memory-disk" />
-            ) : (
-              <View style={[styles.poster, styles.posterPlaceholder]} />
-            )}
-            <View style={{ flex: 1 }}>
-              <Text style={styles.configTitle}>{selected.artistName}</Text>
-            </View>
-          </View>
-
-          <View style={styles.card}>
-            <SelectRow
-              label="Quality Profile"
-              value={profiles.find((p) => p.id === qualityProfileId)?.name ?? 'Select'}
-              onPress={() =>
-                setMenu({
-                  title: 'Quality Profile',
-                  options: profiles.map((p) => ({ label: p.name, onPress: () => setQualityProfileId(p.id) })),
-                })
-              }
-            />
-            <SelectRow
-              label="Metadata Profile"
-              value={metadataProfiles.find((p) => p.id === metadataProfileId)?.name ?? 'Select'}
-              onPress={() =>
-                setMenu({
-                  title: 'Metadata Profile',
-                  options: metadataProfiles.map((p) => ({ label: p.name, onPress: () => setMetadataProfileId(p.id) })),
-                })
-              }
-            />
-            <SelectRow
-              label="Root Folder"
-              value={rootFolderPath ?? 'Select'}
-              onPress={() =>
-                setMenu({
-                  title: 'Root Folder',
-                  options: rootFolders.map((f) => ({ label: f.path, onPress: () => setRootFolderPath(f.path) })),
-                })
-              }
-            />
-            <SelectRow
-              label="Monitor"
-              value={LIDARR_MONITOR_OPTIONS.find((o) => o.value === monitorOption)?.label ?? 'All Albums'}
-              onPress={() =>
-                setMenu({
-                  title: 'Monitor',
-                  options: LIDARR_MONITOR_OPTIONS.map((o) => ({ label: o.label, onPress: () => setMonitorOption(o.value) })),
-                })
-              }
-            />
-            <SwitchRow label="Search on Add" value={searchOnAdd} onChange={setSearchOnAdd} tint={colors.lidarr} />
-          </View>
-
-          <TouchableOpacity
-            style={[
-              styles.addButton,
-              (adding || !qualityProfileId || !metadataProfileId || !rootFolderPath) && styles.addButtonDisabled,
-            ]}
-            onPress={submit}
-            disabled={adding || !qualityProfileId || !metadataProfileId || !rootFolderPath}
-          >
-            <Text style={styles.addButtonText}>{adding ? 'Adding…' : 'Add Artist'}</Text>
-          </TouchableOpacity>
-        </ScrollView>
-
-        <ActionSheet
-          visible={!!menu}
-          title={menu?.title ?? ''}
-          options={menu?.options ?? []}
-          onClose={() => setMenu(null)}
-        />
       </SafeAreaView>
     );
   }
@@ -319,12 +155,4 @@ const styles = StyleSheet.create({
   resultInfo: { flex: 1 },
   resultTitle: { color: colors.textPrimary, fontWeight: '700', fontSize: 14 },
   resultMeta: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
-  configContainer: { padding: 16, gap: 14 },
-  configHeader: { flexDirection: 'row', gap: 12, alignItems: 'center' },
-  poster: { width: 70, height: 105, borderRadius: 8, backgroundColor: colors.surfaceAlt },
-  configTitle: { color: colors.textPrimary, fontWeight: '800', fontSize: 18 },
-  card: { backgroundColor: colors.surface, borderRadius: 14, paddingHorizontal: 16 },
-  addButton: { backgroundColor: colors.lidarr, borderRadius: 10, padding: 14, alignItems: 'center' },
-  addButtonDisabled: { opacity: 0.5 },
-  addButtonText: { color: colors.textPrimary, fontWeight: '800', fontSize: 16 },
 });

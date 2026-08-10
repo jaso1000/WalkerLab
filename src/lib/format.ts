@@ -143,6 +143,15 @@ export function titleCase(value: string): string {
   return value.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase()).trim();
 }
 
+// Capitalizes the first letter of every word in an already-spaced phrase,
+// e.g. "indie pop" -> "Indie Pop" - for genre names, which come back
+// all-lowercase from Last.fm's tags and inconsistently-cased from Lidarr's
+// own metadata provider. Distinct from `titleCase` above, which splits on
+// camelCase word boundaries rather than existing spaces.
+export function capitalizeWords(value: string): string {
+  return value.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 // Maps a Sonarr series status ('continuing' | 'ended' | 'upcoming' |
 // 'deleted') to the Badge color/tone used for its status pill, giving each
 // status a visually distinct color instead of one flat style for all of them.

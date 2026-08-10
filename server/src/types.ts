@@ -13,6 +13,7 @@ export type ServiceName =
   | 'nzbget'
   | 'tmdb'
   | 'omdb'
+  | 'lastfm'
   | 'overseerr'
   | 'qbittorrent'
   | 'tautulli'
@@ -117,6 +118,7 @@ export const SERVICE_NAMES: ServiceName[] = [
   'nzbget',
   'tmdb',
   'omdb',
+  'lastfm',
   'overseerr',
   'qbittorrent',
   'tautulli',

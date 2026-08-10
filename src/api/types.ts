@@ -41,6 +41,7 @@ export type ServiceName =
   | 'nzbget'
   | 'tmdb'
   | 'omdb'
+  | 'lastfm'
   | 'overseerr'
   | 'qbittorrent'
   | 'tautulli'

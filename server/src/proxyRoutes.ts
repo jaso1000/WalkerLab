@@ -11,7 +11,7 @@ import { mergeServiceConfig } from './services/mergeServiceConfig';
 import { nzbgetProxyRequest } from './services/nzbgetProxy';
 import { portainerProxyRequest, portainerPullImage } from './services/portainerProxy';
 import { qbittorrentProxyRequest } from './services/qbittorrentProxy';
-import { omdbProxyRequest, sabnzbdProxyRequest, tautulliProxyRequest, tmdbProxyRequest } from './services/queryKeyProxy';
+import { lastfmProxyRequest, omdbProxyRequest, sabnzbdProxyRequest, tautulliProxyRequest, tmdbProxyRequest } from './services/queryKeyProxy';
 import { getServiceConfig } from './store';
 import { isServiceName, ProxyRequestBody } from './types';
 
@@ -85,6 +85,9 @@ proxyRouter.post('/:profileId/:service', async (req, res) => {
         break;
       case 'omdb':
         result = await omdbProxyRequest(config, body);
+        break;
+      case 'lastfm':
+        result = await lastfmProxyRequest(config, body);
         break;
       case 'qbittorrent':
         // Keyed by user+profile, not just profile - profile ids are only

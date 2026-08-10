@@ -143,6 +143,17 @@ export const SERVICE_META: ServiceMeta[] = [
     signupUrl: 'https://www.omdbapi.com/apikey.aspx',
   },
   {
+    name: 'lastfm',
+    label: 'Last.fm (Music Discover)',
+    icon: 'musical-notes-outline',
+    tint: colors.lastfm,
+    description:
+      "Last.fm powers the Music tab in Discover — top artist charts, genre browsing, and artist bios/similar artists. There's no per-artist artwork here, though; that comes from Apple's iTunes catalog automatically, no setup needed.",
+    requiresUrl: false,
+    placeholder: '',
+    signupUrl: 'https://www.last.fm/api/account/create',
+  },
+  {
     name: 'tautulli',
     label: 'Tautulli',
     icon: 'stats-chart-outline',

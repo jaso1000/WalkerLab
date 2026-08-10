@@ -5,6 +5,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, ImageBackground, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { lastfmApi, stripBioHtml } from '../../../src/api/lastfm';
 import { lidarrApi, lidarrImageUrl, LidarrAlbum, LidarrArtist, LidarrQualityProfile } from '../../../src/api/lidarr';
 import { ActionSheet, ActionSheetOption } from '../../../src/components/ActionSheet';
 import { Badge } from '../../../src/components/Badge';
@@ -12,16 +13,18 @@ import { RatingBadges } from '../../../src/components/RatingBadges';
 import { TagList } from '../../../src/components/TagList';
 import { useServers } from '../../../src/context/ServersContext';
 import { alert } from '../../../src/lib/alert';
-import { artistStatusTone, formatBytes, formatDate, titleCase } from '../../../src/lib/format';
+import { artistStatusTone, capitalizeWords, formatBytes, formatDate, titleCase } from '../../../src/lib/format';
 import { useTabBarClearance } from '../../../src/lib/tabBarClearance';
 import { colors } from '../../../src/theme/colors';
 
 // Lidarr's own artist detail page (as opposed to a Discover browse/add
-// page - there's no TMDB/OMDb equivalent for music in this app). Hero
-// backdrop, quick-action chips, an album list (each row opening the
-// album/track drill-down), overview, and genre tags, all backed by a live
-// Lidarr fetch - simpler than `series/[id]/index.tsx` by design, since
-// there's no cast/crew, extra ratings, or keyword source to layer on top.
+// page). Hero backdrop, quick-action chips, an album list (each row opening
+// the album/track drill-down), an About section, and genre tags, all backed
+// by a live Lidarr fetch - simpler than `series/[id]/index.tsx` by design,
+// since there's no cast/crew source to layer on top. The About text prefers
+// Last.fm's bio (same source Discover Music's artist page uses) over
+// Lidarr's own sparser `overview` field when both are available - see the
+// `lastfmBio` state below.
 
 function InfoRow({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value?: string | number }) {
   if (value === undefined || value === null || value === '') return null;
@@ -40,10 +43,12 @@ export default function ArtistDetailScreen() {
   const artistId = Number(id);
   const { servers } = useServers();
   const config = servers.lidarr;
+  const lastfmConfig = servers.lastfm;
 
   const [artist, setArtist] = useState<LidarrArtist | null>(null);
   const [albums, setAlbums] = useState<LidarrAlbum[]>([]);
   const [profiles, setProfiles] = useState<LidarrQualityProfile[]>([]);
+  const [lastfmBio, setLastfmBio] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState<{ title: string; options: ActionSheetOption[] } | null>(null);
@@ -72,6 +77,25 @@ export default function ArtistDetailScreen() {
     useCallback(() => {
       load();
     }, [load])
+  );
+
+  // Richer "About" text from Last.fm, same source Discover Music's artist
+  // page uses (`stripBioHtml`) - Lidarr's own `artist.overview` field is
+  // often empty (it depends on Lidarr's own metadata provider having one),
+  // so this fills the gap when Last.fm is connected, preferred over that
+  // field when both exist. Independent of the main Lidarr load - a missing/
+  // misconfigured Last.fm shouldn't block the rest of the page.
+  useFocusEffect(
+    useCallback(() => {
+      if (!lastfmConfig || !artist?.artistName) {
+        setLastfmBio(undefined);
+        return;
+      }
+      lastfmApi
+        .artistInfo(lastfmConfig, artist.artistName)
+        .then((info) => setLastfmBio(info?.bio?.summary ? stripBioHtml(info.bio.summary) : undefined))
+        .catch(() => setLastfmBio(undefined));
+    }, [lastfmConfig, artist?.artistName])
   );
 
   const toggleArtistMonitored = async () => {
@@ -359,10 +383,10 @@ export default function ArtistDetailScreen() {
           })}
         </View>
 
-        {artist.overview ? (
+        {lastfmBio || artist.overview ? (
           <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Overview</Text>
-            <Text style={styles.overview}>{artist.overview}</Text>
+            <Text style={styles.sectionTitle}>About</Text>
+            <Text style={styles.overview}>{lastfmBio ?? artist.overview}</Text>
           </View>
         ) : null}
 
@@ -373,7 +397,7 @@ export default function ArtistDetailScreen() {
           <InfoRow icon="folder-outline" label="Root Path" value={artist.rootFolderPath} />
         </View>
 
-        <TagList tags={artist.genres ?? []} tint={colors.lidarr} />
+        <TagList tags={(artist.genres ?? []).map(capitalizeWords)} tint={colors.lidarr} />
       </ScrollView>
 
       {menu ? <ActionSheet visible title={menu.title} options={menu.options} onClose={() => setMenu(null)} /> : null}
