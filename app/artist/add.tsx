@@ -13,7 +13,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { lidarrApi, lidarrImageUrl, LidarrArtist, LidarrQualityProfile, LidarrRootFolder } from '../../src/api/lidarr';
+import { lidarrApi, lidarrImageUrl, LidarrArtist, LidarrMetadataProfile, LidarrQualityProfile, LidarrRootFolder } from '../../src/api/lidarr';
 import { ActionSheet, ActionSheetOption } from '../../src/components/ActionSheet';
 import { SelectRow, SwitchRow } from '../../src/components/SelectRow';
 import { useServers } from '../../src/context/ServersContext';
@@ -40,8 +40,10 @@ export default function AddArtistScreen() {
   const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [profiles, setProfiles] = useState<LidarrQualityProfile[]>([]);
+  const [metadataProfiles, setMetadataProfiles] = useState<LidarrMetadataProfile[]>([]);
   const [rootFolders, setRootFolders] = useState<LidarrRootFolder[]>([]);
   const [qualityProfileId, setQualityProfileId] = useState<number | null>(null);
+  const [metadataProfileId, setMetadataProfileId] = useState<number | null>(null);
   const [rootFolderPath, setRootFolderPath] = useState<string | null>(null);
   const [monitorOption, setMonitorOption] = useState<LidarrMonitorOption>('all');
   const [searchOnAdd, setSearchOnAdd] = useState(true);
@@ -49,7 +51,9 @@ export default function AddArtistScreen() {
   const [menu, setMenu] = useState<{ title: string; options: ActionSheetOption[] } | null>(null);
 
   // Loads Lidarr's profile/root-folder options once, defaulting the
-  // quality profile to whatever was last used for a Lidarr add.
+  // quality profile to whatever was last used for a Lidarr add, and the
+  // metadata profile (a separate required field this app was missing
+  // entirely - see `lidarrApi.addArtist`'s own comment) to the first one.
   useFocusEffect(
     useCallback(() => {
       if (!config) return;
@@ -57,6 +61,10 @@ export default function AddArtistScreen() {
         setProfiles(list);
         const remembered = await getLastQualityProfileId('lidarr');
         setQualityProfileId((prev) => prev ?? list.find((p) => p.id === remembered)?.id ?? list[0]?.id ?? null);
+      });
+      lidarrApi.getMetadataProfiles(config).then((list) => {
+        setMetadataProfiles(list);
+        setMetadataProfileId((prev) => prev ?? list[0]?.id ?? null);
       });
       lidarrApi.getRootFolders(config).then((list) => {
         setRootFolders(list);
@@ -105,13 +113,14 @@ export default function AddArtistScreen() {
   // remembers the chosen quality profile for next time, and returns on
   // success.
   const submit = async () => {
-    if (!config || !selected || !qualityProfileId || !rootFolderPath || !selected.foreignArtistId) return;
+    if (!config || !selected || !qualityProfileId || !metadataProfileId || !rootFolderPath || !selected.foreignArtistId) return;
     setAdding(true);
     try {
       await lidarrApi.addArtist(config, {
         artistName: selected.artistName,
         foreignArtistId: selected.foreignArtistId,
         qualityProfileId,
+        metadataProfileId,
         rootFolderPath,
         monitorOption,
         searchOnAdd,
@@ -170,6 +179,16 @@ export default function AddArtistScreen() {
               }
             />
             <SelectRow
+              label="Metadata Profile"
+              value={metadataProfiles.find((p) => p.id === metadataProfileId)?.name ?? 'Select'}
+              onPress={() =>
+                setMenu({
+                  title: 'Metadata Profile',
+                  options: metadataProfiles.map((p) => ({ label: p.name, onPress: () => setMetadataProfileId(p.id) })),
+                })
+              }
+            />
+            <SelectRow
               label="Root Folder"
               value={rootFolderPath ?? 'Select'}
               onPress={() =>
@@ -193,9 +212,12 @@ export default function AddArtistScreen() {
           </View>
 
           <TouchableOpacity
-            style={[styles.addButton, (adding || !qualityProfileId || !rootFolderPath) && styles.addButtonDisabled]}
+            style={[
+              styles.addButton,
+              (adding || !qualityProfileId || !metadataProfileId || !rootFolderPath) && styles.addButtonDisabled,
+            ]}
             onPress={submit}
-            disabled={adding || !qualityProfileId || !rootFolderPath}
+            disabled={adding || !qualityProfileId || !metadataProfileId || !rootFolderPath}
           >
             <Text style={styles.addButtonText}>{adding ? 'Adding…' : 'Add Artist'}</Text>
           </TouchableOpacity>

@@ -228,6 +228,19 @@ export interface LidarrQualityProfile {
   name: string;
 }
 
+// Lidarr artists also need a Metadata Profile (separate from Quality
+// Profile - controls which release types/statuses to track, e.g. Album/
+// EP/Single, official/bootleg) - `metadataProfileId` is a real
+// `ArtistResource` field this app was missing entirely, one of two real
+// causes of the add-artist 400 (the other: `ArtistResource` has
+// `additionalProperties: false`, so any extra field in the POST body -
+// this app was spreading `monitorOption`/`searchOnAdd`, its own wrapper
+// params, directly into it - gets the whole request rejected).
+export interface LidarrMetadataProfile {
+  id: number;
+  name: string;
+}
+
 export const lidarrApi = {
   // Settings' "Test Connection" check.
   testConnection: (config: ServiceConfig) => arrFetch(config, '/api/v1/system/status'),
@@ -272,13 +285,17 @@ export const lidarrApi = {
   // `LIDARR_MONITOR_OPTIONS`) and the artist-level `monitored` flag, which
   // is only turned off when the option is explicitly 'none' - matching
   // Lidarr's own Add Artist screen, which doesn't expose `monitored` as a
-  // separate toggle either.
+  // separate toggle either. Builds the body from only real `ArtistResource`
+  // fields (that schema has `additionalProperties: false` - including
+  // `monitorOption`/`searchOnAdd` themselves, this function's own wrapper
+  // params, gets the whole request rejected with a 400).
   addArtist: (
     config: ServiceConfig,
     artist: {
       artistName: string;
       foreignArtistId: string;
       qualityProfileId: number;
+      metadataProfileId: number;
       rootFolderPath: string;
       monitored?: boolean;
       searchOnAdd?: boolean;
@@ -288,7 +305,11 @@ export const lidarrApi = {
     arrFetch<LidarrArtist>(config, '/api/v1/artist', {
       method: 'POST',
       body: {
-        ...artist,
+        artistName: artist.artistName,
+        foreignArtistId: artist.foreignArtistId,
+        qualityProfileId: artist.qualityProfileId,
+        metadataProfileId: artist.metadataProfileId,
+        rootFolderPath: artist.rootFolderPath,
         monitored: artist.monitored ?? artist.monitorOption !== 'none',
         addOptions: {
           monitor: artist.monitorOption ?? 'all',
@@ -349,6 +370,8 @@ export const lidarrApi = {
   getDiskSpace: (config: ServiceConfig) => arrFetch<LidarrDiskSpace[]>(config, '/api/v1/diskspace'),
 
   getQualityProfiles: (config: ServiceConfig) => arrFetch<LidarrQualityProfile[]>(config, '/api/v1/qualityprofile'),
+
+  getMetadataProfiles: (config: ServiceConfig) => arrFetch<LidarrMetadataProfile[]>(config, '/api/v1/metadataprofile'),
 
   // Albums releasing within `start`..`end` - powers the Upcoming tab.
   getCalendar: (config: ServiceConfig, start: string, end: string) =>
