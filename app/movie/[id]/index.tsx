@@ -20,7 +20,6 @@ import { ActionSheet, ActionSheetOption } from '../../../src/components/ActionSh
 import { Badge } from '../../../src/components/Badge';
 import { CastCrewSection } from '../../../src/components/CastCrewSection';
 import { FileDetailsCard } from '../../../src/components/FileDetailsCard';
-import { PosterGalleryModal } from '../../../src/components/PosterGalleryModal';
 import { ReleaseTriptych } from '../../../src/components/ReleaseTriptych';
 import { ReviewSources } from '../../../src/components/ReviewSources';
 import { TagList } from '../../../src/components/TagList';
@@ -126,7 +125,6 @@ export default function MovieDetailScreen() {
   const [availabilityMenuOpen, setAvailabilityMenuOpen] = useState(false);
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
   const [fileExpanded, setFileExpanded] = useState(false);
-  const [posterGalleryOpen, setPosterGalleryOpen] = useState(false);
 
   // Loads the movie + its file (if any) from Radarr, then layers on optional
   // TMDB (cast/crew/keywords/production country) and OMDb (extra ratings)
@@ -365,7 +363,15 @@ export default function MovieDetailScreen() {
             </TouchableOpacity>
           </SafeAreaView>
           <View style={styles.heroBottom}>
-            <TouchableOpacity onPress={() => setPosterGalleryOpen(true)} disabled={!poster?.remoteUrl}>
+            <TouchableOpacity
+              onPress={() =>
+                router.push({
+                  pathname: '/gallery',
+                  params: { mediaType: 'movie', tmdbId: String(movie.tmdbId), fallbackPosterUrl: poster?.remoteUrl ?? '' },
+                })
+              }
+              disabled={!poster?.remoteUrl}
+            >
               {poster?.remoteUrl ? (
                 <Image source={{ uri: poster.remoteUrl }} style={styles.poster} cachePolicy="memory-disk" />
               ) : (
@@ -493,14 +499,6 @@ export default function MovieDetailScreen() {
         title="Quality Profile"
         options={qualityMenuOptions}
         onClose={() => setQualityMenuOpen(false)}
-      />
-      <PosterGalleryModal
-        visible={posterGalleryOpen}
-        onClose={() => setPosterGalleryOpen(false)}
-        tmdbConfig={tmdbConfig}
-        mediaType="movie"
-        tmdbId={movie.tmdbId}
-        fallbackPosterUrl={poster?.remoteUrl}
       />
     </View>
   );

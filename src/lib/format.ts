@@ -9,6 +9,8 @@ import type { BadgeTone } from '../components/Badge';
 // TV Shows/Movies file-details cards and Downloads queue.
 export function formatBytes(bytes?: number): string {
   if (!bytes) return '0 GB';
+  const tb = bytes / 1024 ** 4;
+  if (tb >= 1) return `${tb.toFixed(1)} TB`;
   const gb = bytes / 1024 ** 3;
   if (gb >= 1) return `${gb.toFixed(1)} GB`;
   const mb = bytes / 1024 ** 2;

@@ -18,7 +18,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { BlurTargetView } from 'expo-blur';
-import { router } from 'expo-router';
+import { router, usePathname } from 'expo-router';
 import { ActionSheet, ActionSheetOption } from './ActionSheet';
 import { CompactSidebar } from './CompactSidebar';
 import { FloatingPill, FLOATING_PILL_BOTTOM, FLOATING_PILL_HEIGHT } from './FloatingPill';
@@ -47,6 +47,14 @@ export function AdaptiveNav({ children }: { children: React.ReactNode }) {
   const [moreSheetOpen, setMoreSheetOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const tier = navTierForWidth(width);
+  // The gallery is a real route (see app/gallery.tsx's own comment for
+  // why) presented as a `transparentModal` over whatever screen opened
+  // it - unlike the `<Modal>` it replaced (a genuine separate native
+  // window, so it covered this persistent chrome for free), a routed
+  // screen renders inside this same `content` View alongside the sidebar/
+  // pill, so it needs an explicit opt-out to actually look full-screen.
+  const pathname = usePathname();
+  const hideNavChrome = pathname === '/gallery';
   // Only meaningful at the two tablet tiers (phone never renders either
   // Sidebar variant) - lets the user toggle between the full labeled
   // Sidebar and the narrower icon-only CompactSidebar via each component's
@@ -123,14 +131,14 @@ export function AdaptiveNav({ children }: { children: React.ReactNode }) {
   // there's nothing yet to clear.
   const clearance = tier === 'phone' && order ? FLOATING_PILL_HEIGHT + FLOATING_PILL_BOTTOM + FLOATING_BAR_GAP : 0;
 
-  const sidebarWidth = tier === 'phone' ? 0 : sidebarExpanded ? SIDEBAR_WIDTH : COMPACT_SIDEBAR_WIDTH;
+  const sidebarWidth = hideNavChrome || tier === 'phone' ? 0 : sidebarExpanded ? SIDEBAR_WIDTH : COMPACT_SIDEBAR_WIDTH;
   const navChrome: NavChrome = { tier, sidebarWidth };
 
   return (
     <NavChromeContext.Provider value={navChrome}>
       <TabBarClearanceContext.Provider value={clearance}>
         <View style={styles.root}>
-          {tier !== 'phone' ? (
+          {tier !== 'phone' && !hideNavChrome ? (
             sidebarExpanded ? (
               <Sidebar order={enabledOrder} onCollapse={() => setSidebarExpanded(false)} />
             ) : (
@@ -141,7 +149,7 @@ export function AdaptiveNav({ children }: { children: React.ReactNode }) {
             <BlurTargetView ref={contentBlurTarget} style={styles.contentInner}>
               {children}
             </BlurTargetView>
-            {tier === 'phone' && order ? (
+            {tier === 'phone' && order && !hideNavChrome ? (
               <FloatingPill primaryIds={primaryIds} onMorePress={() => setMoreSheetOpen(true)} blurTargetRef={contentBlurTarget} />
             ) : null}
           </View>

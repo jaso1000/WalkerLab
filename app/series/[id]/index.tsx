@@ -20,7 +20,6 @@ import { extractCrewCredits, extractKeywords, normalizeAggregateCredits, tmdbApi
 import { ActionSheet, ActionSheetOption } from '../../../src/components/ActionSheet';
 import { Badge } from '../../../src/components/Badge';
 import { CastCrewSection } from '../../../src/components/CastCrewSection';
-import { PosterGalleryModal } from '../../../src/components/PosterGalleryModal';
 import { ReviewSources } from '../../../src/components/ReviewSources';
 import { TagList } from '../../../src/components/TagList';
 import { useServers } from '../../../src/context/ServersContext';
@@ -79,7 +78,6 @@ export default function SeriesDetailScreen() {
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState<{ title: string; options: ActionSheetOption[] } | null>(null);
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
-  const [posterGalleryOpen, setPosterGalleryOpen] = useState(false);
 
   // Loads the series + its full episode list from Sonarr, then layers on
   // optional TMDB (needs a tvdbId->tmdbId resolve first, since Sonarr only
@@ -403,7 +401,15 @@ export default function SeriesDetailScreen() {
             </TouchableOpacity>
           </SafeAreaView>
           <View style={styles.heroBottom}>
-            <TouchableOpacity onPress={() => setPosterGalleryOpen(true)} disabled={!poster?.remoteUrl}>
+            <TouchableOpacity
+              onPress={() =>
+                router.push({
+                  pathname: '/gallery',
+                  params: { mediaType: 'tv', tmdbId: tmdbSeriesId ? String(tmdbSeriesId) : '', fallbackPosterUrl: poster?.remoteUrl ?? '' },
+                })
+              }
+              disabled={!poster?.remoteUrl}
+            >
               {poster?.remoteUrl ? (
                 <Image source={{ uri: poster.remoteUrl }} style={styles.poster} cachePolicy="memory-disk" />
               ) : (
@@ -534,14 +540,6 @@ export default function SeriesDetailScreen() {
         title="Quality Profile"
         options={qualityMenuOptions}
         onClose={() => setQualityMenuOpen(false)}
-      />
-      <PosterGalleryModal
-        visible={posterGalleryOpen}
-        onClose={() => setPosterGalleryOpen(false)}
-        tmdbConfig={tmdbConfig}
-        mediaType="tv"
-        tmdbId={tmdbSeriesId}
-        fallbackPosterUrl={poster?.remoteUrl}
       />
     </View>
   );

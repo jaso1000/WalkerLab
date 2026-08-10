@@ -6,7 +6,6 @@ import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View }
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { tmdbApi, tmdbImageUrl, TmdbMovie, TmdbPerson, TmdbPersonCredit, TmdbTv } from '../../../src/api/tmdb';
 import { DiscoverFilterSheet } from '../../../src/components/DiscoverFilterSheet';
-import { PosterGalleryModal } from '../../../src/components/PosterGalleryModal';
 import { useServers } from '../../../src/context/ServersContext';
 import { dedupeById, interleave } from '../../../src/lib/discoverCategories';
 import { buildDiscoverParams, countActiveFilters, DiscoverFilters, EMPTY_FILTERS, SORT_OPTIONS } from '../../../src/lib/discoverFilters';
@@ -62,7 +61,6 @@ export default function PersonScreen() {
   const [person, setPerson] = useState<TmdbPerson | null>(null);
   const [credits, setCredits] = useState<TmdbPersonCredit[]>([]);
   const [loading, setLoading] = useState(false);
-  const [posterGalleryOpen, setPosterGalleryOpen] = useState(false);
 
   // Filters button/sheet - seeded with this person once their real name is
   // known, so the sheet shows them pre-selected as soon as it's opened
@@ -225,7 +223,15 @@ export default function PersonScreen() {
           ListHeaderComponent={
             person ? (
               <View style={styles.header}>
-                <TouchableOpacity onPress={() => setPosterGalleryOpen(true)} disabled={!photo}>
+                <TouchableOpacity
+                  onPress={() =>
+                    router.push({
+                      pathname: '/gallery',
+                      params: { mediaType: 'person', tmdbId: String(personId), fallbackPosterUrl: photo ?? '' },
+                    })
+                  }
+                  disabled={!photo}
+                >
                   {photo ? (
                     <Image source={{ uri: photo }} style={styles.photo} cachePolicy="memory-disk" />
                   ) : (
@@ -281,15 +287,6 @@ export default function PersonScreen() {
           onClose={() => setSheetOpen(false)}
         />
       ) : null}
-
-      <PosterGalleryModal
-        visible={posterGalleryOpen}
-        onClose={() => setPosterGalleryOpen(false)}
-        tmdbConfig={config}
-        mediaType="person"
-        tmdbId={personId}
-        fallbackPosterUrl={photo}
-      />
     </SafeAreaView>
   );
 }

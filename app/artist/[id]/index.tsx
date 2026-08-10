@@ -5,11 +5,9 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, ImageBackground, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { lidarrApi, lidarrImageUrl, LidarrAlbum, LidarrArtist, LidarrImage, LidarrQualityProfile } from '../../../src/api/lidarr';
-import { ServiceConfig } from '../../../src/api/types';
+import { lidarrApi, lidarrImageUrl, LidarrAlbum, LidarrArtist, LidarrQualityProfile } from '../../../src/api/lidarr';
 import { ActionSheet, ActionSheetOption } from '../../../src/components/ActionSheet';
 import { Badge } from '../../../src/components/Badge';
-import { PosterGalleryModal } from '../../../src/components/PosterGalleryModal';
 import { RatingBadges } from '../../../src/components/RatingBadges';
 import { TagList } from '../../../src/components/TagList';
 import { useServers } from '../../../src/context/ServersContext';
@@ -24,18 +22,6 @@ import { colors } from '../../../src/theme/colors';
 // album/track drill-down), overview, and genre tags, all backed by a live
 // Lidarr fetch - simpler than `series/[id]/index.tsx` by design, since
 // there's no cast/crew, extra ratings, or keyword source to layer on top.
-
-// Maps every image entry with a resolvable URL to the gallery's plain
-// {full, thumb} shape - unlike TMDB's separate w185/w780 image sizes,
-// Lidarr's own size comes from a suffix `lidarrImageUrl` inserts into the
-// filename itself, resized+cached on demand server-side (see that
-// function's own comment), so full/thumb just request different sizes of
-// the same underlying file.
-function toGalleryImages(images: LidarrImage[], config: ServiceConfig, entity: { type: 'artist' | 'album'; id: number }) {
-  return images
-    .filter((img) => lidarrImageUrl(img, config, entity))
-    .map((img) => ({ full: lidarrImageUrl(img, config, entity, 1000)!, thumb: lidarrImageUrl(img, config, entity, 250)! }));
-}
 
 function InfoRow({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value?: string | number }) {
   if (value === undefined || value === null || value === '') return null;
@@ -62,10 +48,6 @@ export default function ArtistDetailScreen() {
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState<{ title: string; options: ActionSheetOption[] } | null>(null);
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
-  // Which image set the full-screen gallery is currently showing - the
-  // artist's own photos, or one specific album's cover art. `null` means
-  // closed; a (possibly empty) array means open.
-  const [galleryImages, setGalleryImages] = useState<{ full: string; thumb: string }[] | null>(null);
 
   const load = useCallback(async () => {
     if (!config) return;
@@ -244,20 +226,27 @@ export default function ArtistDetailScreen() {
   }
 
   const sortedAlbums = [...albums].sort((a, b) => (b.releaseDate ?? '').localeCompare(a.releaseDate ?? ''));
-  // Lidarr's artist poster/fanart come from Fanart.tv, which needs its own
-  // Kept as a defensive fallback even though the real root cause of blank
-  // artist images turned out to be a URL-construction bug (see
-  // `lidarrImageUrl`'s own comment), not missing artist-level art - if a
-  // given artist genuinely has none, falls back to the most recent album
-  // with a cover image so the page still isn't left blank.
   const artistEntity = { type: 'artist' as const, id: artist.id };
-  const ownArtistImages = toGalleryImages(artist.images, config, artistEntity);
-  const fallbackAlbum = ownArtistImages.length === 0 ? sortedAlbums.find((a) => a.images.some((i) => i.coverType === 'cover')) : undefined;
-  const fallbackAlbumImages = fallbackAlbum ? toGalleryImages(fallbackAlbum.images, config, { type: 'album', id: fallbackAlbum.id }) : [];
-  const heroGalleryImages = ownArtistImages.length > 0 ? ownArtistImages : fallbackAlbumImages;
   const backdrop = artist.images.find((i) => i.coverType === 'fanart') ?? artist.images.find((i) => i.coverType === 'poster');
-  const backdropUrl = lidarrImageUrl(backdrop, config, artistEntity, 780) ?? heroGalleryImages[0]?.full;
-  const posterUrl = lidarrImageUrl(artist.images.find((i) => i.coverType === 'poster'), config, artistEntity, 500) ?? heroGalleryImages[0]?.full;
+  const poster = artist.images.find((i) => i.coverType === 'poster');
+  // Lidarr's artist poster/fanart come from Fanart.tv, which needs its own
+  // API key configured in Lidarr's own settings before it populates at all
+  // - many instances have no artist-level art as a result, even though
+  // album covers (from Cover Art Archive, no extra config needed) work
+  // fine. Falls back to the most recent album with a cover image so the
+  // page never looks blank just because Fanart.tv isn't set up. The
+  // gallery route (`app/gallery.tsx`) replicates this same fallback for
+  // whatever the hero photo tap opens, so tapping through shows the same
+  // image this page is already displaying.
+  const fallbackAlbum = !backdrop && !poster ? sortedAlbums.find((a) => a.images.some((i) => i.coverType === 'cover')) : undefined;
+  const fallbackCover = fallbackAlbum?.images.find((i) => i.coverType === 'cover');
+  const fallbackEntity = fallbackAlbum ? { type: 'album' as const, id: fallbackAlbum.id } : undefined;
+  const backdropUrl =
+    lidarrImageUrl(backdrop, config, artistEntity, 780) ??
+    (fallbackCover && fallbackEntity ? lidarrImageUrl(fallbackCover, config, fallbackEntity, 780) : undefined);
+  const posterUrl =
+    lidarrImageUrl(poster, config, artistEntity, 500) ??
+    (fallbackCover && fallbackEntity ? lidarrImageUrl(fallbackCover, config, fallbackEntity, 500) : undefined);
   const totalSize = artist.statistics?.sizeOnDisk;
   const profileName = profiles.find((p) => p.id === artist.qualityProfileId)?.name;
   const qualityMenuOptions: ActionSheetOption[] = profiles.map((p) => ({
@@ -279,7 +268,10 @@ export default function ArtistDetailScreen() {
             </TouchableOpacity>
           </SafeAreaView>
           <View style={styles.heroBottom}>
-            <TouchableOpacity onPress={() => setGalleryImages(heroGalleryImages)} disabled={heroGalleryImages.length === 0}>
+            <TouchableOpacity
+              onPress={() => router.push({ pathname: '/gallery', params: { lidarrEntityType: 'artist', lidarrEntityId: String(artist.id) } })}
+              disabled={!posterUrl}
+            >
               {posterUrl ? (
                 <Image source={{ uri: posterUrl }} style={styles.poster} cachePolicy="memory-disk" />
               ) : (
@@ -328,7 +320,6 @@ export default function ArtistDetailScreen() {
             const albumEntity = { type: 'album' as const, id: album.id };
             const cover = album.images.find((i) => i.coverType === 'cover');
             const coverUrl = lidarrImageUrl(cover, config, albumEntity);
-            const albumGalleryImages = toGalleryImages(album.images, config, albumEntity);
             return (
               <Pressable
                 key={album.id}
@@ -336,8 +327,8 @@ export default function ArtistDetailScreen() {
                 onPress={() => router.push(`/artist/${artistId}/album/${album.id}?artistName=${encodeURIComponent(artist.artistName)}`)}
               >
                 <TouchableOpacity
-                  onPress={() => setGalleryImages(albumGalleryImages)}
-                  disabled={albumGalleryImages.length === 0}
+                  onPress={() => router.push({ pathname: '/gallery', params: { lidarrEntityType: 'album', lidarrEntityId: String(album.id) } })}
+                  disabled={!coverUrl}
                 >
                   {coverUrl ? (
                     <Image source={{ uri: coverUrl }} style={styles.albumCover} cachePolicy="memory-disk" />
@@ -391,11 +382,6 @@ export default function ArtistDetailScreen() {
         title="Quality Profile"
         options={qualityMenuOptions}
         onClose={() => setQualityMenuOpen(false)}
-      />
-      <PosterGalleryModal
-        visible={galleryImages !== null}
-        onClose={() => setGalleryImages(null)}
-        images={galleryImages ?? []}
       />
     </View>
   );
