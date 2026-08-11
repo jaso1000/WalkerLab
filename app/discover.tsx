@@ -713,7 +713,7 @@ export default function DiscoverScreen() {
               </Text>
             ) : null
           }
-          ListHeaderComponent={searching ? <ActivityIndicator color={colors.lastfm} style={{ marginBottom: 12 }} /> : null}
+          ListHeaderComponent={searching ? <ActivityIndicator color={colors.sectionGreen} style={{ marginBottom: 12 }} /> : null}
           renderItem={({ item }) => <MusicSearchRow artist={item} />}
         />
       ) : query.trim() ? (
@@ -900,30 +900,30 @@ export default function DiscoverScreen() {
                 <View style={styles.center}>
                   <Text style={styles.emptyTitle}>Music Discover isn&apos;t set up yet</Text>
                   <Text style={styles.emptyText}>Add a free Last.fm API key in Settings to browse top artists and genres.</Text>
-                  <TouchableOpacity style={[styles.settingsButton, { backgroundColor: colors.lastfm }]} onPress={() => router.push('/settings')}>
+                  <TouchableOpacity style={[styles.settingsButton, { backgroundColor: colors.sectionGreen }]} onPress={() => router.push('/settings')}>
                     <Text style={styles.settingsButtonText}>Go to Settings</Text>
                   </TouchableOpacity>
                 </View>
               ) : loadingMusic && musicArtists.length === 0 ? (
-                <ActivityIndicator color={colors.lastfm} style={{ marginTop: 40 }} />
+                <ActivityIndicator color={colors.sectionGreen} style={{ marginTop: 40 }} />
               ) : (
                 <ScrollView
                   contentContainerStyle={{ paddingBottom: tabBarClearance }}
-                  refreshControl={<RefreshControl tintColor={colors.lastfm} refreshing={loadingMusic} onRefresh={loadMusic} />}
+                  refreshControl={<RefreshControl tintColor={colors.sectionGreen} refreshing={loadingMusic} onRefresh={loadMusic} />}
                 >
                   {errorMusic ? <Text style={styles.error}>{errorMusic}</Text> : null}
                   <ArtistRow
                     title="Recently Added"
                     items={toRecentArtistItems(musicRecentlyAdded)}
                     onPressItem={openMusicArtist}
-                    tint={colors.lastfm}
+                    tint={colors.sectionGreen}
                   />
                   <ArtistRow
                     title="Top Artists"
                     items={musicArtists.map((a) => ({ name: a.name }))}
                     onPressItem={openMusicArtist}
                     onPressTitle={() => router.push('/discover/music/category')}
-                    tint={colors.lastfm}
+                    tint={colors.sectionGreen}
                   />
                   <AlbumRow
                     title="New Releases"
@@ -941,8 +941,8 @@ export default function DiscoverScreen() {
                       const rawTag = musicTags[item.id]?.name ?? item.name;
                       router.push(`/discover/music/category?tag=${encodeURIComponent(rawTag)}`);
                     }}
-                    logoBackground={colors.lastfmMuted}
-                    logoTintColor={colors.lastfm}
+                    logoBackground={colors.sectionGreenMuted}
+                    logoTintColor={colors.sectionGreen}
                     fallbackIcon="musical-notes"
                   />
                   <View style={{ height: 32 }} />

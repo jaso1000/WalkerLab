@@ -34,7 +34,7 @@ function InfoRow({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap;
   if (!value) return null;
   return (
     <View style={styles.infoRow}>
-      <Ionicons name={icon} size={16} color={colors.lastfm} style={styles.infoIcon} />
+      <Ionicons name={icon} size={16} color={colors.sectionGreen} style={styles.infoIcon} />
       <Text style={styles.infoLabel}>{label}</Text>
       <Text style={styles.infoValue}>{value}</Text>
     </View>
@@ -177,7 +177,7 @@ export default function DiscoverArtistScreen() {
   if (loading || !artist) {
     return (
       <SafeAreaView style={styles.center}>
-        <ActivityIndicator color={colors.lastfm} />
+        <ActivityIndicator color={colors.sectionGreen} />
       </SafeAreaView>
     );
   }
@@ -216,9 +216,9 @@ export default function DiscoverArtistScreen() {
 
         <View style={styles.addSection}>
           {checkingLibrary ? (
-            <ActivityIndicator color={colors.lastfm} style={{ marginTop: 12 }} />
+            <ActivityIndicator color={colors.lidarr} style={{ marginTop: 12 }} />
           ) : inLibraryId ? (
-            <TouchableOpacity style={[styles.addButton, { backgroundColor: colors.lastfm }]} onPress={() => router.push(`/artist/${inLibraryId}`)}>
+            <TouchableOpacity style={[styles.addButton, { backgroundColor: colors.lidarr }]} onPress={() => router.push(`/artist/${inLibraryId}`)}>
               <Text style={styles.addButtonText}>Already in Library — View</Text>
             </TouchableOpacity>
           ) : !lidarrConfig ? (
@@ -269,13 +269,13 @@ export default function DiscoverArtistScreen() {
                     })
                   }
                 />
-                <SwitchRow label="Search on Add" value={searchOnAdd} onChange={setSearchOnAdd} tint={colors.lastfm} />
+                <SwitchRow label="Search on Add" value={searchOnAdd} onChange={setSearchOnAdd} tint={colors.lidarr} />
               </View>
 
               <TouchableOpacity
                 style={[
                   styles.addButton,
-                  { backgroundColor: colors.lastfm },
+                  { backgroundColor: colors.lidarr },
                   (adding || !qualityProfileId || !metadataProfileId || !rootFolderPath) && styles.addButtonDisabled,
                 ]}
                 onPress={submit}
@@ -294,9 +294,9 @@ export default function DiscoverArtistScreen() {
           </View>
         ) : null}
 
-        <TagList tags={tags} tint={colors.lastfm} />
+        <TagList tags={tags} tint={colors.sectionGreen} />
 
-        <ArtistRow title="Similar Artists" items={similarItems} onPressItem={openSimilar} tint={colors.lastfm} />
+        <ArtistRow title="Similar Artists" items={similarItems} onPressItem={openSimilar} tint={colors.sectionGreen} />
 
         {tracks.length > 0 ? (
           <View style={styles.card}>

@@ -107,7 +107,7 @@ export default function DiscoverMusicCategoryScreen() {
       </View>
 
       {loading && items.length === 0 ? (
-        <ActivityIndicator color={colors.lastfm} style={{ marginTop: 40 }} />
+        <ActivityIndicator color={colors.sectionGreen} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={items}
@@ -116,7 +116,7 @@ export default function DiscoverMusicCategoryScreen() {
           contentContainerStyle={[styles.grid, { paddingBottom: tabBarClearance }]}
           onEndReachedThreshold={0.5}
           onEndReached={loadMore}
-          ListFooterComponent={loadingMore ? <ActivityIndicator color={colors.lastfm} style={{ marginVertical: 16 }} /> : null}
+          ListFooterComponent={loadingMore ? <ActivityIndicator color={colors.sectionGreen} style={{ marginVertical: 16 }} /> : null}
           renderItem={({ item }) => <ArtistCard artist={item} />}
           ListEmptyComponent={<Text style={styles.emptyText}>Nothing found.</Text>}
         />

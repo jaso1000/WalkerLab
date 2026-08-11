@@ -71,7 +71,7 @@ export function ArtistRow({
   items,
   onPressItem,
   onPressTitle,
-  tint = colors.lastfm,
+  tint = colors.sectionGreen,
 }: {
   title: string;
   items: ArtistRowItem[];
