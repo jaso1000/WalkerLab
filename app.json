@@ -16,7 +16,7 @@
         "foregroundImage": "./assets/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.walkerlab"
+      "package": "com.jaso1000.walkerlab"
     },
     "web": {
       "favicon": "./assets/favicon.png",
