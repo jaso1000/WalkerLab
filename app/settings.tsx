@@ -15,6 +15,7 @@ import { useAuth } from '../src/context/AuthContext';
 import { useProfiles } from '../src/context/ProfilesContext';
 import { useSectionNames } from '../src/context/SectionNamesContext';
 import { useServiceEnabled } from '../src/context/ServiceEnabledContext';
+import { isPushSupported } from '../src/lib/notificationsApi';
 import { SECTION_META } from '../src/lib/sectionMeta';
 import { SERVICE_META } from '../src/lib/serviceMeta';
 import { DEFAULT_STARTUP_SCREEN, getStartupScreen, StartupSectionId } from '../src/lib/startupScreen';
@@ -95,6 +96,15 @@ export default function SettingsScreen() {
       <View style={styles.navCard}>
         <SelectRow label="Section Order" value="" onPress={() => router.push('/settings/navigation')} />
       </View>
+
+      {isPushSupported() ? (
+        <>
+          <Text style={styles.groupLabel}>NOTIFICATIONS</Text>
+          <View style={styles.navCard}>
+            <SelectRow label="Push Notifications" value="" onPress={() => router.push('/settings/notifications')} />
+          </View>
+        </>
+      ) : null}
 
       {Platform.OS === 'web' ? (
         <>

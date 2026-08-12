@@ -7,6 +7,7 @@ import { authRouter } from './authRoutes';
 import { configRouter } from './configRoutes';
 import { imageProxyRouter } from './imageProxyRoutes';
 import { itunesRouter } from './itunesRoutes';
+import { notificationRouter, notificationWebhookRouter } from './notificationRoutes';
 import { proxyRouter } from './proxyRoutes';
 import { initStore } from './store';
 import { tlsRouter } from './tlsRoutes';
@@ -43,11 +44,21 @@ async function main() {
   app.use(express.json());
 
   app.use('/api/auth', authRouter);
+  // Must be registered before the broad `app.use('/api', requireAuth, ...)`
+  // mount below - Express applies that middleware to every /api/* path by
+  // prefix match regardless of whether configRouter itself has a matching
+  // route, so a later, more specific /api/webhooks mount would never be
+  // reached and this deliberately-unauthenticated route (see
+  // notificationRoutes.ts's header comment - Sonarr/Radarr/Lidarr/Overseerr
+  // can't do cookie or bearer auth, the path-embedded secret is the auth)
+  // would get rejected by requireAuth before its own handler ever ran.
+  app.use('/api/webhooks', notificationWebhookRouter);
   app.use('/api', requireAuth, configRouter);
   app.use('/api/proxy', requireAuth, proxyRouter);
   app.use('/api/image-proxy', requireAuth, imageProxyRouter);
   app.use('/api/itunes', requireAuth, itunesRouter);
   app.use('/api/tls', requireAuth, tlsRouter);
+  app.use('/api/notifications', requireAuth, notificationRouter);
 
   app.use(express.static(PUBLIC_DIR));
 

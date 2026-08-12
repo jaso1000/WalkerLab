@@ -241,6 +241,50 @@ export interface LidarrMetadataProfile {
   name: string;
 }
 
+// See sonarr.ts's identical upsertWalkerLabWebhook for the full design
+// rationale. Genuine Lidarr difference (confirmed against Lidarr's own
+// NotificationDefinition.cs, not assumed from Sonarr's shape): the flag
+// that enables "notify on new content" is `onReleaseImport`, not
+// `onDownload` - Lidarr has no `OnDownload` field at all. The webhook
+// *payload* it actually sends still uses `eventType: 'Download'` either
+// way (see server/src/services/notificationPayloads.ts), so only this
+// request body differs, not the receiver.
+async function upsertWalkerLabWebhook(config: ServiceConfig, webhookUrl: string): Promise<void> {
+  const existing = await arrFetch<Array<{ id: number; name: string }>>(config, '/api/v1/notification');
+  const match = existing.find((n) => n.name === 'WalkerLab');
+  const body = {
+    name: 'WalkerLab',
+    implementation: 'Webhook',
+    implementationName: 'Webhook',
+    configContract: 'WebhookSettings',
+    onGrab: false,
+    onReleaseImport: true,
+    onUpgrade: false,
+    onRename: false,
+    onArtistAdd: false,
+    onArtistDelete: false,
+    onAlbumDelete: false,
+    onHealthIssue: false,
+    onHealthRestored: false,
+    onDownloadFailure: false,
+    onImportFailure: false,
+    onTrackRetag: false,
+    onApplicationUpdate: false,
+    fields: [
+      { name: 'url', value: webhookUrl },
+      { name: 'method', value: 1 },
+      { name: 'username', value: '' },
+      { name: 'password', value: '' },
+    ],
+    tags: [] as number[],
+  };
+  if (match) {
+    await arrFetch(config, `/api/v1/notification/${match.id}`, { method: 'PUT', body: { ...body, id: match.id } });
+  } else {
+    await arrFetch(config, '/api/v1/notification', { method: 'POST', body });
+  }
+}
+
 export const lidarrApi = {
   // Settings' "Test Connection" check.
   testConnection: (config: ServiceConfig) => arrFetch(config, '/api/v1/system/status'),
@@ -397,4 +441,6 @@ export const lidarrApi = {
   // Manually grabs one specific release the user picked from `getReleases`.
   grabRelease: (config: ServiceConfig, release: { guid: string; indexerId: number }) =>
     arrFetch(config, '/api/v1/release', { method: 'POST', body: release }),
+
+  setupWebhookNotification: (config: ServiceConfig, webhookUrl: string) => upsertWalkerLabWebhook(config, webhookUrl),
 };

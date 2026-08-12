@@ -131,6 +131,46 @@ export interface RadarrQualityProfile {
   name: string;
 }
 
+// See sonarr.ts's identical upsertWalkerLabWebhook for the full design
+// rationale - Radarr is the same Servarr-family Notification API with
+// movie-specific onX flags in place of Sonarr's series/episode ones
+// (confirmed against Radarr's own NotificationDefinition.cs).
+async function upsertWalkerLabWebhook(config: ServiceConfig, webhookUrl: string): Promise<void> {
+  const existing = await arrFetch<Array<{ id: number; name: string }>>(config, '/api/v3/notification');
+  const match = existing.find((n) => n.name === 'WalkerLab');
+  const body = {
+    name: 'WalkerLab',
+    implementation: 'Webhook',
+    implementationName: 'Webhook',
+    configContract: 'WebhookSettings',
+    onGrab: false,
+    onDownload: true,
+    onUpgrade: false,
+    onRename: false,
+    onMovieAdded: false,
+    onMovieDelete: false,
+    onMovieFileDelete: false,
+    onMovieFileDeleteForUpgrade: false,
+    onHealthIssue: false,
+    includeHealthWarnings: false,
+    onHealthRestored: false,
+    onApplicationUpdate: false,
+    onManualInteractionRequired: false,
+    fields: [
+      { name: 'url', value: webhookUrl },
+      { name: 'method', value: 1 },
+      { name: 'username', value: '' },
+      { name: 'password', value: '' },
+    ],
+    tags: [] as number[],
+  };
+  if (match) {
+    await arrFetch(config, `/api/v3/notification/${match.id}`, { method: 'PUT', body: { ...body, id: match.id } });
+  } else {
+    await arrFetch(config, '/api/v3/notification', { method: 'POST', body });
+  }
+}
+
 export const radarrApi = {
   // Settings' "Test Connection" check.
   testConnection: (config: ServiceConfig) => arrFetch(config, '/api/v3/system/status'),
@@ -240,4 +280,6 @@ export const radarrApi = {
   // Manually grabs one specific release the user picked from `getReleases`.
   grabRelease: (config: ServiceConfig, release: { guid: string; indexerId: number }) =>
     arrFetch(config, '/api/v3/release', { method: 'POST', body: release }),
+
+  setupWebhookNotification: (config: ServiceConfig, webhookUrl: string) => upsertWalkerLabWebhook(config, webhookUrl),
 };

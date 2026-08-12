@@ -49,12 +49,19 @@ function isSecureRequest(req: Request): boolean {
   return req.secure || req.get('x-forwarded-proto') === 'https';
 }
 
-// Resolves the request's session cookie all the way to a real user record,
-// or undefined if there's no cookie, an expired/unknown session, or (should
-// never happen in practice - deleteUserData also purges a deleted user's
-// sessions) a session whose user no longer exists.
+// Resolves the request's session all the way to a real user record, or
+// undefined if there's no credential, an expired/unknown session, or
+// (should never happen in practice - deleteUserData also purges a deleted
+// user's sessions) a session whose user no longer exists. Checks the
+// session cookie first (browsers), falling back to an `Authorization:
+// Bearer <sessionId>` header (the native app - it has no browser cookie
+// jar to persist an httpOnly cookie across restarts, so it stores the raw
+// session id itself instead, returned in the login response body
+// specifically for this - see issueSession below). Same session store
+// either way, just two ways to present the same token.
 function getAuthenticatedUser(req: Request): UserRecord | undefined {
-  const sessionId = req.cookies?.[SESSION_COOKIE];
+  const bearerMatch = req.get('authorization')?.match(/^Bearer (.+)$/);
+  const sessionId = req.cookies?.[SESSION_COOKIE] ?? bearerMatch?.[1];
   if (!sessionId) return undefined;
   const session = touchSession(sessionId, SESSION_DURATION_MS);
   if (!session) return undefined;
@@ -68,7 +75,15 @@ export function authState(req: Request): AuthState {
   return { state: 'authenticated', username: user.username, role: user.role };
 }
 
-export function issueSession(req: Request, res: Response, userId: string) {
+// Returns the raw session id in addition to setting the cookie - a browser
+// client never needs it (the httpOnly cookie handles everything for it
+// automatically), but the native app's login screen does, to store it
+// itself and replay it as a Bearer header (see getAuthenticatedUser above).
+// Putting it in the response body doesn't weaken the cookie's httpOnly
+// protection for browsers - that guards against a *different* script
+// reading `document.cookie`, not the page's own fetch call reading its own
+// response.
+export function issueSession(req: Request, res: Response, userId: string): string {
   const sessionId = randomToken();
   createSession(sessionId, userId, new Date(Date.now() + SESSION_DURATION_MS));
   res.cookie(SESSION_COOKIE, sessionId, {
@@ -78,10 +93,15 @@ export function issueSession(req: Request, res: Response, userId: string) {
     maxAge: SESSION_DURATION_MS,
     path: '/',
   });
+  return sessionId;
 }
 
 export function clearSession(req: Request, res: Response) {
-  const sessionId = req.cookies?.[SESSION_COOKIE];
+  // Same cookie-or-Bearer fallback as getAuthenticatedUser above, so a
+  // native client's "disconnect" actually invalidates its session id
+  // server-side too, not just locally.
+  const bearerMatch = req.get('authorization')?.match(/^Bearer (.+)$/);
+  const sessionId = req.cookies?.[SESSION_COOKIE] ?? bearerMatch?.[1];
   if (sessionId) deleteSession(sessionId);
   res.clearCookie(SESSION_COOKIE, { path: '/' });
 }

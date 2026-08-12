@@ -27,7 +27,14 @@
       "expo-secure-store",
       "./plugins/withFoldableSupport.js",
       "./plugins/withCleartextTraffic.js",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-notifications",
+        {
+          "color": "#F5A623"
+        }
+      ],
+      "expo-background-task"
     ]
   }
 }

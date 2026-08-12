@@ -9,11 +9,13 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { decrypt, encrypt, EncryptedEnvelope } from './crypto';
+import webpush from 'web-push';
 import {
   DEFAULT_PROFILE_ID,
   DEFAULT_PROFILES,
   emptyStore,
   Profile,
+  PushDevice,
   SectionId,
   ServiceConfig,
   ServiceName,
@@ -21,6 +23,8 @@ import {
   StartupSectionId,
   StoreFile,
   UserRecord,
+  VapidKeys,
+  WebhookCallback,
 } from './types';
 
 const DATA_DIR = process.env.WALKERLAB_DATA_DIR ?? '/data';
@@ -196,6 +200,9 @@ export function deleteUserData(userId: string) {
   delete data.serviceEnabled[userId];
   delete data.startupScreen[userId];
   delete data.tabOrder[userId];
+  delete data.pushDevices[userId];
+  delete data.notificationPrefs[userId];
+  delete data.notificationWebhookSecrets[userId];
   for (const [sessionId, session] of Object.entries(data.sessions)) {
     if (session.userId === userId) {
       delete data.sessions[sessionId];
@@ -345,11 +352,90 @@ export function setTabOrder(userId: string, profileId: string, order: StartupSec
 // Removes every profile-scoped key for one deleted profile (within a user's
 // own data) - mirrors having to clear storage/serviceEnabled/sectionNames/
 // startupScreen individually client-side when a profile is deleted.
+// `pushDevices` is deliberately NOT touched here - it's keyed by userId
+// only (delivery is per-user, not per-profile), so a profile deletion
+// leaves registered devices alone.
 export function deleteProfileData(userId: string, profileId: string) {
   delete data.serviceConfigs[userId]?.[profileId];
   delete data.sectionNames[userId]?.[profileId];
   delete data.serviceEnabled[userId]?.[profileId];
   delete data.startupScreen[userId]?.[profileId];
   delete data.tabOrder[userId]?.[profileId];
+  delete data.notificationPrefs[userId]?.[profileId];
+  delete data.notificationWebhookSecrets[userId]?.[profileId];
+  save();
+}
+
+// --- Push notifications -------------------------------------------------
+
+// Upserts by the subscription's own stable identifier (its endpoint) -
+// re-registering the same browser (e.g. an app relaunch or a re-subscribe)
+// updates its profileId/registeredAt in place rather than accumulating
+// duplicate entries for the same physical browser.
+export function registerPushDevice(userId: string, device: Omit<PushDevice, 'registeredAt'>) {
+  const existing = data.pushDevices[userId] ?? [];
+  const full: PushDevice = { ...device, registeredAt: new Date().toISOString() };
+  data.pushDevices[userId] = [...existing.filter((d) => d.subscription.endpoint !== full.subscription.endpoint), full];
+  save();
+}
+
+export function getPushDevices(userId: string): PushDevice[] {
+  return data.pushDevices[userId] ?? [];
+}
+
+export function getNotificationPrefs(userId: string, profileId: string): Partial<Record<ServiceName, boolean>> {
+  return data.notificationPrefs[userId]?.[profileId] ?? {};
+}
+
+export function setNotificationPrefs(userId: string, profileId: string, prefs: Partial<Record<ServiceName, boolean>>) {
+  if (!data.notificationPrefs[userId]) data.notificationPrefs[userId] = {};
+  data.notificationPrefs[userId][profileId] = prefs;
+  save();
+}
+
+// Lazily creates a webhook secret for this user/profile/service the first
+// time it's needed (turning that service's notification toggle on),
+// instead of generating one for every service up front - most users will
+// only ever enable a subset.
+export function getOrCreateNotificationWebhookSecret(userId: string, profileId: string, service: ServiceName): string {
+  const existing = data.notificationWebhookSecrets[userId]?.[profileId]?.[service];
+  if (existing) return existing;
+  const secret = crypto.randomBytes(24).toString('hex');
+  if (!data.notificationWebhookSecrets[userId]) data.notificationWebhookSecrets[userId] = {};
+  if (!data.notificationWebhookSecrets[userId][profileId]) data.notificationWebhookSecrets[userId][profileId] = {};
+  data.notificationWebhookSecrets[userId][profileId][service] = secret;
+  save();
+  return secret;
+}
+
+// Used by the (unauthenticated, secret-in-URL) webhook receiver to
+// validate an inbound request - never creates one, unlike the getter above.
+export function getNotificationWebhookSecret(userId: string, profileId: string, service: ServiceName): string | undefined {
+  return data.notificationWebhookSecrets[userId]?.[profileId]?.[service];
+}
+
+// This server instance's own Web Push identity - generated once, on first
+// use, and persisted (not per-user, see VapidKeys' own comment in
+// types.ts). Every web push send (notificationRoutes.ts) needs this.
+export function getOrCreateVapidKeys(): VapidKeys {
+  if (data.vapidKeys) return data.vapidKeys;
+  const keys = webpush.generateVAPIDKeys();
+  data.vapidKeys = keys;
+  save();
+  return keys;
+}
+
+// How Sonarr/Radarr/Lidarr/Overseerr should reach this instance's webhook
+// receiver - see WebhookCallback's own comment in types.ts. Unlike
+// getOrCreateVapidKeys, there's no sensible default to lazily generate;
+// null until the user explicitly sets it (notificationRoutes.ts's
+// webhookUrl() treats null as "not configured yet" and omits that
+// service's webhook URL rather than falling back to a guess).
+export function getWebhookCallback(): WebhookCallback | null {
+  return data.webhookCallback;
+}
+
+export function setWebhookCallback(callback: WebhookCallback) {
+  data.webhookCallback = callback;
   save();
 }

@@ -156,6 +156,54 @@ export interface SonarrQualityProfile {
   name: string;
 }
 
+// Creates or updates a "WalkerLab" Webhook connection under Sonarr's own
+// Settings > Connect, so the user doesn't have to paste the webhook URL in
+// by hand (Settings > Push Notifications' "Auto Setup" button). Upserts by
+// name - re-running this (e.g. re-clicking the button) updates the existing
+// connection in place rather than piling up duplicates. Field names/casing
+// (`onDownload`, `fields: [{name: 'url', ...}]`, `method: 1` for POST) are
+// verified directly against Sonarr's own source (WebhookSettings.cs,
+// NotificationDefinition.cs, SchemaBuilder.cs's camelCase field-name
+// derivation), not guessed - this is the same request Sonarr's own Connect
+// UI sends. Only `onDownload` is enabled - notify on new episodes, not
+// renames/deletes/health checks/etc.
+async function upsertWalkerLabWebhook(config: ServiceConfig, webhookUrl: string): Promise<void> {
+  const existing = await arrFetch<Array<{ id: number; name: string }>>(config, '/api/v3/notification');
+  const match = existing.find((n) => n.name === 'WalkerLab');
+  const body = {
+    name: 'WalkerLab',
+    implementation: 'Webhook',
+    implementationName: 'Webhook',
+    configContract: 'WebhookSettings',
+    onGrab: false,
+    onDownload: true,
+    onUpgrade: false,
+    onImportComplete: false,
+    onRename: false,
+    onSeriesAdd: false,
+    onSeriesDelete: false,
+    onEpisodeFileDelete: false,
+    onEpisodeFileDeleteForUpgrade: false,
+    onHealthIssue: false,
+    includeHealthWarnings: false,
+    onHealthRestored: false,
+    onApplicationUpdate: false,
+    onManualInteractionRequired: false,
+    fields: [
+      { name: 'url', value: webhookUrl },
+      { name: 'method', value: 1 },
+      { name: 'username', value: '' },
+      { name: 'password', value: '' },
+    ],
+    tags: [] as number[],
+  };
+  if (match) {
+    await arrFetch(config, `/api/v3/notification/${match.id}`, { method: 'PUT', body: { ...body, id: match.id } });
+  } else {
+    await arrFetch(config, '/api/v3/notification', { method: 'POST', body });
+  }
+}
+
 export const sonarrApi = {
   // Settings' "Test Connection" check.
   testConnection: (config: ServiceConfig) => arrFetch(config, '/api/v3/system/status'),
@@ -301,4 +349,6 @@ export const sonarrApi = {
   // Manually grabs one specific release the user picked from `getReleases`.
   grabRelease: (config: ServiceConfig, release: { guid: string; indexerId: number }) =>
     arrFetch(config, '/api/v3/release', { method: 'POST', body: release }),
+
+  setupWebhookNotification: (config: ServiceConfig, webhookUrl: string) => upsertWalkerLabWebhook(config, webhookUrl),
 };

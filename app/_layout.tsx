@@ -22,6 +22,8 @@ import { SectionNamesProvider } from '../src/context/SectionNamesContext';
 import { ServiceEnabledProvider } from '../src/context/ServiceEnabledContext';
 import { ServersProvider } from '../src/context/ServersContext';
 import { DEFAULT_STARTUP_SCREEN, getStartupScreen, startupRoute } from '../src/lib/startupScreen';
+import { checkForNewContent, registerBackgroundPolling } from '../src/lib/notificationPolling';
+import { getPollingPrefs } from '../src/lib/notificationPrefs';
 import { colors } from '../src/theme/colors';
 
 // React Navigation's DarkTheme, repointed at this app's own palette so
@@ -69,6 +71,28 @@ function useStartupRedirect(profilesLoading: boolean, activeProfileId: string) {
 function RootStack() {
   const { loading: profilesLoading, activeProfileId } = useProfiles();
   const ready = useStartupRedirect(profilesLoading, activeProfileId);
+
+  // Native-only (web keeps real push, delivered independently of app
+  // launches - see src/lib/notificationPolling.ts's header comment for the
+  // full native-vs-web split). Runs once per launch, independent of
+  // whichever profile is currently active - polling has its own saved
+  // target profileId (see notificationPrefs.ts, v1 scope is one profile,
+  // not "whatever's active"). Re-registering the background task on every
+  // launch is idempotent (just updates its interval); the immediate check
+  // means opening the app surfaces anything that arrived since the last
+  // background run, not just whatever the next scheduled check turns up. A
+  // no-op if notifications were never configured (getPollingPrefs()
+  // returns null, checkForNewContent() itself no-ops on no prefs).
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    (async () => {
+      const prefs = await getPollingPrefs();
+      if (prefs && Object.values(prefs.services).some(Boolean)) {
+        await registerBackgroundPolling(prefs.intervalMinutes).catch(() => {});
+      }
+      await checkForNewContent().catch(() => {});
+    })();
+  }, []);
 
   return (
     <AdaptiveNav>

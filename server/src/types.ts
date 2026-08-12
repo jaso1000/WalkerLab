@@ -68,6 +68,47 @@ export interface SessionRecord {
   expiresAt: string;
 }
 
+// One registered browser for web push notifications - a user can have more
+// than one (multiple tabs/browsers), so this is an array, not a single
+// value. `profileId` records which profile the subscription registered
+// under (informational only - delivery is per-user, every registered
+// subscription gets every notification relayed for that user, regardless
+// of which profile is active on it at relay time). Web-only: native push
+// (Expo push tokens) was replaced entirely by local polling - see
+// src/lib/notificationPolling.ts's header comment for why - so this no
+// longer needs to be a discriminated union of two platforms.
+export interface PushDevice {
+  subscription: { endpoint: string; keys: { p256dh: string; auth: string } };
+  profileId: string;
+  registeredAt: string;
+}
+
+// This server instance's own Web Push identity (not per-user - VAPID
+// identifies the sending server, and every user on one instance shares the
+// same server). Generated lazily on first use, same pattern as
+// getOrCreateNotificationWebhookSecret.
+export interface VapidKeys {
+  publicKey: string;
+  privateKey: string;
+}
+
+// The address Sonarr/Radarr/Lidarr/Overseerr - which typically live on the
+// same LAN as this server, not necessarily reachable via whatever public
+// domain a browser happens to be using - should use to reach this
+// WalkerLab instance's own webhook receiver. Not per-user: this describes
+// the deployment's own network reachability, the same fact regardless of
+// which account is logged in. Must be explicitly set by the user (no
+// sensible default to guess, unlike VapidKeys' lazy generation). One
+// address for every service uniformly - not derived per-service from each
+// *arr app's own baseUrl (an earlier design this session that added
+// complexity for no real benefit in the common case: most home-lab setups
+// have every service, including this one, reachable at the same host).
+export interface WebhookCallback {
+  scheme: 'http' | 'https';
+  host: string;
+  port: number;
+}
+
 // The full at-rest shape, encrypted as one blob. Every field below `users`/
 // `sessions` is keyed first by userId, then exactly the same way it was
 // before multi-user support (profileId, then service/section/etc.) - see
@@ -85,6 +126,19 @@ export interface StoreFile {
   serviceEnabled: Record<string, Record<string, Partial<Record<ServiceName, boolean>>>>;
   startupScreen: Record<string, Record<string, StartupSectionId>>;
   tabOrder: Record<string, Record<string, StartupSectionId[]>>;
+  // Push notifications (see notificationRoutes.ts) - registered devices are
+  // keyed by userId only (delivery is per-user); prefs and webhook secrets
+  // follow the same userId -> profileId -> ServiceName shape as
+  // serviceEnabled above, since "notify on new Sonarr episode" is a
+  // per-profile-per-service concept (which Sonarr instance's webhook this
+  // is) even though delivery itself isn't profile-scoped.
+  pushDevices: Record<string, PushDevice[]>;
+  notificationPrefs: Record<string, Record<string, Partial<Record<ServiceName, boolean>>>>;
+  notificationWebhookSecrets: Record<string, Record<string, Partial<Record<ServiceName, string>>>>;
+  // Not per-user - see VapidKeys' own comment above.
+  vapidKeys: VapidKeys | null;
+  // Not per-user - see WebhookCallback's own comment above.
+  webhookCallback: WebhookCallback | null;
 }
 
 // Shape every web-only client fetch helper (arrFetch/qbittorrent/portainer)
@@ -157,5 +211,10 @@ export function emptyStore(): StoreFile {
     serviceEnabled: {},
     startupScreen: {},
     tabOrder: {},
+    pushDevices: {},
+    notificationPrefs: {},
+    notificationWebhookSecrets: {},
+    vapidKeys: null,
+    webhookCallback: null,
   };
 }
