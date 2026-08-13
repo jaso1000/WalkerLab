@@ -21,6 +21,7 @@ A cross-platform (iOS + Android + Docker/web) app for managing your home media s
 - **Server Profiles** — manage more than one server stack from a single install, each fully isolated, with encrypted backup and restore.
 - **Self-hosted web option** — run WalkerLab as its own Docker container with a secure admin login, so you can manage your stack remotely without exposing your other services directly to the internet.
 - **Multi-user (Docker/web)** — the admin can create additional accounts from Settings, each with their own completely independent set of Server Profiles on the same shared instance.
+- **Push Notifications** — get notified when a new episode, movie, or album finishes downloading, or a new request comes in, with a per-service on/off toggle. On the Docker/web build, real push notifications are relayed straight from your own server — one tap auto-configures Sonarr/Radarr/Lidarr/Overseerr's webhooks for you. On Android, the app checks your services directly on an interval you choose, so nothing needs to be hosted just to get notified.
 
 ## Tech Stack
 
