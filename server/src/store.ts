@@ -383,6 +383,19 @@ export function getPushDevices(userId: string): PushDevice[] {
   return data.pushDevices[userId] ?? [];
 }
 
+// Called when a send comes back 404/410 (Gone) - the browser's own
+// subscription has expired or been revoked, and will fail identically
+// forever until removed. Without this, a stale subscription just fails
+// silently on every future notification with no way for the user to
+// notice - confirmed live this session (real FCM 410s in the server log,
+// no visible symptom on the client at all).
+export function removePushDevice(userId: string, endpoint: string) {
+  const existing = data.pushDevices[userId];
+  if (!existing) return;
+  data.pushDevices[userId] = existing.filter((d) => d.subscription.endpoint !== endpoint);
+  save();
+}
+
 export function getNotificationPrefs(userId: string, profileId: string): Partial<Record<ServiceName, boolean>> {
   return data.notificationPrefs[userId]?.[profileId] ?? {};
 }

@@ -24,6 +24,7 @@ import {
   getPushDevices,
   getWebhookCallback,
   registerPushDevice,
+  removePushDevice,
   setNotificationPrefs,
   setWebhookCallback,
 } from './store';
@@ -86,12 +87,22 @@ async function sendToUser(userId: string, title: string, body: string): Promise<
   if (devices.length === 0) return 0;
   ensureVapidConfigured();
   const payload = JSON.stringify({ title, body });
-  // Fire-and-forget - a dead/expired subscription (browser uninstalled,
-  // permission revoked, etc.) just fails silently for that one device
-  // rather than blocking the others.
+  // Fire-and-forget for anything unexpected - a dead/expired subscription
+  // fails identically forever, though, so a 404/410 ("Gone" - confirmed
+  // live: real FCM 410s in this session's own testing, "push subscription
+  // has unsubscribed or expired") gets pruned from the store instead of
+  // just logged. Without this, a stale subscription silently fails on
+  // every future send with no way for the user to notice anything's
+  // wrong - they just stop getting notifications with zero symptom.
   await Promise.all(
     devices.map((d) =>
       webpush.sendNotification(d.subscription, payload).catch((e) => {
+        const statusCode = e instanceof Object && 'statusCode' in e ? (e as { statusCode?: number }).statusCode : undefined;
+        if (statusCode === 404 || statusCode === 410) {
+          removePushDevice(userId, d.subscription.endpoint);
+          console.warn('[notifications] Pruned expired web push subscription:', d.subscription.endpoint);
+          return;
+        }
         console.error('[notifications] Web push send failed:', e);
       })
     )
