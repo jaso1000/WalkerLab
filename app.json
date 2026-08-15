@@ -2,7 +2,7 @@
   "expo": {
     "name": "WalkerLab",
     "slug": "walkerlab",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -16,7 +16,8 @@
         "foregroundImage": "./assets/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.jaso1000.walkerlab"
+      "package": "com.jaso1000.walkerlab",
+      "versionCode": 2
     },
     "web": {
       "favicon": "./assets/favicon.png",
