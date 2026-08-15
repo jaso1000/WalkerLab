@@ -15,6 +15,7 @@ import { BlurView } from 'expo-blur';
 import { router, usePathname } from 'expo-router';
 import { RefObject } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isSectionActive } from '../lib/activeSection';
 import { SECTION_META } from '../lib/sectionMeta';
 import { StartupSectionId } from '../lib/startupScreen';
@@ -39,8 +40,16 @@ export function FloatingPill({
   blurTargetRef: RefObject<View | null>;
 }) {
   const pathname = usePathname();
+  // Sit above the system navigation bar rather than under it. This is only
+  // ~0 on gesture navigation (where the gesture handle is drawn over content
+  // anyway), but is a full ~48dp on 3-button navigation - without it the
+  // pill renders underneath the Back/Home/Recents bar and its buttons become
+  // unreachable. Reported by a tester on button navigation; see
+  // AdaptiveNav.tsx, which adds the same inset to the scroll clearance so
+  // list content still clears the pill's new resting position.
+  const insets = useSafeAreaInsets();
   return (
-    <View style={styles.pill} pointerEvents="box-none">
+    <View style={[styles.pill, { bottom: insets.bottom + FLOATING_PILL_BOTTOM }]} pointerEvents="box-none">
       <BlurView
         blurTarget={blurTargetRef}
         blurMethod="dimezisBlurView"
@@ -78,11 +87,12 @@ const styles = StyleSheet.create({
   // whatever's rendered underneath it. Shadow lives here (not on `inner`)
   // since `inner` needs `overflow: 'hidden'` to clip the blur to its own
   // rounded corners, which would otherwise clip the shadow too.
+  // `bottom` is applied inline (not here) since it depends on the runtime
+  // safe-area inset - see the component body.
   pill: {
     position: 'absolute',
     left: FLOATING_PILL_SIDE,
     right: FLOATING_PILL_SIDE,
-    bottom: FLOATING_PILL_BOTTOM,
     height: FLOATING_PILL_HEIGHT,
     borderRadius: FLOATING_PILL_HEIGHT / 2,
     elevation: 8,

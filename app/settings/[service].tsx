@@ -337,6 +337,15 @@ export default function ServiceSettingsScreen() {
           {meta.urlExamples?.length ? (
             <View style={styles.card}>
               <Text style={styles.sectionLabel}>COMMON URLS &amp; PORTS</Text>
+              {/* The template goes first, tinted in the service's own color so
+                  it reads as the pattern rather than a fourth literal example,
+                  then the worked examples follow underneath it. */}
+              {meta.urlTemplate ? (
+                <>
+                  <Text style={[styles.templateText, { color: meta.tint }]}>{meta.urlTemplate}</Text>
+                  <Text style={styles.templateHint}>For example:</Text>
+                </>
+              ) : null}
               {meta.urlExamples.map((example) => (
                 <Text key={example} style={styles.exampleText}>
                   {example}
@@ -523,6 +532,10 @@ const styles = StyleSheet.create({
   resetLink: { fontSize: 12, fontWeight: '700' },
   fieldLabel: { fontSize: 13, color: colors.textSecondary, marginTop: 8, marginBottom: 4 },
   fieldHint: { fontSize: 12, color: colors.textMuted, marginBottom: 6, lineHeight: 16 },
+  // Slightly larger than the examples below it and tinted inline per service -
+  // this is the line users are meant to read as "fill in your own values".
+  templateText: { fontSize: 14, fontWeight: '600', marginBottom: 8, fontFamily: 'monospace' },
+  templateHint: { fontSize: 12, color: colors.textMuted, marginBottom: 6 },
   exampleText: { color: colors.textPrimary, fontSize: 13, marginBottom: 6, fontFamily: 'monospace' },
   signupLink: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4 },
   signupLinkText: { color: colors.accent, fontSize: 13, fontWeight: '600' },

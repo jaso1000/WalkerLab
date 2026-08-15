@@ -216,7 +216,7 @@ export default function ArtistDetailScreen() {
         },
       },
       {
-        text: 'Delete Files Too',
+        text: 'Remove and delete files',
         style: 'destructive',
         onPress: async () => {
           setBusy(true);

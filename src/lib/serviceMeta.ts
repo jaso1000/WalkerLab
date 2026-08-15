@@ -16,6 +16,14 @@ export interface ServiceMeta {
   description: string;
   requiresUrl: boolean;
   placeholder: string;
+  /**
+   * The shape of the URL, in placeholder form, shown above `urlExamples` on
+   * the config page. Testers reported the concrete examples alone
+   * (`http://192.168.1.10:8989`) read as a literal address to copy rather
+   * than a pattern to adapt, so this spells out which part is theirs to
+   * fill in before the worked examples follow.
+   */
+  urlTemplate?: string;
   urlExamples?: string[];
   signupUrl?: string;
   /** The nav section this service drives — lets its config page own that section's rename + startup-screen controls. */
@@ -40,6 +48,7 @@ export const SERVICE_META: ServiceMeta[] = [
       "Sonarr manages your TV library — it monitors your shows, automatically grabs new episodes as they're released, and keeps files organized once they're downloaded.",
     requiresUrl: true,
     placeholder: 'http://192.168.1.10:8989',
+    urlTemplate: 'http://[your-ip-address]:[sonarr-port]',
     urlExamples: ['http://192.168.1.10:8989 — another device on your network (default port 8989)', 'http://localhost:8989 — same device as this app'],
     sectionId: 'tvShows',
   },
@@ -52,6 +61,7 @@ export const SERVICE_META: ServiceMeta[] = [
       'Radarr does for movies what Sonarr does for TV — it monitors your collection and automatically grabs new releases as they become available.',
     requiresUrl: true,
     placeholder: 'http://192.168.1.10:7878',
+    urlTemplate: 'http://[your-ip-address]:[radarr-port]',
     urlExamples: ['http://192.168.1.10:7878 — another device on your network (default port 7878)', 'http://localhost:7878 — same device as this app'],
     sectionId: 'movies',
   },
@@ -64,6 +74,7 @@ export const SERVICE_META: ServiceMeta[] = [
       'Lidarr does for music what Sonarr does for TV — it monitors your artist collection and automatically grabs new album releases as they become available.',
     requiresUrl: true,
     placeholder: 'http://192.168.1.10:8686',
+    urlTemplate: 'http://[your-ip-address]:[lidarr-port]',
     urlExamples: ['http://192.168.1.10:8686 — another device on your network (default port 8686)', 'http://localhost:8686 — same device as this app'],
     sectionId: 'music',
   },
@@ -76,6 +87,7 @@ export const SERVICE_META: ServiceMeta[] = [
       "SABnzbd is the Usenet download client that actually retrieves files once Sonarr or Radarr queue something. The Downloads screen reads its queue and history directly from here.",
     requiresUrl: true,
     placeholder: 'http://192.168.1.10:8080',
+    urlTemplate: 'http://[your-ip-address]:[sabnzbd-port]',
     urlExamples: ['http://192.168.1.10:8080 — another device on your network (default port 8080)', 'http://localhost:8080 — same device as this app'],
     sectionId: 'downloads',
   },
@@ -88,6 +100,7 @@ export const SERVICE_META: ServiceMeta[] = [
       'NZBGet is a Usenet download client, an alternative to SABnzbd - most home labs only run one or the other, but both get their own section here in case you actually want both enabled.',
     requiresUrl: true,
     placeholder: 'http://192.168.1.10:6789',
+    urlTemplate: 'http://[your-ip-address]:[nzbget-port]',
     urlExamples: ['http://192.168.1.10:6789 — another device on your network (default port 6789)', 'http://localhost:6789 — same device as this app'],
     sectionId: 'nzbget',
     usesCredentials: true,
@@ -102,6 +115,7 @@ export const SERVICE_META: ServiceMeta[] = [
       'qBittorrent handles torrent downloads — the Torrents screen mirrors its list so you can pause, resume, or remove torrents and see what\'s actively seeding.',
     requiresUrl: true,
     placeholder: 'http://192.168.1.10:8080',
+    urlTemplate: 'http://[your-ip-address]:[qbittorrent-port]',
     urlExamples: ['http://192.168.1.10:8080 — another device on your network (default port 8080)', 'http://localhost:8080 — same device as this app'],
     sectionId: 'torrents',
     usesCredentials: true,
@@ -116,6 +130,7 @@ export const SERVICE_META: ServiceMeta[] = [
       'Overseerr (shown in this app as "Seer") lets you browse and request movies or shows, forwarding approved requests straight to Sonarr and Radarr.',
     requiresUrl: true,
     placeholder: 'http://192.168.1.10:5055',
+    urlTemplate: 'http://[your-ip-address]:[overseerr-port]',
     urlExamples: ['http://192.168.1.10:5055 — another device on your network (default port 5055)', 'http://localhost:5055 — same device as this app'],
     sectionId: 'requests',
   },
@@ -162,6 +177,7 @@ export const SERVICE_META: ServiceMeta[] = [
       'Tautulli tracks everything watched on your Plex server — see who\'s streaming right now, browse playback history, and check usage stats and trends over time.',
     requiresUrl: true,
     placeholder: 'http://192.168.1.10:8181',
+    urlTemplate: 'http://[your-ip-address]:[tautulli-port]',
     urlExamples: ['http://192.168.1.10:8181 — another device on your network (default port 8181)', 'http://localhost:8181 — same device as this app'],
     sectionId: 'stats',
   },
@@ -174,6 +190,7 @@ export const SERVICE_META: ServiceMeta[] = [
       'Portainer manages the Docker containers and stacks running your whole server. The Containers screen mirrors it so you can check status and start, stop, or recreate anything without opening the web UI.',
     requiresUrl: true,
     placeholder: 'http://192.168.1.10:9000',
+    urlTemplate: 'http://[your-ip-address]:[portainer-port]',
     urlExamples: ['http://192.168.1.10:9000 — another device on your network (default port 9000)', 'http://localhost:9000 — same device as this app'],
     sectionId: 'containers',
     supportsCertTrust: true,

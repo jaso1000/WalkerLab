@@ -27,6 +27,7 @@
       "expo-secure-store",
       "./plugins/withFoldableSupport.js",
       "./plugins/withCleartextTraffic.js",
+      "./plugins/withReleaseSigning.js",
       "@react-native-community/datetimepicker",
       [
         "expo-notifications",

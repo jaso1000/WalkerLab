@@ -1,0 +1,19 @@
+WalkerLab is a single, sleek remote control for the self-hosted media server stack you already run — putting everything in one place instead of switching between apps and browser tabs.
+
+REQUIRES YOUR OWN SERVER(S)
+WalkerLab doesn't include or host any media server software itself. Connect it to your own existing installs of Sonarr, Radarr, SABnzbd, qBittorrent, Overseerr, Tautulli, and/or Portainer, and it becomes the control panel for all of them in one place.
+
+WHAT YOU CAN DO
+• TV Shows (Sonarr) — browse your library, see missing/upcoming episodes, drill into seasons and episodes, search for releases, and add new series with full detail pages.
+• Movies (Radarr) — same rich library management for movies, plus theatrical/digital/physical release tracking.
+• Downloads (SABnzbd) — watch queue progress live, pause/resume/reorder, and browse download history.
+• Torrents (qBittorrent) — manage active, downloading, and finished torrents with live progress and speed.
+• Requests (Overseerr) — approve, decline, or review what your users have requested, right from your phone.
+• Discover — search and browse trending, popular, and upcoming movies & TV (powered by TMDB), see ratings from IMDb/Rotten Tomatoes/Metacritic, and add straight to your library.
+• Stats (Tautulli) — see who's watching what on Plex right now, playback history, and top-watched rankings.
+• Containers (Portainer) — check on and restart the Docker containers behind all of it, without opening a browser.
+• Notifications — get a local alert on your phone when something new finishes downloading, checked on a schedule you control.
+• Server Profiles — juggle more than one setup (home vs. a friend's server, for example) and switch between them instantly, with encrypted backup/restore you control.
+
+ONE APP FOR YOUR WHOLE HOMELAB
+Stop juggling browser tabs and bookmarks for every service you run. WalkerLab brings your TV shows, movies, downloads, torrents, requests, stats, and containers together in one fast, native app built for the way self-hosters actually work.

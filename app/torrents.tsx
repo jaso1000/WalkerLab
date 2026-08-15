@@ -229,7 +229,7 @@ export default function TorrentsScreen() {
           alert('Delete Torrent', `Remove "${item.name}" from qBittorrent?`, [
             { text: 'Cancel', style: 'cancel' },
             { text: 'Remove Only', onPress: () => deleteTorrent(item, false) },
-            { text: 'Delete Files Too', style: 'destructive', onPress: () => deleteTorrent(item, true) },
+            { text: 'Remove and delete files', style: 'destructive', onPress: () => deleteTorrent(item, true) },
           ]);
         },
       },

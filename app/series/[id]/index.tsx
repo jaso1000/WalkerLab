@@ -360,7 +360,7 @@ export default function SeriesDetailScreen() {
         },
       },
       {
-        text: 'Delete Files Too',
+        text: 'Remove and delete files',
         style: 'destructive',
         onPress: async () => {
           setBusy(true);
@@ -409,6 +409,14 @@ export default function SeriesDetailScreen() {
     label: p.name,
     onPress: () => setQualityProfile(p.id),
   }));
+  // "Premieres" only reads correctly for a series that hasn't aired anything
+  // yet; once it's running the same field is just the next episode's date.
+  // `formatDate` returns null on a missing/unparseable date, which collapses
+  // the whole line rather than rendering a stray "Premieres".
+  const nextAiringDate = formatDate(series.nextAiring);
+  const nextAiringLabel = nextAiringDate
+    ? `${series.status?.toLowerCase() === 'upcoming' ? 'Premieres' : 'Next episode'} ${nextAiringDate}`
+    : null;
 
   return (
     <View style={styles.screen}>
@@ -445,6 +453,14 @@ export default function SeriesDetailScreen() {
                 <Text style={styles.meta}>{[series.year, series.network].filter(Boolean).join(' · ')}</Text>
                 {series.status ? <Badge label={titleCase(series.status)} tone={seriesStatusTone(series.status)} /> : null}
               </View>
+              {/* A bare "Upcoming"/"Continuing" badge doesn't say *when*, which
+                  testers flagged as the obvious follow-up question. Sonarr's
+                  `nextAiring` is the premiere date for a series that hasn't
+                  started yet and the next episode's date for one that has, so
+                  the label changes to match. Absent when Sonarr has no date
+                  yet (common for announced-but-unscheduled shows), in which
+                  case the badge alone is all there is to show. */}
+              {nextAiringLabel ? <Text style={styles.airingMeta}>{nextAiringLabel}</Text> : null}
               {series.genres && series.genres.length > 0 ? (
                 <Text style={styles.meta}>{series.genres.join(' · ')}</Text>
               ) : null}
@@ -595,6 +611,9 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '800', color: colors.textPrimary },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   meta: { fontSize: 13, color: colors.textSecondary },
+  // Tinted rather than `textSecondary` so the date reads as an answer to the
+  // status badge directly above it instead of blending into the genre line.
+  airingMeta: { fontSize: 13, fontWeight: '600', color: colors.sonarr },
   actionRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, marginTop: 14 },
   actionChip: {
     flexDirection: 'row',

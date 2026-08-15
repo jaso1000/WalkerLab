@@ -19,6 +19,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { BlurTargetView } from 'expo-blur';
 import { router, usePathname } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActionSheet, ActionSheetOption } from './ActionSheet';
 import { CompactSidebar } from './CompactSidebar';
 import { FloatingPill, FLOATING_PILL_BOTTOM, FLOATING_PILL_HEIGHT } from './FloatingPill';
@@ -38,6 +39,7 @@ import { colors } from '../theme/colors';
 
 export function AdaptiveNav({ children }: { children: React.ReactNode }) {
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const { loading: profilesLoading, activeProfileId, activeProfile } = useProfiles();
   const { isEnabled } = useServiceEnabled();
   const { names } = useSectionNames();
@@ -128,8 +130,13 @@ export function AdaptiveNav({ children }: { children: React.ReactNode }) {
 
   // Only reserve clearance once the pill is both showing (phone tier) and
   // actually resolved (order !== null) - it renders nothing until then, so
-  // there's nothing yet to clear.
-  const clearance = tier === 'phone' && order ? FLOATING_PILL_HEIGHT + FLOATING_PILL_BOTTOM + FLOATING_BAR_GAP : 0;
+  // there's nothing yet to clear. `insets.bottom` has to be included because
+  // the pill itself is offset by it (see FloatingPill.tsx) - on 3-button
+  // navigation that's ~48dp, and omitting it here would leave the last list
+  // row hidden behind the pill even though the pill itself now sits clear of
+  // the system bar.
+  const clearance =
+    tier === 'phone' && order ? insets.bottom + FLOATING_PILL_HEIGHT + FLOATING_PILL_BOTTOM + FLOATING_BAR_GAP : 0;
 
   const sidebarWidth = hideNavChrome || tier === 'phone' ? 0 : sidebarExpanded ? SIDEBAR_WIDTH : COMPACT_SIDEBAR_WIDTH;
   const navChrome: NavChrome = { tier, sidebarWidth };
