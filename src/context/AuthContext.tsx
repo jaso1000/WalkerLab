@@ -6,7 +6,7 @@
 // outside `ProfilesProvider` in app/_layout.tsx (see the file's own
 // provider-order comment) since nothing profile-scoped should even try to
 // load before the instance is unlocked.
-import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { LoginScreen } from '../screens/web/LoginScreen';
 import { SetupWizardScreen } from '../screens/web/SetupWizardScreen';
@@ -66,6 +66,11 @@ function WebAuthGate({ children }: { children: ReactNode }) {
     setAccount(null);
   }, []);
 
+  const value = useMemo(
+    () => ({ username: account?.username, role: account?.role, logout }),
+    [account, logout]
+  );
+
   if (state === 'loading') {
     return (
       <View style={styles.loading}>
@@ -76,11 +81,7 @@ function WebAuthGate({ children }: { children: ReactNode }) {
   if (state === 'needs-setup') return <SetupWizardScreen onComplete={checkSession} />;
   if (state === 'needs-login') return <LoginScreen onComplete={checkSession} />;
 
-  return (
-    <AuthContext.Provider value={{ username: account?.username, role: account?.role, logout }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 const styles = StyleSheet.create({

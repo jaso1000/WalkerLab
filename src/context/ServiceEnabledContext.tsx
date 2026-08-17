@@ -1,7 +1,7 @@
 // Provides the active profile's per-service enabled/disabled flags app-wide -
 // AdaptiveNav reads this to decide which nav sections to show at all.
 // Re-loads whenever the active profile changes.
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ServiceName } from '../api/types';
 import { getServiceEnabledOverrides, setServiceEnabledOverrides } from '../lib/serviceEnabled';
 import { useProfiles } from './ProfilesContext';
@@ -72,9 +72,9 @@ export function ServiceEnabledProvider({ children }: { children: React.ReactNode
     [activeProfileId]
   );
 
-  return (
-    <ServiceEnabledContext.Provider value={{ isEnabled, setEnabled }}>{children}</ServiceEnabledContext.Provider>
-  );
+  const value = useMemo(() => ({ isEnabled, setEnabled }), [isEnabled, setEnabled]);
+
+  return <ServiceEnabledContext.Provider value={value}>{children}</ServiceEnabledContext.Provider>;
 }
 
 // Hook for checking/toggling per-service enabled state for the active profile.

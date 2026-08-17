@@ -10,6 +10,11 @@
 // persistent, matching a reference screenshot of a slim always-on icon rail
 // - adapted to this app's own dark theme and section colors (SECTION_META)
 // rather than copying the reference's own palette.
+//
+// Nav items use `router.navigate()`, not `push` - see FloatingPill.tsx's
+// comment for the full reasoning (same fix, same reason: these are flat
+// sibling sections under one root Stack, so `push` grows it by one
+// fully-mounted screen per tap instead of reusing the existing instance).
 import { Image } from 'expo-image';
 import { router, usePathname } from 'expo-router';
 import { useState } from 'react';
@@ -50,7 +55,7 @@ export function CompactSidebar({ order, onExpand }: { order: StartupSectionId[];
         {visibleItems.map((item) => {
           const active = isSectionActive(pathname, item.href, item.activePrefixes);
           return (
-            <TouchableOpacity key={item.href} style={styles.iconButton} onPress={() => router.push(item.href as never)}>
+            <TouchableOpacity key={item.href} style={styles.iconButton} onPress={() => router.navigate(item.href as never)}>
               <View style={[styles.iconCircle, active ? { backgroundColor: `${item.tint}26` } : null]}>
                 <Ionicons name={item.icon} size={20} color={active ? item.tint : colors.textSecondary} />
               </View>
@@ -61,7 +66,7 @@ export function CompactSidebar({ order, onExpand }: { order: StartupSectionId[];
 
       <View style={styles.footer}>
         <View style={styles.divider} />
-        <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/settings')}>
+        <TouchableOpacity style={styles.iconButton} onPress={() => router.navigate('/settings')}>
           <View style={styles.iconCircle}>
             <Ionicons name={SECTION_META.settings.icon} size={20} color={colors.textSecondary} />
           </View>

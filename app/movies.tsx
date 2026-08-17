@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router, Stack, useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
   BackHandler,
   FlatList,
@@ -118,6 +118,38 @@ function nearestUpcomingLabel(item: RadarrMovie): string {
   if (date === item.physicalRelease) return 'Physical Release';
   return '';
 }
+
+// Shared row renderer for both All and Missing tabs - tap opens the detail
+// page, long-press opens the per-row action menu. Memoized so scrolling or
+// unrelated screen state changes don't re-render every off-screen row -
+// `onLongPress` is `setMenuFor` (a state setter, always referentially
+// stable) so this stays effective without extra `useCallback` wiring at the
+// call site.
+const MovieRow = memo(function MovieRow({ item, onLongPress }: { item: RadarrMovie; onLongPress: (item: RadarrMovie) => void }) {
+  const poster = item.images.find((i) => i.coverType === 'poster');
+  const countdown = formatCountdown(nearestUpcomingDate(item));
+  return (
+    <Pressable style={styles.card} onPress={() => router.push(`/movie/${item.id}`)} onLongPress={() => onLongPress(item)}>
+      {poster?.remoteUrl ? (
+        <Image source={{ uri: poster.remoteUrl }} style={styles.poster} cachePolicy="memory-disk" />
+      ) : (
+        <View style={[styles.poster, styles.posterPlaceholder]} />
+      )}
+      <View style={styles.info}>
+        <Text style={styles.title} numberOfLines={2}>
+          {item.title}
+          {item.year ? ` (${item.year})` : ''}
+        </Text>
+        <View style={styles.badgeRow}>
+          {movieBadge(item)}
+          {countdown ? <Badge label={countdown} tone="info" /> : null}
+          {item.sizeOnDisk ? <Text style={styles.size}>{formatBytes(item.sizeOnDisk)}</Text> : null}
+        </View>
+        <RatingBadges imdb={item.ratings?.imdb?.value} rottenTomatoes={item.ratings?.rottenTomatoes?.value} compact />
+      </View>
+    </Pressable>
+  );
+});
 
 // Maps Radarr's queue item tracked-download status to a badge color.
 function activityTone(item: RadarrQueueItem): 'danger' | 'accent' | 'success' {
@@ -594,34 +626,6 @@ export default function MoviesScreen() {
 
   if (!config) return <NotConfigured service="Radarr" />;
 
-  // Shared row renderer for both All and Missing tabs - tap opens the
-  // detail page, long-press opens the per-row action menu.
-  const renderMovieRow = (item: RadarrMovie) => {
-    const poster = item.images.find((i) => i.coverType === 'poster');
-    const countdown = formatCountdown(nearestUpcomingDate(item));
-    return (
-      <Pressable style={styles.card} onPress={() => router.push(`/movie/${item.id}`)} onLongPress={() => setMenuFor(item)}>
-        {poster?.remoteUrl ? (
-          <Image source={{ uri: poster.remoteUrl }} style={styles.poster} cachePolicy="memory-disk" />
-        ) : (
-          <View style={[styles.poster, styles.posterPlaceholder]} />
-        )}
-        <View style={styles.info}>
-          <Text style={styles.title} numberOfLines={2}>
-            {item.title}
-            {item.year ? ` (${item.year})` : ''}
-          </Text>
-          <View style={styles.badgeRow}>
-            {movieBadge(item)}
-            {countdown ? <Badge label={countdown} tone="info" /> : null}
-            {item.sizeOnDisk ? <Text style={styles.size}>{formatBytes(item.sizeOnDisk)}</Text> : null}
-          </View>
-          <RatingBadges imdb={item.ratings?.imdb?.value} rottenTomatoes={item.ratings?.rottenTomatoes?.value} compact />
-        </View>
-      </Pressable>
-    );
-  };
-
   return (
     <View style={styles.screen}>
       <Stack.Screen
@@ -718,7 +722,7 @@ export default function MoviesScreen() {
               <View style={styles.row}>
                 {row.map((movie) => (
                   <View key={movie.id} style={styles.rowItem}>
-                    {renderMovieRow(movie)}
+                    <MovieRow item={movie} onLongPress={setMenuFor} />
                   </View>
                 ))}
               </View>
@@ -753,7 +757,7 @@ export default function MoviesScreen() {
               <View style={styles.row}>
                 {row.map((movie) => (
                   <View key={movie.id} style={styles.rowItem}>
-                    {renderMovieRow(movie)}
+                    <MovieRow item={movie} onLongPress={setMenuFor} />
                   </View>
                 ))}
               </View>

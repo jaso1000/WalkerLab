@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router, Stack, useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
   BackHandler,
   FlatList,
@@ -102,6 +102,38 @@ function episodeBadge(item: SonarrSeries) {
   if (episodeFileCount === 0) return <Badge label="Missing" tone="danger" />;
   return <Badge label={`${episodeFileCount}/${episodeCount} eps`} tone="sonarr" />;
 }
+
+// Shared row renderer for both All and Missing tabs (same card layout,
+// different underlying data source) - tap opens the detail page, long-press
+// opens the per-row action menu. Memoized so scrolling or unrelated screen
+// state changes don't re-render every off-screen row - `onLongPress` is
+// `setMenuFor` (a state setter, always referentially stable) so this stays
+// effective without extra `useCallback` wiring at the call site.
+const SeriesRow = memo(function SeriesRow({ item, onLongPress }: { item: SonarrSeries; onLongPress: (item: SonarrSeries) => void }) {
+  const poster = item.images.find((i) => i.coverType === 'poster');
+  const countdown = formatCountdown(item.nextAiring);
+  return (
+    <Pressable style={styles.card} onPress={() => router.push(`/series/${item.id}`)} onLongPress={() => onLongPress(item)}>
+      {poster?.remoteUrl ? (
+        <Image source={{ uri: poster.remoteUrl }} style={styles.poster} cachePolicy="memory-disk" />
+      ) : (
+        <View style={[styles.poster, styles.posterPlaceholder]} />
+      )}
+      <View style={styles.info}>
+        <Text style={styles.title} numberOfLines={2}>
+          {item.title}
+          {item.year ? ` (${item.year})` : ''}
+        </Text>
+        <View style={styles.badgeRow}>
+          {episodeBadge(item)}
+          {countdown ? <Badge label={countdown} tone="info" /> : null}
+          {item.statistics?.sizeOnDisk ? <Text style={styles.size}>{formatBytes(item.statistics.sizeOnDisk)}</Text> : null}
+        </View>
+        <RatingBadges imdb={item.ratings?.value} tint={colors.sonarr} compact />
+      </View>
+    </Pressable>
+  );
+});
 
 // Maps Sonarr's queue item tracked-download status to a badge color.
 function activityTone(item: SonarrQueueItem): 'danger' | 'sonarr' | 'success' {
@@ -579,35 +611,6 @@ export default function SeriesScreen() {
 
   if (!config) return <NotConfigured service="Sonarr" tint={colors.sonarr} />;
 
-  // Shared row renderer for both All and Missing tabs (same card layout,
-  // different underlying data source) - tap opens the detail page,
-  // long-press opens the per-row action menu.
-  const renderSeriesRow = (item: SonarrSeries) => {
-    const poster = item.images.find((i) => i.coverType === 'poster');
-    const countdown = formatCountdown(item.nextAiring);
-    return (
-      <Pressable style={styles.card} onPress={() => router.push(`/series/${item.id}`)} onLongPress={() => setMenuFor(item)}>
-        {poster?.remoteUrl ? (
-          <Image source={{ uri: poster.remoteUrl }} style={styles.poster} cachePolicy="memory-disk" />
-        ) : (
-          <View style={[styles.poster, styles.posterPlaceholder]} />
-        )}
-        <View style={styles.info}>
-          <Text style={styles.title} numberOfLines={2}>
-            {item.title}
-            {item.year ? ` (${item.year})` : ''}
-          </Text>
-          <View style={styles.badgeRow}>
-            {episodeBadge(item)}
-            {countdown ? <Badge label={countdown} tone="info" /> : null}
-            {item.statistics?.sizeOnDisk ? <Text style={styles.size}>{formatBytes(item.statistics.sizeOnDisk)}</Text> : null}
-          </View>
-          <RatingBadges imdb={item.ratings?.value} tint={colors.sonarr} compact />
-        </View>
-      </Pressable>
-    );
-  };
-
   return (
     <View style={styles.screen}>
       <Stack.Screen
@@ -705,7 +708,7 @@ export default function SeriesScreen() {
               <View style={styles.row}>
                 {row.map((s) => (
                   <View key={s.id} style={styles.rowItem}>
-                    {renderSeriesRow(s)}
+                    <SeriesRow item={s} onLongPress={setMenuFor} />
                   </View>
                 ))}
               </View>
@@ -740,7 +743,7 @@ export default function SeriesScreen() {
               <View style={styles.row}>
                 {row.map((s) => (
                   <View key={s.id} style={styles.rowItem}>
-                    {renderSeriesRow(s)}
+                    <SeriesRow item={s} onLongPress={setMenuFor} />
                   </View>
                 ))}
               </View>

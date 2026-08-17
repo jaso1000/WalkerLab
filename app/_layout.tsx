@@ -96,7 +96,22 @@ function RootStack() {
 
   return (
     <AdaptiveNav>
-      <Stack screenOptions={{ headerShown: false }} />
+      <Stack screenOptions={{ headerShown: false }}>
+        {/* The primary sections FloatingPill/Sidebar/CompactSidebar navigate
+            between (see their own `navigate()` comments) are conceptually
+            tab switches, not "drilling into" something - the platform's
+            default slide/fade push transition (used everywhere else in the
+            app, left as the default below) implies forward motion that
+            doesn't really fit sibling-to-sibling switching, and was another
+            real contributor to native feeling slower than web (which has no
+            equivalent transition at all for a plain route change). Every
+            other screen keeps the default native transition. */}
+        {(
+          ['index', 'discover', 'movies', 'music', 'downloads', 'nzbget', 'torrents', 'overseerr', 'tautulli', 'containers', 'settings'] as const
+        ).map((name) => (
+          <Stack.Screen key={name} name={name} options={{ animation: 'none' }} />
+        ))}
+      </Stack>
       {!ready && <View style={styles.loadingOverlay} pointerEvents="none" />}
     </AdaptiveNav>
   );

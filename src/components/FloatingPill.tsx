@@ -2,7 +2,7 @@
 // AdaptiveNav.tsx) - tablet width gets the persistent Sidebar instead.
 //
 // A plain component, NOT a real tab navigator - each button is a normal
-// `router.push()`, so it renders identically regardless of whether the
+// `router.navigate()`, so it renders identically regardless of whether the
 // current screen is one of the primary sections or some arbitrary detail
 // page underneath it (movie/series detail, settings sub-pages, etc.) - see
 // PLAN.md for the full history of why this replaced an earlier
@@ -10,6 +10,19 @@
 // reliably push a browser history entry on tab press (expo/expo#38594),
 // and being a real navigator meant it could only ever render around the 9
 // screens registered inside it, never any of the app's other screens.
+//
+// `navigate`, not `push`: these primary sections are flat siblings under
+// the same root Stack (app/_layout.tsx), so `push` was adding a brand new
+// stack entry - and keeping every previously-visited section fully mounted
+// in memory - on every single tap, growing unboundedly the longer the app
+// stayed open. `navigate` shares the exact same underlying plumbing
+// (expo-router's `linkTo`, confirmed by reading its source - both `push`
+// and `navigate` route through it with only the action `type` differing),
+// so it doesn't regress the web-history fix above; the difference is that
+// React Navigation's `NAVIGATE` action jumps to an existing instance of a
+// route already in the stack instead of always pushing a duplicate.
+// Reported by a tester as native-only navigation feeling sluggish
+// (unfelt on web, where there's no comparable persistent native stack).
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { router, usePathname } from 'expo-router';
@@ -66,7 +79,7 @@ export function FloatingPill({
           const meta = SECTION_META[id];
           const active = isSectionActive(pathname, meta.href, meta.activePrefixes);
           return (
-            <TouchableOpacity key={id} style={styles.item} onPress={() => router.push(meta.href as never)}>
+            <TouchableOpacity key={id} style={styles.item} onPress={() => router.navigate(meta.href as never)}>
               <Ionicons name={meta.icon} size={24} color={active ? meta.tint : colors.textSecondary} />
             </TouchableOpacity>
           );

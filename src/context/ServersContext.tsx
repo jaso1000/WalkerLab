@@ -2,7 +2,7 @@
 // Radarr/SABnzbd/etc connection details) app-wide, so any screen can check
 // "is this service configured" and read its config without threading props
 // through the navigation tree. Re-loads whenever the active profile changes.
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { ServiceConfig, ServiceName } from '../api/types';
 import { getServiceConfig, setServiceConfig as persistServiceConfig } from '../lib/storage';
 import { useProfiles } from './ProfilesContext';
@@ -76,11 +76,12 @@ export function ServersProvider({ children }: { children: React.ReactNode }) {
     [activeProfileId]
   );
 
-  return (
-    <ServersContext.Provider value={{ servers, loading, loadedProfileId, updateServer, refresh }}>
-      {children}
-    </ServersContext.Provider>
+  const value = useMemo(
+    () => ({ servers, loading, loadedProfileId, updateServer, refresh }),
+    [servers, loading, loadedProfileId, updateServer, refresh]
   );
+
+  return <ServersContext.Provider value={value}>{children}</ServersContext.Provider>;
 }
 
 // Hook for reading/updating the active profile's service configs.

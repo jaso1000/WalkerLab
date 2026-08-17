@@ -2,7 +2,7 @@
 // like calling "TV Shows" something else) app-wide, and keeps them synced
 // to storage. Re-loads whenever the active profile changes, so each
 // profile's renames are fully independent.
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DEFAULT_SECTION_NAMES,
   SectionId,
@@ -99,13 +99,11 @@ export function SectionNamesProvider({ children }: { children: React.ReactNode }
 
   // Merges defaults with whatever's been overridden - consumers just read
   // `names[id]` and never need to know whether it's a default or override.
-  const names = { ...DEFAULT_SECTION_NAMES, ...overrides };
+  const names = useMemo(() => ({ ...DEFAULT_SECTION_NAMES, ...overrides }), [overrides]);
 
-  return (
-    <SectionNamesContext.Provider value={{ names, loading, setName, resetName }}>
-      {children}
-    </SectionNamesContext.Provider>
-  );
+  const value = useMemo(() => ({ names, loading, setName, resetName }), [names, loading, setName, resetName]);
+
+  return <SectionNamesContext.Provider value={value}>{children}</SectionNamesContext.Provider>;
 }
 
 // Hook for reading/updating the active profile's section-name overrides.

@@ -3,10 +3,15 @@
 // tabletMedium defaults to the narrower icon-only CompactSidebar instead but
 // can toggle into this via its own expand button. No open/close *overlay*
 // state at all - it's a plain, permanently-mounted column, so navigating
-// just does a normal `router.push()` with no "close" step. `onCollapse` is
-// always passed by AdaptiveNav now (both tiers can collapse to
-// CompactSidebar); it's still typed optional in case a future caller ever
-// wants this rendered with no collapse affordance at all.
+// just does a normal `router.navigate()` with no "close" step (see
+// FloatingPill.tsx's own comment for why `navigate` and not `push` -
+// same fix applied here for the same reason: these are flat sibling
+// sections under one root Stack, and `push` was growing that stack by one
+// fully-mounted screen on every single tap instead of reusing the
+// existing instance). `onCollapse` is always passed by AdaptiveNav now
+// (both tiers can collapse to CompactSidebar); it's still typed optional
+// in case a future caller ever wants this rendered with no collapse
+// affordance at all.
 import { Image } from 'expo-image';
 import { router, usePathname } from 'expo-router';
 import { useState } from 'react';
@@ -60,7 +65,7 @@ export function Sidebar({ order, onCollapse }: { order: StartupSectionId[]; onCo
             <TouchableOpacity
               key={item.href}
               style={[styles.row, active && { backgroundColor: `${item.tint}26` }]}
-              onPress={() => router.push(item.href as never)}
+              onPress={() => router.navigate(item.href as never)}
             >
               <View style={[styles.iconCircle, { backgroundColor: `${item.tint}26` }]}>
                 <Ionicons name={item.icon} size={18} color={item.tint} />
@@ -75,7 +80,7 @@ export function Sidebar({ order, onCollapse }: { order: StartupSectionId[]; onCo
 
       <View style={styles.footer}>
         <View style={styles.divider} />
-        <TouchableOpacity style={styles.row} onPress={() => router.push('/settings')}>
+        <TouchableOpacity style={styles.row} onPress={() => router.navigate('/settings')}>
           <View style={styles.iconCircle}>
             <Ionicons name={SECTION_META.settings.icon} size={18} color={colors.textSecondary} />
           </View>

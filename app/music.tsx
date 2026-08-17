@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router, Stack, useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
   BackHandler,
   FlatList,
@@ -97,6 +97,47 @@ function albumBadge(item: LidarrArtist) {
   if (trackFileCount === 0) return <Badge label="Missing" tone="danger" />;
   return <Badge label={`${trackFileCount}/${trackCount} tracks`} tone="lidarr" />;
 }
+
+// Shared row renderer for both All and Missing tabs (same card layout,
+// different underlying data source) - tap opens the detail page, long-press
+// opens the per-row action menu. Memoized so scrolling or unrelated screen
+// state changes don't re-render every off-screen row - `onLongPress` is
+// `setMenuFor` (a state setter, always referentially stable) so this stays
+// effective without extra `useCallback` wiring at the call site. `config`
+// only changes on a real profile/server-config change, not on every render.
+const ArtistLibraryRow = memo(function ArtistLibraryRow({
+  item,
+  config,
+  onLongPress,
+}: {
+  item: LidarrArtist;
+  config: Parameters<typeof lidarrImageUrl>[1];
+  onLongPress: (item: LidarrArtist) => void;
+}) {
+  const poster = item.images.find((i) => i.coverType === 'poster');
+  const posterUrl = lidarrImageUrl(poster, config, { type: 'artist', id: item.id });
+  const countdown = formatCountdown(item.nextAlbum?.releaseDate);
+  return (
+    <Pressable style={styles.card} onPress={() => router.push(`/artist/${item.id}`)} onLongPress={() => onLongPress(item)}>
+      {posterUrl ? (
+        <Image source={{ uri: posterUrl }} style={styles.poster} cachePolicy="memory-disk" />
+      ) : (
+        <View style={[styles.poster, styles.posterPlaceholder]} />
+      )}
+      <View style={styles.info}>
+        <Text style={styles.title} numberOfLines={2}>
+          {item.artistName}
+        </Text>
+        <View style={styles.badgeRow}>
+          {albumBadge(item)}
+          {countdown ? <Badge label={countdown} tone="info" /> : null}
+          {item.statistics?.sizeOnDisk ? <Text style={styles.size}>{formatBytes(item.statistics.sizeOnDisk)}</Text> : null}
+        </View>
+        <RatingBadges imdb={item.ratings?.value} tint={colors.lidarr} compact />
+      </View>
+    </Pressable>
+  );
+});
 
 // Maps Lidarr's queue item tracked-download status to a badge color.
 function activityTone(item: LidarrQueueItem): 'danger' | 'lidarr' | 'success' {
@@ -526,35 +567,6 @@ export default function MusicScreen() {
 
   if (!config) return <NotConfigured service="Lidarr" tint={colors.lidarr} />;
 
-  // Shared row renderer for both All and Missing tabs (same card layout,
-  // different underlying data source) - tap opens the detail page,
-  // long-press opens the per-row action menu.
-  const renderArtistRow = (item: LidarrArtist) => {
-    const poster = item.images.find((i) => i.coverType === 'poster');
-    const posterUrl = lidarrImageUrl(poster, config, { type: 'artist', id: item.id });
-    const countdown = formatCountdown(item.nextAlbum?.releaseDate);
-    return (
-      <Pressable style={styles.card} onPress={() => router.push(`/artist/${item.id}`)} onLongPress={() => setMenuFor(item)}>
-        {posterUrl ? (
-          <Image source={{ uri: posterUrl }} style={styles.poster} cachePolicy="memory-disk" />
-        ) : (
-          <View style={[styles.poster, styles.posterPlaceholder]} />
-        )}
-        <View style={styles.info}>
-          <Text style={styles.title} numberOfLines={2}>
-            {item.artistName}
-          </Text>
-          <View style={styles.badgeRow}>
-            {albumBadge(item)}
-            {countdown ? <Badge label={countdown} tone="info" /> : null}
-            {item.statistics?.sizeOnDisk ? <Text style={styles.size}>{formatBytes(item.statistics.sizeOnDisk)}</Text> : null}
-          </View>
-          <RatingBadges imdb={item.ratings?.value} tint={colors.lidarr} compact />
-        </View>
-      </Pressable>
-    );
-  };
-
   return (
     <View style={styles.screen}>
       <Stack.Screen
@@ -652,7 +664,7 @@ export default function MusicScreen() {
               <View style={styles.row}>
                 {row.map((a) => (
                   <View key={a.id} style={styles.rowItem}>
-                    {renderArtistRow(a)}
+                    <ArtistLibraryRow item={a} config={config} onLongPress={setMenuFor} />
                   </View>
                 ))}
               </View>
@@ -687,7 +699,7 @@ export default function MusicScreen() {
               <View style={styles.row}>
                 {row.map((a) => (
                   <View key={a.id} style={styles.rowItem}>
-                    {renderArtistRow(a)}
+                    <ArtistLibraryRow item={a} config={config} onLongPress={setMenuFor} />
                   </View>
                 ))}
               </View>
