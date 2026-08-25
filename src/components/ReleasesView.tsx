@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { ArrRelease } from '../api/types';
+import { alert } from '../lib/alert';
 import { formatBytes } from '../lib/format';
 import { useTabBarClearance } from '../lib/tabBarClearance';
 import { colors } from '../theme/colors';
@@ -40,6 +41,23 @@ export function ReleasesView({
     const q = query.toLowerCase();
     return releases.filter((r) => r.title.toLowerCase().includes(q));
   }, [releases, query]);
+
+  // A rejected release doesn't mean it can't be grabbed - the quality
+  // profile just wouldn't have picked it automatically - so tapping one
+  // surfaces why it was rejected first, rather than silently either
+  // blocking the grab or attempting it with no explanation. "Grab Anyway"
+  // proceeds into the screen's own existing grab-confirmation flow.
+  const handlePress = (item: ArrRelease) => {
+    if (!item.rejected) {
+      onGrab(item);
+      return;
+    }
+    const reasons = item.rejections?.length ? item.rejections.map((r) => `• ${r}`).join('\n') : 'No reason given.';
+    alert('Release Rejected', reasons, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Grab Anyway', onPress: () => onGrab(item) },
+    ]);
+  };
 
   return (
     <View style={styles.screen}>
@@ -76,7 +94,7 @@ export function ReleasesView({
             <TouchableOpacity
               style={styles.row}
               disabled={!!grabbingGuid}
-              onPress={() => onGrab(item)}
+              onPress={() => handlePress(item)}
             >
               <Text style={styles.rowTitle} numberOfLines={2}>
                 {item.title}

@@ -165,17 +165,19 @@ const LibraryCard = memo(function LibraryCard({
   tab,
   selected,
   onPress,
+  onLongPress,
 }: {
   entry: RadarrMovie | SonarrSeries;
   tab: 'movies' | 'tv';
   selected: boolean;
   onPress: () => void;
+  onLongPress: () => void;
 }) {
   const poster = posterUrl(entry.images);
   const size = librarySize(entry, tab);
   const rating = tab === 'movies' ? (entry as RadarrMovie).ratings?.imdb?.value : (entry as SonarrSeries).ratings?.value;
   return (
-    <TouchableOpacity style={[styles.card, styles.rowItem]} onPress={onPress}>
+    <TouchableOpacity style={[styles.card, styles.rowItem]} onPress={onPress} onLongPress={onLongPress}>
       {poster ? (
         <Image source={{ uri: poster }} style={styles.poster} cachePolicy="memory-disk" />
       ) : (
@@ -209,7 +211,10 @@ const LibraryCard = memo(function LibraryCard({
 // instead of a selection checkmark.
 const WheelRow = memo(function WheelRow({ item, onRemove }: { item: WheelItem; onRemove: (item: WheelItem) => void }) {
   return (
-    <View style={[styles.card, styles.rowItem]}>
+    <TouchableOpacity
+      style={[styles.card, styles.rowItem]}
+      onPress={() => router.push(item.mediaType === 'movie' ? `/movie/${item.libraryId}` : `/series/${item.libraryId}`)}
+    >
       {item.posterUrl ? (
         <Image source={{ uri: item.posterUrl }} style={styles.poster} cachePolicy="memory-disk" />
       ) : (
@@ -224,7 +229,7 @@ const WheelRow = memo(function WheelRow({ item, onRemove }: { item: WheelItem; o
       <TouchableOpacity style={styles.removeButton} onPress={() => onRemove(item)}>
         <Ionicons name="trash-outline" size={20} color={colors.danger} />
       </TouchableOpacity>
-    </View>
+    </TouchableOpacity>
   );
 });
 
@@ -614,6 +619,7 @@ export default function WheelBuilderScreen() {
                           posterUrl: posterUrl(entry.images),
                         })
                       }
+                      onLongPress={() => router.push(`/movie/${entry.id}`)}
                     />
                   ))}
                 </View>
@@ -658,6 +664,7 @@ export default function WheelBuilderScreen() {
                           posterUrl: posterUrl(entry.images),
                         })
                       }
+                      onLongPress={() => router.push(`/series/${entry.id}`)}
                     />
                   ))}
                 </View>
