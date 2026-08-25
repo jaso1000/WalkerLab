@@ -25,6 +25,7 @@ import {
   UserRecord,
   VapidKeys,
   WebhookCallback,
+  Wheel,
 } from './types';
 
 const DATA_DIR = process.env.WALKERLAB_DATA_DIR ?? '/data';
@@ -200,6 +201,7 @@ export function deleteUserData(userId: string) {
   delete data.serviceEnabled[userId];
   delete data.startupScreen[userId];
   delete data.tabOrder[userId];
+  delete data.wheels[userId];
   delete data.pushDevices[userId];
   delete data.notificationPrefs[userId];
   delete data.notificationWebhookSecrets[userId];
@@ -349,6 +351,84 @@ export function setTabOrder(userId: string, profileId: string, order: StartupSec
   save();
 }
 
+// --- Spin wheels --------------------------------------------------------------
+// Wheels are per-profile like everything else here, but with one added
+// twist: a wheel can be marked `shared`, making it visible to (and, per
+// the user's explicit choice, editable/deletable by) every OTHER user on
+// this instance too - the one piece of user data in this whole store
+// that's allowed to cross the userId boundary the rest of this file is so
+// careful about, and only when its owner opted in via that flag.
+
+// Every wheel visible to `userId` for `profileId`: their own (regardless
+// of `shared`) plus every other user's wheel marked `shared`, wherever it
+// actually lives. Cheap to scan in full - this is a self-hosted instance
+// with a handful of users/wheels, not a multi-tenant service.
+export function getVisibleWheels(userId: string, profileId: string): Wheel[] {
+  const own = data.wheels[userId]?.[profileId] ?? [];
+  const sharedFromOthers: Wheel[] = [];
+  for (const [otherUserId, profiles] of Object.entries(data.wheels)) {
+    if (otherUserId === userId) continue;
+    for (const wheels of Object.values(profiles)) {
+      for (const wheel of wheels) {
+        if (wheel.shared) sharedFromOthers.push(wheel);
+      }
+    }
+  }
+  return [...own, ...sharedFromOthers];
+}
+
+// Scans every user's every profile for a wheel with this id - needed
+// because a shared wheel can be edited/deleted by someone who doesn't
+// know (and has no reason to know) which user actually owns it.
+function findWheelLocation(wheelId: string): { userId: string; profileId: string; index: number } | undefined {
+  for (const [ownerUserId, profiles] of Object.entries(data.wheels)) {
+    for (const [profileId, wheels] of Object.entries(profiles)) {
+      const index = wheels.findIndex((w) => w.id === wheelId);
+      if (index !== -1) return { userId: ownerUserId, profileId, index };
+    }
+  }
+  return undefined;
+}
+
+// Creates (if `wheel.id` doesn't exist anywhere yet) or updates a single
+// wheel. A new wheel is always created under the calling user's own
+// `profileId`. Updating an existing one is allowed if the caller already
+// owns it, OR if it's currently marked `shared` (in which case it's
+// updated in place under its real owner, not moved) - any other case
+// (someone else's wheel that isn't shared) is refused. Returns false on
+// refusal so the route can turn that into a 403 rather than silently
+// succeeding.
+export function saveWheel(userId: string, profileId: string, wheel: Wheel): boolean {
+  const location = findWheelLocation(wheel.id);
+  if (!location) {
+    if (!data.wheels[userId]) data.wheels[userId] = {};
+    if (!data.wheels[userId][profileId]) data.wheels[userId][profileId] = [];
+    data.wheels[userId][profileId].push(wheel);
+    save();
+    return true;
+  }
+  const owningList = data.wheels[location.userId][location.profileId];
+  const existing = owningList[location.index];
+  if (location.userId !== userId && !existing.shared) return false;
+  owningList[location.index] = wheel;
+  save();
+  return true;
+}
+
+// Same ownership-or-shared rule as saveWheel - returns false (route turns
+// this into a 403) rather than silently no-op-ing on a refusal, so the
+// client can tell "already gone" apart from "not allowed to."
+export function deleteWheel(userId: string, wheelId: string): boolean {
+  const location = findWheelLocation(wheelId);
+  if (!location) return true; // already gone - deleting it again is a no-op success
+  const owningList = data.wheels[location.userId][location.profileId];
+  const existing = owningList[location.index];
+  if (location.userId !== userId && !existing.shared) return false;
+  owningList.splice(location.index, 1);
+  save();
+  return true;
+}
+
 // Removes every profile-scoped key for one deleted profile (within a user's
 // own data) - mirrors having to clear storage/serviceEnabled/sectionNames/
 // startupScreen individually client-side when a profile is deleted.
@@ -361,6 +441,7 @@ export function deleteProfileData(userId: string, profileId: string) {
   delete data.serviceEnabled[userId]?.[profileId];
   delete data.startupScreen[userId]?.[profileId];
   delete data.tabOrder[userId]?.[profileId];
+  delete data.wheels[userId]?.[profileId];
   delete data.notificationPrefs[userId]?.[profileId];
   delete data.notificationWebhookSecrets[userId]?.[profileId];
   save();

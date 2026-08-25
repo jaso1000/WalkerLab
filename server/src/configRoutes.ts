@@ -28,8 +28,11 @@ import {
   setStartupScreen,
   setTabOrder,
   clearServiceConfig,
+  getVisibleWheels,
+  saveWheel,
+  deleteWheel,
 } from './store';
-import { isServiceName, Profile, SectionId, ServiceConfig, ServiceName, StartupSectionId } from './types';
+import { isServiceName, Profile, SectionId, ServiceConfig, ServiceName, StartupSectionId, Wheel } from './types';
 
 export const configRouter = Router();
 
@@ -197,5 +200,42 @@ configRouter.put('/tab-order/:profileId', (req, res) => {
     return;
   }
   setTabOrder(req.userId!, req.params.profileId, order);
+  res.json({ ok: true });
+});
+
+// --- Spin wheels --------------------------------------------------------------
+// Unlike every other route in this file, a wheel isn't strictly scoped to
+// the calling user's own data - one marked `shared` (src/lib/wheels.ts)
+// is deliberately visible to, and per the user's own explicit choice,
+// fully editable by every other user on this instance too. GET returns
+// the caller's own wheels plus everyone else's shared ones; PUT/DELETE
+// operate on one wheel at a time (not a whole-array replace like
+// Profiles above) since a shared wheel needs to be resolved to wherever
+// it actually lives, which store.ts's saveWheel/deleteWheel handle.
+
+configRouter.get('/wheels/:profileId', (req, res) => {
+  res.json(getVisibleWheels(req.userId!, req.params.profileId));
+});
+
+configRouter.put('/wheels/:profileId/:wheelId', (req, res) => {
+  const wheel = req.body as Wheel;
+  if (!wheel || wheel.id !== req.params.wheelId) {
+    res.status(400).json({ error: 'A wheel body matching the URL id is required.' });
+    return;
+  }
+  const ok = saveWheel(req.userId!, req.params.profileId, wheel);
+  if (!ok) {
+    res.status(403).json({ error: "That wheel isn't yours and isn't shared." });
+    return;
+  }
+  res.json({ ok: true });
+});
+
+configRouter.delete('/wheels/:profileId/:wheelId', (req, res) => {
+  const ok = deleteWheel(req.userId!, req.params.wheelId);
+  if (!ok) {
+    res.status(403).json({ error: "That wheel isn't yours and isn't shared." });
+    return;
+  }
   res.json({ ok: true });
 });

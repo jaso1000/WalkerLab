@@ -37,6 +37,7 @@ export type SectionId =
   | 'nzbget'
   | 'torrents'
   | 'transmission'
+  | 'spin'
   | 'requests'
   | 'stats'
   | 'containers'
@@ -50,6 +51,34 @@ export interface Profile {
 }
 
 export const DEFAULT_PROFILE_ID = 'default';
+
+// One saved Spin wheel - see src/lib/wheels.ts for the client-side
+// mirror and the "why" (denormalized snapshot, not a live Sonarr/Radarr
+// reference, keyed by each service's own local id rather than tmdbId
+// since Sonarr series carry no tmdbId at all).
+export type WheelItemMediaType = 'movie' | 'tv';
+
+export interface WheelItem {
+  id: string;
+  libraryId: number;
+  mediaType: WheelItemMediaType;
+  title: string;
+  posterUrl?: string;
+}
+
+export interface Wheel {
+  id: string;
+  name: string;
+  items: WheelItem[];
+  removeAfterSpin: boolean;
+  // Web/multi-user only (see store.ts's getVisibleWheels/saveWheel/
+  // deleteWheel) - makes this wheel visible to, and fully editable by,
+  // every other user on this instance, not just its creator. Always
+  // `false` and inert on native, which has no concept of other users.
+  shared: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 
 // One login account. Every profile/service-config/etc. below is scoped
 // under a user's own id, not global - multiple people can each have their
@@ -128,6 +157,10 @@ export interface StoreFile {
   serviceEnabled: Record<string, Record<string, Partial<Record<ServiceName, boolean>>>>;
   startupScreen: Record<string, Record<string, StartupSectionId>>;
   tabOrder: Record<string, Record<string, StartupSectionId[]>>;
+  // Spin's saved wheels - the first per-profile ARRAY field in the store
+  // (pushDevices below is array-shaped but keyed by userId only, not
+  // per-profile). See src/lib/wheels.ts for the client-side mirror.
+  wheels: Record<string, Record<string, Wheel[]>>;
   // Push notifications (see notificationRoutes.ts) - registered devices are
   // keyed by userId only (delivery is per-user); prefs and webhook secrets
   // follow the same userId -> profileId -> ServiceName shape as
@@ -214,6 +247,7 @@ export function emptyStore(): StoreFile {
     serviceEnabled: {},
     startupScreen: {},
     tabOrder: {},
+    wheels: {},
     pushDevices: {},
     notificationPrefs: {},
     notificationWebhookSecrets: {},

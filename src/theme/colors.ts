@@ -102,4 +102,9 @@ export const colors = {
   // existing tint.
   transmission: '#8D6E63',
   transmissionMuted: 'rgba(141,110,99,0.15)',
+
+  // Spin - no existing pink/magenta tint, chosen for an energetic
+  // "game/random pick" feel distinct from every other section's color.
+  spin: '#EC4899',
+  spinMuted: 'rgba(236,72,153,0.15)',
 };

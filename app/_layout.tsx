@@ -107,7 +107,7 @@ function RootStack() {
             equivalent transition at all for a plain route change). Every
             other screen keeps the default native transition. */}
         {(
-          ['index', 'discover', 'movies', 'music', 'downloads', 'nzbget', 'torrents', 'transmission', 'overseerr', 'tautulli', 'containers', 'settings'] as const
+          ['index', 'discover', 'movies', 'music', 'downloads', 'nzbget', 'torrents', 'transmission', 'spin', 'overseerr', 'tautulli', 'containers', 'settings'] as const
         ).map((name) => (
           <Stack.Screen key={name} name={name} options={{ animation: 'none' }} />
         ))}

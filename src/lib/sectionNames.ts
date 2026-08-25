@@ -15,6 +15,7 @@ export type SectionId =
   | 'nzbget'
   | 'torrents'
   | 'transmission'
+  | 'spin'
   | 'requests'
   | 'stats'
   | 'containers'
@@ -38,6 +39,7 @@ export const DEFAULT_SECTION_NAMES: Record<SectionId, string> = {
   // queue" to the user, just different clients under the hood. Still
   // independently renameable per-profile like `nzbget` above.
   transmission: 'Torrents',
+  spin: 'Spin',
   requests: 'Requests',
   stats: 'Stats',
   containers: 'Containers',
