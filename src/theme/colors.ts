@@ -93,4 +93,13 @@ export const colors = {
   // palette, not guessed.
   lastfm: '#D51007',
   lastfmMuted: 'rgba(213,16,7,0.15)',
+
+  // Transmission - alternate Torrents-section client alongside qBittorrent
+  // (see torrents.tsx/transmission.tsx). No single verified brand hex the
+  // way Lidarr/Last.fm have (unlike them, Transmission has no published
+  // brand palette) - a warm rust chosen to evoke its turtle-shell mascot
+  // while staying clearly distinct from qbittorrent's blue and every other
+  // existing tint.
+  transmission: '#8D6E63',
+  transmissionMuted: 'rgba(141,110,99,0.15)',
 };

@@ -118,7 +118,7 @@ export default function DiscoverDetailScreen() {
   );
 
   useEffect(() => {
-    getDefaultRegion().then(setRegion);
+    getDefaultRegion().then(setRegion).catch((e) => console.error('Failed to load default region', e));
   }, []);
 
   // Checks the local "previously deleted" flag (see `deletedLibrary.ts`) so

@@ -36,7 +36,7 @@ export default function SettingsScreen() {
   // immediately reflect on this list's badge.
   useFocusEffect(
     useCallback(() => {
-      getStartupScreen(activeProfileId).then(setStartupId);
+      getStartupScreen(activeProfileId).then(setStartupId).catch((e) => console.error('Failed to load startup screen', e));
     }, [activeProfileId])
   );
 

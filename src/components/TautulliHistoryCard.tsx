@@ -2,13 +2,20 @@
 // watch-history screen (`app/tautulli/user/[id].tsx`) - poster, title, who
 // watched it, and how far they got, so the same markup can't drift between
 // the two places it's used.
+import { memo } from 'react';
 import { Image } from 'expo-image';
 import { StyleSheet, Text, View } from 'react-native';
 import { ServiceConfig } from '../api/types';
 import { TautulliHistoryItem, tautulliImageUrl } from '../api/tautulli';
 import { colors } from '../theme/colors';
 
-export function TautulliHistoryCard({ item, config }: { item: TautulliHistoryItem; config: ServiceConfig }) {
+export const TautulliHistoryCard = memo(function TautulliHistoryCard({
+  item,
+  config,
+}: {
+  item: TautulliHistoryItem;
+  config: ServiceConfig;
+}) {
   const posterUrl = tautulliImageUrl(config, { img: item.thumb, width: 120, height: 180 });
   const date = new Date(item.date * 1000);
   const dateLabel = Number.isNaN(date.getTime())
@@ -38,7 +45,7 @@ export function TautulliHistoryCard({ item, config }: { item: TautulliHistoryIte
       </View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: { flexDirection: 'row', gap: 12, backgroundColor: colors.surface, borderRadius: 14, padding: 10 },

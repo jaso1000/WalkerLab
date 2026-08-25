@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { ActionSheet, ActionSheetOption } from './ActionSheet';
 import { PromptModal } from './PromptModal';
 import { useProfiles } from '../context/ProfilesContext';
+import { alert } from '../lib/alert';
 
 export function ProfileSwitcher({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const { profiles, activeProfile, switchProfile, addProfile } = useProfiles();
@@ -17,7 +18,7 @@ export function ProfileSwitcher({ visible, onClose }: { visible: boolean; onClos
   const options: ActionSheetOption[] = [
     ...profiles.map((profile) => ({
       label: profile.id === activeProfile.id ? `✓  ${profile.name}` : profile.name,
-      onPress: () => switchProfile(profile.id),
+      onPress: () => switchProfile(profile.id).catch((e) => alert('Failed to switch profile', e instanceof Error ? e.message : 'Unknown error')),
     })),
     { label: 'Add New Profile…', onPress: () => setAddProfileOpen(true) },
     { label: 'Manage Profiles…', onPress: () => router.push('/profiles') },
@@ -34,7 +35,7 @@ export function ProfileSwitcher({ visible, onClose }: { visible: boolean; onClos
         onCancel={() => setAddProfileOpen(false)}
         onConfirm={(name) => {
           setAddProfileOpen(false);
-          if (name.trim()) addProfile(name.trim());
+          if (name.trim()) addProfile(name.trim()).catch((e) => alert('Failed to create profile', e instanceof Error ? e.message : 'Unknown error'));
         }}
       />
     </>

@@ -97,7 +97,7 @@ export default function SeriesDetailScreen() {
   // Mirrors the movie detail page's independent-fallback pattern: any one
   // optional service failing doesn't block the rest of the page.
   useEffect(() => {
-    getDefaultRegion().then(setRegion);
+    getDefaultRegion().then(setRegion).catch((e) => console.error('Failed to load default region', e));
   }, []);
 
   const load = useCallback(async () => {

@@ -4,7 +4,7 @@
 // screen) reads `activeProfileId` from here and re-fetches its own
 // profile-scoped data whenever it changes, which is what makes switching
 // profiles feel like a live app-wide reload without an actual restart.
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   getActiveProfileId,
   getProfiles,
@@ -37,12 +37,20 @@ export function ProfilesProvider({ children }: { children: React.ReactNode }) {
   // One-time load on mount. Falls back to the first available profile if
   // the previously-active id no longer exists (e.g. it was deleted in a way
   // that didn't go through `deleteProfile`, or storage got out of sync).
+  // On a storage read failure, falls back to the default in-memory state
+  // (already set above) rather than leaving `loading` stuck `true` forever -
+  // every other profile-scoped context/screen gates on this resolving.
   useEffect(() => {
     (async () => {
-      const [loadedProfiles, loadedActiveId] = await Promise.all([getProfiles(), getActiveProfileId()]);
-      setProfilesState(loadedProfiles);
-      setActiveProfileIdState(loadedProfiles.some((p) => p.id === loadedActiveId) ? loadedActiveId : loadedProfiles[0].id);
-      setLoading(false);
+      try {
+        const [loadedProfiles, loadedActiveId] = await Promise.all([getProfiles(), getActiveProfileId()]);
+        setProfilesState(loadedProfiles);
+        setActiveProfileIdState(loadedProfiles.some((p) => p.id === loadedActiveId) ? loadedActiveId : loadedProfiles[0].id);
+      } catch (e) {
+        console.error('Failed to load profiles', e);
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 
@@ -120,13 +128,12 @@ export function ProfilesProvider({ children }: { children: React.ReactNode }) {
   // one that isn't in `profiles` yet (a transient state during a delete).
   const activeProfile = profiles.find((p) => p.id === activeProfileId) ?? profiles[0];
 
-  return (
-    <ProfilesContext.Provider
-      value={{ profiles, activeProfileId, activeProfile, loading, switchProfile, addProfile, renameProfile, deleteProfile }}
-    >
-      {children}
-    </ProfilesContext.Provider>
+  const value = useMemo(
+    () => ({ profiles, activeProfileId, activeProfile, loading, switchProfile, addProfile, renameProfile, deleteProfile }),
+    [profiles, activeProfileId, activeProfile, loading, switchProfile, addProfile, renameProfile, deleteProfile]
   );
+
+  return <ProfilesContext.Provider value={value}>{children}</ProfilesContext.Provider>;
 }
 
 // Hook for consuming the active profile / profile list + mutators. Throws

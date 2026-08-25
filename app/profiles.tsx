@@ -37,7 +37,11 @@ export default function ProfilesScreen() {
   const confirmDelete = (profile: Profile) => {
     alert('Delete Profile', `Remove "${profile.name}" and everything configured under it? This can't be undone.`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deleteProfile(profile.id) },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => deleteProfile(profile.id).catch((e) => alert('Failed to delete profile', e instanceof Error ? e.message : 'Unknown error')),
+      },
     ]);
   };
 
@@ -106,7 +110,12 @@ export default function ProfilesScreen() {
             const active = profile.id === activeProfile.id;
             return (
               <View key={profile.id} style={[styles.profileRow, i > 0 && styles.profileRowDivider]}>
-                <TouchableOpacity style={styles.profileRowMain} onPress={() => switchProfile(profile.id)}>
+                <TouchableOpacity
+                  style={styles.profileRowMain}
+                  onPress={() =>
+                    switchProfile(profile.id).catch((e) => alert('Failed to switch profile', e instanceof Error ? e.message : 'Unknown error'))
+                  }
+                >
                   <Ionicons
                     name={active ? 'checkmark-circle' : 'ellipse-outline'}
                     size={20}
@@ -183,7 +192,7 @@ export default function ProfilesScreen() {
         onCancel={() => setAddOpen(false)}
         onConfirm={(name) => {
           setAddOpen(false);
-          if (name.trim()) addProfile(name.trim());
+          if (name.trim()) addProfile(name.trim()).catch((e) => alert('Failed to create profile', e instanceof Error ? e.message : 'Unknown error'));
         }}
       />
       <PromptModal
@@ -194,7 +203,11 @@ export default function ProfilesScreen() {
         confirmLabel="Save"
         onCancel={() => setRenameTarget(null)}
         onConfirm={(name) => {
-          if (renameTarget && name.trim()) renameProfile(renameTarget.id, name.trim());
+          if (renameTarget && name.trim()) {
+            renameProfile(renameTarget.id, name.trim()).catch((e) =>
+              alert('Failed to rename profile', e instanceof Error ? e.message : 'Unknown error')
+            );
+          }
           setRenameTarget(null);
         }}
       />

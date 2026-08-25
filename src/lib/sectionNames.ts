@@ -14,6 +14,7 @@ export type SectionId =
   | 'downloads'
   | 'nzbget'
   | 'torrents'
+  | 'transmission'
   | 'requests'
   | 'stats'
   | 'containers'
@@ -33,6 +34,10 @@ export const DEFAULT_SECTION_NAMES: Record<SectionId, string> = {
   // runs both at once and wants to tell them apart in the nav.
   nzbget: 'Downloads',
   torrents: 'Torrents',
+  // Defaults to the same label as `torrents` - they're both "your torrent
+  // queue" to the user, just different clients under the hood. Still
+  // independently renameable per-profile like `nzbget` above.
+  transmission: 'Torrents',
   requests: 'Requests',
   stats: 'Stats',
   containers: 'Containers',

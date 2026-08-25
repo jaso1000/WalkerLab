@@ -12,6 +12,7 @@ import { nzbgetProxyRequest } from './services/nzbgetProxy';
 import { portainerProxyRequest, portainerPullImage } from './services/portainerProxy';
 import { qbittorrentProxyRequest } from './services/qbittorrentProxy';
 import { lastfmProxyRequest, omdbProxyRequest, sabnzbdProxyRequest, tautulliProxyRequest, tmdbProxyRequest } from './services/queryKeyProxy';
+import { transmissionProxyRequest } from './services/transmissionProxy';
 import { getServiceConfig } from './store';
 import { isServiceName, ProxyRequestBody } from './types';
 
@@ -93,6 +94,10 @@ proxyRouter.post('/:profileId/:service', async (req, res) => {
         // Keyed by user+profile, not just profile - profile ids are only
         // unique within one user's own list, not globally across users.
         result = await qbittorrentProxyRequest(`${req.userId}:${profileId}`, config, body);
+        break;
+      case 'transmission':
+        // Same cache-key reasoning as the qbittorrent case above.
+        result = await transmissionProxyRequest(`${req.userId}:${profileId}`, config, body);
         break;
       default:
         res.status(501).json({ error: `Proxying for "${service}" isn't implemented yet.` });

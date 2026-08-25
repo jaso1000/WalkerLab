@@ -32,7 +32,7 @@ export default function NavigationSettingsScreen() {
   // pattern - reflects a change made elsewhere immediately on return here.
   useFocusEffect(
     useCallback(() => {
-      getTabOrder(activeProfileId).then(setOrder);
+      getTabOrder(activeProfileId).then(setOrder).catch((e) => console.error('Failed to load tab order', e));
     }, [activeProfileId])
   );
 

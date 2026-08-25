@@ -122,6 +122,21 @@ export const SERVICE_META: ServiceMeta[] = [
     apiKeyOptional: true,
   },
   {
+    name: 'transmission',
+    label: 'Transmission',
+    icon: 'repeat-outline',
+    tint: colors.transmission,
+    description:
+      'Transmission is a torrent client, an alternative to qBittorrent - most home labs only run one or the other, but both get their own section here in case you actually want both enabled.',
+    requiresUrl: true,
+    placeholder: 'http://192.168.1.10:9091',
+    urlTemplate: 'http://[your-ip-address]:[transmission-port]',
+    urlExamples: ['http://192.168.1.10:9091 — another device on your network (default port 9091)', 'http://localhost:9091 — same device as this app'],
+    sectionId: 'transmission',
+    usesCredentials: true,
+    apiKeyOptional: true,
+  },
+  {
     name: 'overseerr',
     label: 'Seer',
     icon: 'list-outline',

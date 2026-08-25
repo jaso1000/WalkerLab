@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { tmdbApi, tmdbImageUrl, TmdbMovie, TmdbPerson, TmdbPersonCredit, TmdbTv } from '../../../src/api/tmdb';
@@ -32,6 +32,32 @@ import { colors } from '../../../src/theme/colors';
 function creditDate(item: TmdbPersonCredit): string {
   return item.release_date ?? item.first_air_date ?? '';
 }
+
+// Filmography grid card - memoized since this can grow to a long list for a
+// prolific actor/director, and is fully self-contained (only reads its own
+// `item` prop), so memoization is effective with no extra prop-stabilizing
+// needed at the call site.
+const CreditCard = memo(function CreditCard({ item }: { item: TmdbPersonCredit }) {
+  const posterUrl = tmdbImageUrl(item.poster_path);
+  const title = item.title ?? item.name ?? 'Untitled';
+  return (
+    <TouchableOpacity style={styles.card} onPress={() => router.push(`/discover/${item.media_type}/${item.id}`)}>
+      {posterUrl ? (
+        <Image source={{ uri: posterUrl }} style={styles.poster} cachePolicy="memory-disk" />
+      ) : (
+        <View style={[styles.poster, styles.posterPlaceholder]} />
+      )}
+      <Text style={styles.cardTitle} numberOfLines={2}>
+        {title}
+      </Text>
+      {item.character || item.job ? (
+        <Text style={styles.cardCharacter} numberOfLines={1}>
+          {item.character ?? item.job}
+        </Text>
+      ) : null}
+    </TouchableOpacity>
+  );
+});
 
 // Maps one filtered `/discover` result into the same `TmdbPersonCredit`
 // shape the unfiltered `personCombinedCredits` list already uses, so the
@@ -107,15 +133,25 @@ export default function PersonScreen() {
 
   useEffect(() => {
     if (!config || !filtersApplied) return;
+    let cancelled = false;
     setFilteredLoading(true);
     setPage(0);
     fetchFilteredPage(1)
       .then((res) => {
+        if (cancelled) return;
         setFilteredItems(res.results);
         setPage(1);
         setTotalPages(res.total_pages);
       })
-      .finally(() => setFilteredLoading(false));
+      .catch((e) => {
+        if (!cancelled) console.error('Failed to load filtered credits', e);
+      })
+      .finally(() => {
+        if (!cancelled) setFilteredLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config, filtersApplied, movieParams, tvParams]);
 
@@ -129,6 +165,7 @@ export default function PersonScreen() {
         setPage((p) => p + 1);
         setTotalPages(res.total_pages);
       })
+      .catch((e) => console.error('Failed to load more', e))
       .finally(() => {
         setFilteredLoadingMore(false);
         loadMoreLock.current = false;
@@ -249,27 +286,7 @@ export default function PersonScreen() {
               </View>
             ) : null
           }
-          renderItem={({ item }) => {
-            const posterUrl = tmdbImageUrl(item.poster_path);
-            const title = item.title ?? item.name ?? 'Untitled';
-            return (
-              <TouchableOpacity style={styles.card} onPress={() => router.push(`/discover/${item.media_type}/${item.id}`)}>
-                {posterUrl ? (
-                  <Image source={{ uri: posterUrl }} style={styles.poster} cachePolicy="memory-disk" />
-                ) : (
-                  <View style={[styles.poster, styles.posterPlaceholder]} />
-                )}
-                <Text style={styles.cardTitle} numberOfLines={2}>
-                  {title}
-                </Text>
-                {item.character || item.job ? (
-                  <Text style={styles.cardCharacter} numberOfLines={1}>
-                    {item.character ?? item.job}
-                  </Text>
-                ) : null}
-              </TouchableOpacity>
-            );
-          }}
+          renderItem={({ item }) => <CreditCard item={item} />}
           ListEmptyComponent={!showInitialSpinner ? <Text style={styles.emptyText}>No credits found.</Text> : null}
         />
       )}

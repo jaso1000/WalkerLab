@@ -16,6 +16,7 @@ export type ServiceName =
   | 'lastfm'
   | 'overseerr'
   | 'qbittorrent'
+  | 'transmission'
   | 'tautulli'
   | 'portainer';
 
@@ -35,6 +36,7 @@ export type SectionId =
   | 'downloads'
   | 'nzbget'
   | 'torrents'
+  | 'transmission'
   | 'requests'
   | 'stats'
   | 'containers'
@@ -175,6 +177,7 @@ export const SERVICE_NAMES: ServiceName[] = [
   'lastfm',
   'overseerr',
   'qbittorrent',
+  'transmission',
   'tautulli',
   'portainer',
 ];

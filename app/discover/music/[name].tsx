@@ -100,7 +100,7 @@ export default function DiscoverArtistScreen() {
 
   useEffect(() => {
     if (!name) return;
-    itunesApi.searchArtistArtwork(name).then(setArtUrl);
+    itunesApi.searchArtistArtwork(name).then(setArtUrl).catch((e) => console.error('Failed to load artist artwork', e));
   }, [name]);
 
   useFocusEffect(

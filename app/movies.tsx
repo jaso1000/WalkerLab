@@ -158,6 +158,71 @@ function activityTone(item: RadarrQueueItem): 'danger' | 'accent' | 'success' {
   return 'success';
 }
 
+// Upcoming tab's row (compact card, no long-press menu) - memoized for the
+// same reason as `MovieRow` above. Self-contained (only reads module-scope
+// `router`), so no extra props needed for the memo to take effect.
+const UpcomingRow = memo(function UpcomingRow({ item }: { item: RadarrMovie }) {
+  const poster = item.images.find((i) => i.coverType === 'poster');
+  return (
+    <Pressable style={[styles.card, styles.rowItem]} onPress={() => router.push(`/movie/${item.id}`)}>
+      {poster?.remoteUrl ? (
+        <Image source={{ uri: poster.remoteUrl }} style={styles.poster} cachePolicy="memory-disk" />
+      ) : (
+        <View style={[styles.poster, styles.posterPlaceholder]} />
+      )}
+      <View style={styles.info}>
+        <Text style={styles.title} numberOfLines={1}>
+          {item.title}
+        </Text>
+        <Text style={styles.historySubtitle}>{nearestUpcomingLabel(item)}</Text>
+        {item.hasFile ? <Badge label="Downloaded" tone="success" /> : null}
+      </View>
+    </Pressable>
+  );
+});
+
+// Activity tab's row - same memoization reasoning as `MovieRow`/`UpcomingRow`.
+const ActivityRow = memo(function ActivityRow({ item }: { item: RadarrQueueItem }) {
+  const pct = item.size > 0 ? Math.round(((item.size - item.sizeleft) / item.size) * 100) : 100;
+  const messages = item.statusMessages?.flatMap((m) => m.messages) ?? [];
+  return (
+    <Pressable style={[styles.historyRow, styles.rowItem]} onPress={() => router.push(`/movie/${item.movieId}`)}>
+      <Text style={styles.historyTitle} numberOfLines={2}>
+        {item.title}
+      </Text>
+      <View style={styles.badgeRow}>
+        <Badge label={titleCase(item.status)} tone={activityTone(item)} />
+        <Text style={styles.historySubtitle}>
+          {pct}% · {formatBytes(item.size)}
+        </Text>
+      </View>
+      {item.errorMessage ? <Text style={styles.activityWarning}>{item.errorMessage}</Text> : null}
+      {messages.map((msg, i) => (
+        <Text key={i} style={styles.activityWarning}>
+          • {msg}
+        </Text>
+      ))}
+    </Pressable>
+  );
+});
+
+// History tab's row - not interactive (no Pressable), but still memoized so
+// scrolling/unrelated state changes don't re-render every off-screen entry.
+const HistoryRow = memo(function HistoryRow({ item }: { item: RadarrHistoryRecord }) {
+  return (
+    <View style={[styles.historyRow, styles.rowItem]}>
+      <Text style={styles.historyTitle} numberOfLines={2}>
+        {item.sourceTitle}
+      </Text>
+      <View style={styles.badgeRow}>
+        <Badge label={historyEventLabel(item.eventType)} tone={item.eventType === 'grabbed' ? 'accent' : 'success'} />
+        {item.quality ? <Text style={styles.historySubtitle}>{item.quality.quality.name}</Text> : null}
+      </View>
+      <Text style={styles.historyDate}>{formatDate(item.date) ?? ''}</Text>
+    </View>
+  );
+});
+
 // Only these sort fields make sense as section-header groups (rating/
 // popularity/size would each produce a near-useless one-item-per-group split).
 const GROUPABLE_KEYS: SortKey[] = ['title', 'year', 'added', 'digitalRelease', 'qualityProfile', 'genre', 'studio'];
@@ -296,7 +361,7 @@ export default function MoviesScreen() {
       setMovies(movieList);
       if (!profilesLoaded.current) {
         profilesLoaded.current = true;
-        radarrApi.getQualityProfiles(config).then(setProfiles);
+        radarrApi.getQualityProfiles(config).then(setProfiles).catch((e) => console.error('Failed to load quality profiles', e));
       }
       if (!prefsLoaded.current) {
         prefsLoaded.current = true;
@@ -775,25 +840,9 @@ export default function MoviesScreen() {
             renderSectionHeader={({ section }) => <Text style={styles.dayHeader}>{section.title}</Text>}
             renderItem={({ item: row }) => (
               <View style={styles.row}>
-                {row.map((item) => {
-                  const poster = item.images.find((i) => i.coverType === 'poster');
-                  return (
-                    <Pressable key={item.id} style={[styles.card, styles.rowItem]} onPress={() => router.push(`/movie/${item.id}`)}>
-                      {poster?.remoteUrl ? (
-                        <Image source={{ uri: poster.remoteUrl }} style={styles.poster} cachePolicy="memory-disk" />
-                      ) : (
-                        <View style={[styles.poster, styles.posterPlaceholder]} />
-                      )}
-                      <View style={styles.info}>
-                        <Text style={styles.title} numberOfLines={1}>
-                          {item.title}
-                        </Text>
-                        <Text style={styles.historySubtitle}>{nearestUpcomingLabel(item)}</Text>
-                        {item.hasFile ? <Badge label="Downloaded" tone="success" /> : null}
-                      </View>
-                    </Pressable>
-                  );
-                })}
+                {row.map((item) => (
+                  <UpcomingRow key={item.id} item={item} />
+                ))}
               </View>
             )}
             {...LIST_PERF_PROPS}
@@ -808,29 +857,9 @@ export default function MoviesScreen() {
             ListEmptyComponent={!loadingActivity ? <Text style={styles.empty}>Nothing pending</Text> : null}
             renderItem={({ item: row }) => (
               <View style={styles.row}>
-                {row.map((item) => {
-                  const pct = item.size > 0 ? Math.round(((item.size - item.sizeleft) / item.size) * 100) : 100;
-                  const messages = item.statusMessages?.flatMap((m) => m.messages) ?? [];
-                  return (
-                    <Pressable key={item.id} style={[styles.historyRow, styles.rowItem]} onPress={() => router.push(`/movie/${item.movieId}`)}>
-                      <Text style={styles.historyTitle} numberOfLines={2}>
-                        {item.title}
-                      </Text>
-                      <View style={styles.badgeRow}>
-                        <Badge label={titleCase(item.status)} tone={activityTone(item)} />
-                        <Text style={styles.historySubtitle}>
-                          {pct}% · {formatBytes(item.size)}
-                        </Text>
-                      </View>
-                      {item.errorMessage ? <Text style={styles.activityWarning}>{item.errorMessage}</Text> : null}
-                      {messages.map((msg, i) => (
-                        <Text key={i} style={styles.activityWarning}>
-                          • {msg}
-                        </Text>
-                      ))}
-                    </Pressable>
-                  );
-                })}
+                {row.map((item) => (
+                  <ActivityRow key={item.id} item={item} />
+                ))}
               </View>
             )}
             {...LIST_PERF_PROPS}
@@ -846,16 +875,7 @@ export default function MoviesScreen() {
             renderItem={({ item: row }) => (
               <View style={styles.row}>
                 {row.map((item) => (
-                  <View key={item.id} style={[styles.historyRow, styles.rowItem]}>
-                    <Text style={styles.historyTitle} numberOfLines={2}>
-                      {item.sourceTitle}
-                    </Text>
-                    <View style={styles.badgeRow}>
-                      <Badge label={historyEventLabel(item.eventType)} tone={item.eventType === 'grabbed' ? 'accent' : 'success'} />
-                      {item.quality ? <Text style={styles.historySubtitle}>{item.quality.quality.name}</Text> : null}
-                    </View>
-                    <Text style={styles.historyDate}>{formatDate(item.date) ?? ''}</Text>
-                  </View>
+                  <HistoryRow key={item.id} item={item} />
                 ))}
               </View>
             )}

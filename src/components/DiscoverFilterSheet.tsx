@@ -103,7 +103,7 @@ export function DiscoverFilterSheet({
   // overridden for this session, both for the initial provider fetch and
   // as the "use default" option in the region picker below.
   useEffect(() => {
-    getDefaultRegion().then(setDefaultRegionCode);
+    getDefaultRegion().then(setDefaultRegionCode).catch((e) => console.error('Failed to load default region', e));
   }, []);
   const defaultRegionName = watchRegions.find((r) => r.iso_3166_1 === defaultRegionCode)?.english_name ?? defaultRegionCode;
 

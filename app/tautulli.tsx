@@ -5,7 +5,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router, Stack, useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -91,6 +91,73 @@ function sessionQualityLine(session: TautulliSession): string {
   const target = [targetVideo, targetAudio].filter(Boolean).join(' · ');
   return target && target !== source ? `${source}  →  ${target}` : source;
 }
+
+// Activity tab's row - memoized so scrolling/unrelated state changes don't
+// re-render every off-screen session. `config` only changes on a real
+// profile/server-config change.
+const SessionRow = memo(function SessionRow({ item, config }: { item: TautulliSession; config: ServiceConfig }) {
+  const posterUrl = tautulliImageUrl(config, { ratingKey: item.rating_key, img: item.thumb, width: 120, height: 180 });
+  const percent = Math.max(0, Math.min(100, Math.round(Number(item.progress_percent) || 0)));
+  const qualityLine = sessionQualityLine(item);
+  const device = item.player || item.product || item.platform;
+  return (
+    <View style={styles.card}>
+      {posterUrl ? (
+        <Image source={{ uri: posterUrl }} style={styles.poster} cachePolicy="memory-disk" />
+      ) : (
+        <View style={[styles.poster, styles.posterPlaceholder]} />
+      )}
+      <View style={styles.info}>
+        <Text style={styles.title} numberOfLines={2}>
+          {item.full_title}
+        </Text>
+        <View style={styles.badgeRow}>
+          <Ionicons name={sessionStateIcon(item.state)} size={14} color={colors.tautulli} />
+          <Badge label={titleCase(item.transcode_decision)} tone={transcodeTone(item.transcode_decision)} />
+        </View>
+        {qualityLine ? (
+          <Text style={styles.qualityText} numberOfLines={1}>
+            {qualityLine}
+          </Text>
+        ) : null}
+        <Text style={styles.subtitle} numberOfLines={1}>
+          {item.friendly_name}
+          {device ? ` · ${device}` : ''}
+        </Text>
+        <View style={styles.track}>
+          <View style={[styles.fill, { width: `${percent}%` }]} />
+        </View>
+        <Text style={styles.percent}>{percent}%</Text>
+      </View>
+    </View>
+  );
+});
+
+// Users tab's row - self-contained (only reads module-scope `router`), so
+// memoization is effective with no extra prop-stabilizing needed.
+const UserRow = memo(function UserRow({ item, config }: { item: TautulliUserRow; config: ServiceConfig }) {
+  const avatarUrl = tautulliImageUrl(config, { img: item.user_thumb, width: 120, height: 120 });
+  return (
+    <Pressable style={styles.userRow} onPress={() => router.push(`/tautulli/user/${item.user_id}?name=${encodeURIComponent(item.friendly_name)}`)}>
+      {avatarUrl ? (
+        <Image source={{ uri: avatarUrl }} style={styles.avatar} cachePolicy="memory-disk" />
+      ) : (
+        <View style={[styles.avatar, styles.avatarPlaceholder]}>
+          <Ionicons name="person" size={20} color={colors.textMuted} />
+        </View>
+      )}
+      <View style={styles.userInfo}>
+        <Text style={styles.userName} numberOfLines={1}>
+          {item.friendly_name}
+        </Text>
+        <Text style={styles.userMeta}>
+          {item.plays} plays · {formatDuration(item.duration)}
+        </Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+    </Pressable>
+  );
+});
 
 // Shortens a "YYYY-MM-DD" category from get_plays_by_date down to "M/D" so
 // 30 daily bars don't need 30 full dates to stay legible.
@@ -410,71 +477,6 @@ export default function TautulliScreen() {
 
   if (!config) return <NotConfigured service="Tautulli" tint={colors.tautulli} />;
 
-  const renderSessionRow = (item: TautulliSession) => {
-    const posterUrl = tautulliImageUrl(config, { ratingKey: item.rating_key, img: item.thumb, width: 120, height: 180 });
-    const percent = Math.max(0, Math.min(100, Math.round(Number(item.progress_percent) || 0)));
-    const qualityLine = sessionQualityLine(item);
-    const device = item.player || item.product || item.platform;
-    return (
-      <View style={styles.card}>
-        {posterUrl ? (
-          <Image source={{ uri: posterUrl }} style={styles.poster} cachePolicy="memory-disk" />
-        ) : (
-          <View style={[styles.poster, styles.posterPlaceholder]} />
-        )}
-        <View style={styles.info}>
-          <Text style={styles.title} numberOfLines={2}>
-            {item.full_title}
-          </Text>
-          <View style={styles.badgeRow}>
-            <Ionicons name={sessionStateIcon(item.state)} size={14} color={colors.tautulli} />
-            <Badge label={titleCase(item.transcode_decision)} tone={transcodeTone(item.transcode_decision)} />
-          </View>
-          {qualityLine ? (
-            <Text style={styles.qualityText} numberOfLines={1}>
-              {qualityLine}
-            </Text>
-          ) : null}
-          <Text style={styles.subtitle} numberOfLines={1}>
-            {item.friendly_name}
-            {device ? ` · ${device}` : ''}
-          </Text>
-          <View style={styles.track}>
-            <View style={[styles.fill, { width: `${percent}%` }]} />
-          </View>
-          <Text style={styles.percent}>{percent}%</Text>
-        </View>
-      </View>
-    );
-  };
-
-  const renderUserRow = (item: TautulliUserRow) => {
-    const avatarUrl = tautulliImageUrl(config, { img: item.user_thumb, width: 120, height: 120 });
-    return (
-      <Pressable
-        style={styles.userRow}
-        onPress={() => router.push(`/tautulli/user/${item.user_id}?name=${encodeURIComponent(item.friendly_name)}`)}
-      >
-        {avatarUrl ? (
-          <Image source={{ uri: avatarUrl }} style={styles.avatar} cachePolicy="memory-disk" />
-        ) : (
-          <View style={[styles.avatar, styles.avatarPlaceholder]}>
-            <Ionicons name="person" size={20} color={colors.textMuted} />
-          </View>
-        )}
-        <View style={styles.userInfo}>
-          <Text style={styles.userName} numberOfLines={1}>
-            {item.friendly_name}
-          </Text>
-          <Text style={styles.userMeta}>
-            {item.plays} plays · {formatDuration(item.duration)}
-          </Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
-      </Pressable>
-    );
-  };
-
   const statGroup = (id: string) => statGroups.find((g) => g.stat_id === id);
 
   return (
@@ -529,7 +531,7 @@ export default function TautulliScreen() {
               <View style={styles.row}>
                 {row.map((session) => (
                   <View key={session.session_key} style={styles.rowItem}>
-                    {renderSessionRow(session)}
+                    <SessionRow item={session} config={config} />
                   </View>
                 ))}
               </View>
@@ -544,7 +546,7 @@ export default function TautulliScreen() {
             refreshControl={<RefreshControl tintColor={colors.tautulli} refreshing={loadingUsers} onRefresh={loadUsers} />}
             contentContainerStyle={[users.length === 0 ? styles.emptyContainer : styles.userList, { paddingBottom: tabBarClearance }]}
             ListEmptyComponent={!loadingUsers ? <Text style={styles.empty}>No users found.</Text> : null}
-            renderItem={({ item }) => renderUserRow(item)}
+            renderItem={({ item }) => <UserRow item={item} config={config} />}
           />
         </View>
 

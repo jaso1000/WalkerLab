@@ -44,6 +44,7 @@ export type ServiceName =
   | 'lastfm'
   | 'overseerr'
   | 'qbittorrent'
+  | 'transmission'
   | 'tautulli'
   | 'portainer';
 

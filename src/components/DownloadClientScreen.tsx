@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   NativeScrollEvent,
@@ -50,6 +50,92 @@ function historyTone(status: string) {
   if (status === 'Failed') return 'danger' as const;
   return 'success' as const;
 }
+
+// Queue row - memoized, though note this specific list still re-renders on
+// every 3s poll tick regardless (see `indexByNzoId`'s own comment): `speed`/
+// `paused` are passed to every row so the actively-downloading one can show
+// live speed, which means every row's props "change" each poll by design.
+// Still worth memoizing for the re-renders NOT caused by the poll (opening
+// the "..." menu, pause/resume when nothing's actively downloading, etc) -
+// fully eliminating the poll-driven re-render would need hoisting the speed
+// display into its own smaller subscribed child, a larger restructure not
+// undertaken here.
+const QueueRow = memo(function QueueRow({
+  item,
+  index,
+  itemsLength,
+  paused,
+  speed,
+  tint,
+  onMoveUp,
+  onMoveDown,
+  onOpenMenu,
+}: {
+  item: DownloadQueueItem;
+  index: number;
+  itemsLength: number;
+  paused: boolean;
+  speed: string;
+  tint: string;
+  onMoveUp: (item: DownloadQueueItem) => void;
+  onMoveDown: (item: DownloadQueueItem) => void;
+  onOpenMenu: (item: DownloadQueueItem) => void;
+}) {
+  return (
+    <View style={[styles.card, styles.rowItem]}>
+      <View style={styles.cardRow}>
+        <View style={styles.cardInfo}>
+          <Text style={styles.title} numberOfLines={1}>
+            {item.filename}
+          </Text>
+          <View style={styles.track}>
+            <View
+              style={[styles.fill, { backgroundColor: tint, width: `${Math.min(100, Math.max(0, Number(item.percentage) || 0))}%` }]}
+            />
+          </View>
+          <Text style={styles.subtitle}>
+            {item.status} · {item.timeleft || '—'} left
+            {item.status.toLowerCase() === 'downloading' && !paused && speed ? ` · ${speed}B/s` : ''}
+          </Text>
+          <Text style={styles.subtitle}>
+            {formatMb(String(Number(item.mb) - Number(item.mbleft)))} / {formatMb(item.mb)} MB · {item.percentage}%
+          </Text>
+        </View>
+        <View style={styles.itemActions}>
+          {itemsLength > 1 ? (
+            <View style={styles.reorderColumn}>
+              <TouchableOpacity style={styles.reorderButton} disabled={index === 0} onPress={() => onMoveUp(item)}>
+                <Ionicons name="chevron-up" size={18} color={index === 0 ? colors.textMuted : colors.textPrimary} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.reorderButton} disabled={index === itemsLength - 1} onPress={() => onMoveDown(item)}>
+                <Ionicons name="chevron-down" size={18} color={index === itemsLength - 1 ? colors.textMuted : colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          <TouchableOpacity style={styles.menuButton} onPress={() => onOpenMenu(item)}>
+            <Ionicons name="ellipsis-vertical" size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+});
+
+// History row - not poll-driven, so memoization is fully effective here.
+const HistoryRow = memo(function HistoryRow({ item }: { item: DownloadHistoryItem }) {
+  return (
+    <View style={[styles.card, styles.rowItem]}>
+      <Text style={styles.title} numberOfLines={1}>
+        {item.name}
+      </Text>
+      <View style={styles.badgeRow}>
+        <Badge label={item.status} tone={historyTone(item.status)} />
+        <Text style={styles.subtitle}>{item.storage}</Text>
+      </View>
+      {item.status === 'Failed' && item.fail_message ? <Text style={styles.failMessage}>{item.fail_message}</Text> : null}
+    </View>
+  );
+});
 
 export function DownloadClientScreen({
   client,
@@ -196,21 +282,26 @@ export function DownloadClientScreen({
 
   // Reorders one queue item by one position; a no-op past either end of
   // the queue.
-  const moveItem = async (item: DownloadQueueItem, direction: 'up' | 'down') => {
-    if (!config) return;
-    const targetIndex = item.index + (direction === 'up' ? -1 : 1);
-    if (targetIndex < 0 || targetIndex >= items.length) return;
-    try {
-      await downloadClientApi.reorderQueue(client, config, item, direction);
-      await loadQueue();
-    } catch (e) {
-      alert('Failed to reorder', e instanceof Error ? e.message : 'Unknown error');
-    }
-  };
+  const moveItem = useCallback(
+    async (item: DownloadQueueItem, direction: 'up' | 'down') => {
+      if (!config) return;
+      const targetIndex = item.index + (direction === 'up' ? -1 : 1);
+      if (targetIndex < 0 || targetIndex >= items.length) return;
+      try {
+        await downloadClientApi.reorderQueue(client, config, item, direction);
+        await loadQueue();
+      } catch (e) {
+        alert('Failed to reorder', e instanceof Error ? e.message : 'Unknown error');
+      }
+    },
+    [config, client, items.length, loadQueue]
+  );
+  const moveItemUp = useCallback((item: DownloadQueueItem) => moveItem(item, 'up'), [moveItem]);
+  const moveItemDown = useCallback((item: DownloadQueueItem) => moveItem(item, 'down'), [moveItem]);
 
   // Builds the per-item "..." action sheet: Pause/Resume (whichever
   // applies) plus a confirm-then-Delete flow.
-  const openItemMenu = (item: DownloadQueueItem) => {
+  const openItemMenu = useCallback((item: DownloadQueueItem) => {
     if (!config) return;
     const isPaused = item.status === 'Paused';
     const options: ActionSheetOption[] = [
@@ -249,7 +340,7 @@ export function DownloadClientScreen({
       },
     ];
     setMenu({ title: item.filename, options });
-  };
+  }, [config, client, loadQueue]);
 
   // Chunked into rows of `columns` so wide/unfolded screens show a
   // multi-column grid instead of one very wide single-column list. Reorder
@@ -330,62 +421,20 @@ export function DownloadClientScreen({
             windowSize={7}
             renderItem={({ item: row }) => (
               <View style={styles.row}>
-                {row.map((item) => {
-                  const index = indexByNzoId.get(item.nzo_id) ?? -1;
-                  return (
-                    <View key={item.nzo_id} style={[styles.card, styles.rowItem]}>
-                      <View style={styles.cardRow}>
-                        <View style={styles.cardInfo}>
-                          <Text style={styles.title} numberOfLines={1}>
-                            {item.filename}
-                          </Text>
-                          <View style={styles.track}>
-                            <View
-                              style={[
-                                styles.fill,
-                                { backgroundColor: tint, width: `${Math.min(100, Math.max(0, Number(item.percentage) || 0))}%` },
-                              ]}
-                            />
-                          </View>
-                          <Text style={styles.subtitle}>
-                            {item.status} · {item.timeleft || '—'} left
-                            {item.status.toLowerCase() === 'downloading' && !paused && speed ? ` · ${speed}B/s` : ''}
-                          </Text>
-                          <Text style={styles.subtitle}>
-                            {formatMb(String(Number(item.mb) - Number(item.mbleft)))} / {formatMb(item.mb)} MB · {item.percentage}%
-                          </Text>
-                        </View>
-                        <View style={styles.itemActions}>
-                          {items.length > 1 ? (
-                            <View style={styles.reorderColumn}>
-                              <TouchableOpacity
-                                style={styles.reorderButton}
-                                disabled={index === 0}
-                                onPress={() => moveItem(item, 'up')}
-                              >
-                                <Ionicons name="chevron-up" size={18} color={index === 0 ? colors.textMuted : colors.textPrimary} />
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                style={styles.reorderButton}
-                                disabled={index === items.length - 1}
-                                onPress={() => moveItem(item, 'down')}
-                              >
-                                <Ionicons
-                                  name="chevron-down"
-                                  size={18}
-                                  color={index === items.length - 1 ? colors.textMuted : colors.textPrimary}
-                                />
-                              </TouchableOpacity>
-                            </View>
-                          ) : null}
-                          <TouchableOpacity style={styles.menuButton} onPress={() => openItemMenu(item)}>
-                            <Ionicons name="ellipsis-vertical" size={18} color={colors.textSecondary} />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    </View>
-                  );
-                })}
+                {row.map((item) => (
+                  <QueueRow
+                    key={item.nzo_id}
+                    item={item}
+                    index={indexByNzoId.get(item.nzo_id) ?? -1}
+                    itemsLength={items.length}
+                    paused={paused}
+                    speed={speed}
+                    tint={tint}
+                    onMoveUp={moveItemUp}
+                    onMoveDown={moveItemDown}
+                    onOpenMenu={openItemMenu}
+                  />
+                ))}
               </View>
             )}
           />
@@ -403,18 +452,7 @@ export function DownloadClientScreen({
             renderItem={({ item: row }) => (
               <View style={styles.row}>
                 {row.map((item) => (
-                  <View key={item.nzo_id} style={[styles.card, styles.rowItem]}>
-                    <Text style={styles.title} numberOfLines={1}>
-                      {item.name}
-                    </Text>
-                    <View style={styles.badgeRow}>
-                      <Badge label={item.status} tone={historyTone(item.status)} />
-                      <Text style={styles.subtitle}>{item.storage}</Text>
-                    </View>
-                    {item.status === 'Failed' && item.fail_message ? (
-                      <Text style={styles.failMessage}>{item.fail_message}</Text>
-                    ) : null}
-                  </View>
+                  <HistoryRow key={item.nzo_id} item={item} />
                 ))}
               </View>
             )}

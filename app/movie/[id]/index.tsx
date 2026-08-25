@@ -136,7 +136,7 @@ export default function MovieDetailScreen() {
   // to an empty/null state on its own failure so one missing/misconfigured
   // service doesn't block the rest of the page from rendering.
   useEffect(() => {
-    getDefaultRegion().then(setRegion);
+    getDefaultRegion().then(setRegion).catch((e) => console.error('Failed to load default region', e));
   }, []);
 
   const load = useCallback(async () => {

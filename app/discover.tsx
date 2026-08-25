@@ -309,7 +309,7 @@ export default function DiscoverScreen() {
   // triggers a re-fetch with the correct region once it resolves.
   const [region, setRegion] = useState(FALLBACK_WATCH_REGION);
   useEffect(() => {
-    getDefaultRegion().then(setRegion);
+    getDefaultRegion().then(setRegion).catch((e) => console.error('Failed to load default region', e));
   }, []);
 
   const [allProviders, setAllProviders] = useState<LogoRowItem[]>([]);
@@ -445,7 +445,7 @@ export default function DiscoverScreen() {
     // Apple's own chart, independent of Last.fm - falls back to an empty
     // row on failure rather than surfacing an error, same as this screen's
     // Streaming Service/Studios rows already do for a failed TMDB fetch.
-    itunesApi.newReleaseAlbums().then(setMusicNewReleases);
+    itunesApi.newReleaseAlbums().then(setMusicNewReleases).catch(() => setMusicNewReleases([]));
     if (lidarrConfig) {
       lidarrApi
         .getArtists(lidarrConfig)
@@ -467,7 +467,9 @@ export default function DiscoverScreen() {
     ]);
     setLibraryMovies(movies);
     setLibrarySeries(series);
-    buildLibraryIndex({ tmdbConfig: config, radarrConfig, sonarrConfig, movies, series }).then(setLibrary);
+    buildLibraryIndex({ tmdbConfig: config, radarrConfig, sonarrConfig, movies, series })
+      .then(setLibrary)
+      .catch((e) => console.error('Failed to build library index', e));
   }, [config, radarrConfig, sonarrConfig]);
 
   useFocusEffect(

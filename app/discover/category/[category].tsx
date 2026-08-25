@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { tmdbApi, tmdbImageUrl, TmdbMovie, TmdbTv } from '../../../src/api/tmdb';
@@ -45,6 +45,47 @@ const DEFAULT_SORT_BY_CATEGORY: Record<DiscoverCategory, DiscoverFilters['sort']
   upcoming: SORT_OPTIONS.find((s) => s.key === 'date' && s.direction === 'asc')!,
   recent: SORT_OPTIONS.find((s) => s.key === 'date' && s.direction === 'desc')!,
 };
+
+// Grid card - memoized since this is likely the longest list in the app
+// (hundreds of items once paginated in). `mediaType`/`library` are stable
+// across most renders (a route param and a per-focus-rebuilt index,
+// respectively), so this actually skips re-rendering off-screen cards on
+// unrelated state changes (typing in the filter sheet, etc).
+const DiscoverGridCard = memo(function DiscoverGridCard({
+  item,
+  mediaType,
+  library,
+}: {
+  item: TmdbMovie | TmdbTv;
+  mediaType: DiscoverMediaFilter;
+  library: LibraryIndex;
+}) {
+  // 'all' mixes movies+TV in one grid - each item resolves its own type
+  // rather than trusting the screen-level `mediaType` filter, same trick
+  // the main Discover screen's "All" tab uses.
+  const itemType = mediaType === 'all' ? resolveMediaKind(item) : mediaType;
+  const posterUrl = tmdbImageUrl(item.poster_path);
+  const badge = itemType === 'movie' ? badgeForMovie(item.id, library) : badgeForSeries(item.id, library);
+  return (
+    <TouchableOpacity style={styles.card} onPress={() => router.push(`/discover/${itemType}/${item.id}`)}>
+      <View>
+        {posterUrl ? (
+          <Image source={{ uri: posterUrl }} style={styles.poster} cachePolicy="memory-disk" />
+        ) : (
+          <View style={[styles.poster, styles.posterPlaceholder]} />
+        )}
+        {badge ? (
+          <View style={[styles.badge, { backgroundColor: badge.color }]}>
+            <Ionicons name={badge.icon} size={12} color={colors.background} />
+          </View>
+        ) : null}
+      </View>
+      <Text style={styles.cardTitle} numberOfLines={2}>
+        {itemType === 'movie' ? (item as TmdbMovie).title : (item as TmdbTv).name}
+      </Text>
+    </TouchableOpacity>
+  );
+});
 
 export default function DiscoverCategoryScreen() {
   const tabBarClearance = useTabBarClearance();
@@ -159,16 +200,26 @@ export default function DiscoverCategoryScreen() {
   // the loaded pages and scroll position back to the top on every return.
   useEffect(() => {
     if (!config) return;
+    let cancelled = false;
     setLoading(true);
     setPage(0);
     const request = filtersApplied ? fetchFiltered(1) : fetchDiscoverCategory(config, category, mediaType, 1, releaseTypes);
     request
       .then((res) => {
+        if (cancelled) return;
         setItems(res.results);
         setPage(1);
         setTotalPages(res.total_pages);
       })
-      .finally(() => setLoading(false));
+      .catch((e) => {
+        if (!cancelled) console.error('Failed to load discover category', e);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config, category, mediaType, releaseTypes, filtersApplied, movieParams, tvParams]);
 
@@ -177,7 +228,9 @@ export default function DiscoverCategoryScreen() {
   useFocusEffect(
     useCallback(() => {
       if (!config) return;
-      buildLibraryIndex({ tmdbConfig: config, radarrConfig, sonarrConfig }).then(setLibrary);
+      buildLibraryIndex({ tmdbConfig: config, radarrConfig, sonarrConfig })
+        .then(setLibrary)
+        .catch((e) => console.error('Failed to build library index', e));
     }, [config, radarrConfig, sonarrConfig])
   );
 
@@ -194,6 +247,7 @@ export default function DiscoverCategoryScreen() {
         setPage((p) => p + 1);
         setTotalPages(res.total_pages);
       })
+      .catch((e) => console.error('Failed to load more', e))
       .finally(() => {
         setLoadingMore(false);
         loadMoreLock.current = false;
@@ -251,33 +305,7 @@ export default function DiscoverCategoryScreen() {
           onEndReachedThreshold={0.5}
           onEndReached={loadMore}
           ListFooterComponent={loadingMore ? <ActivityIndicator color={colors.sectionGreen} style={{ marginVertical: 16 }} /> : null}
-          renderItem={({ item }) => {
-            // 'all' mixes movies+TV in one grid - each item resolves its own
-            // type rather than trusting the screen-level `mediaType` filter,
-            // same trick the main Discover screen's "All" tab uses.
-            const itemType = mediaType === 'all' ? resolveMediaKind(item) : mediaType;
-            const posterUrl = tmdbImageUrl(item.poster_path);
-            const badge = itemType === 'movie' ? badgeForMovie(item.id, library) : badgeForSeries(item.id, library);
-            return (
-              <TouchableOpacity style={styles.card} onPress={() => router.push(`/discover/${itemType}/${item.id}`)}>
-                <View>
-                  {posterUrl ? (
-                    <Image source={{ uri: posterUrl }} style={styles.poster} cachePolicy="memory-disk" />
-                  ) : (
-                    <View style={[styles.poster, styles.posterPlaceholder]} />
-                  )}
-                  {badge ? (
-                    <View style={[styles.badge, { backgroundColor: badge.color }]}>
-                      <Ionicons name={badge.icon} size={12} color={colors.background} />
-                    </View>
-                  ) : null}
-                </View>
-                <Text style={styles.cardTitle} numberOfLines={2}>
-                  {itemType === 'movie' ? (item as TmdbMovie).title : (item as TmdbTv).name}
-                </Text>
-              </TouchableOpacity>
-            );
-          }}
+          renderItem={({ item }) => <DiscoverGridCard item={item} mediaType={mediaType} library={library} />}
           ListEmptyComponent={<Text style={styles.emptyText}>Nothing found.</Text>}
         />
       )}

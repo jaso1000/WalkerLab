@@ -273,7 +273,7 @@ export default function SeriesScreen() {
       setSeries(seriesList);
       if (!profilesLoaded.current) {
         profilesLoaded.current = true;
-        sonarrApi.getQualityProfiles(config).then(setProfiles);
+        sonarrApi.getQualityProfiles(config).then(setProfiles).catch((e) => console.error('Failed to load quality profiles', e));
       }
       if (!prefsLoaded.current) {
         prefsLoaded.current = true;

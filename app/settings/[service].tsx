@@ -20,6 +20,7 @@ import { nzbgetApi } from '../../src/api/nzbget';
 import { overseerrApi } from '../../src/api/overseerr';
 import { qbittorrentApi } from '../../src/api/qbittorrent';
 import { radarrApi } from '../../src/api/radarr';
+import { transmissionApi } from '../../src/api/transmission';
 import { sabnzbdApi } from '../../src/api/sabnzbd';
 import { sonarrApi } from '../../src/api/sonarr';
 import { omdbApi } from '../../src/api/omdb';
@@ -58,6 +59,7 @@ const TEST_CONNECTION: Record<ServiceName, (config: ServiceConfig) => Promise<un
   lastfm: lastfmApi.testConnection,
   overseerr: overseerrApi.testConnection,
   qbittorrent: qbittorrentApi.testConnection,
+  transmission: transmissionApi.testConnection,
   tautulli: tautulliApi.testConnection,
   portainer: portainerApi.testConnection,
 };
@@ -130,7 +132,7 @@ export default function ServiceSettingsScreen() {
   const [regionOptions, setRegionOptions] = useState<TmdbWatchRegion[]>([]);
   const [regionSheetOpen, setRegionSheetOpen] = useState(false);
   useEffect(() => {
-    getDefaultRegion().then(setDefaultRegionCode);
+    getDefaultRegion().then(setDefaultRegionCode).catch((e) => console.error('Failed to load default region', e));
   }, []);
   const regionName = regionOptions.find((r) => r.iso_3166_1 === defaultRegionCode)?.english_name ?? defaultRegionCode;
   // The region list comes from TMDB itself, so it needs a real saved
@@ -170,7 +172,7 @@ export default function ServiceSettingsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      getStartupScreen(activeProfileId).then(setStartupId);
+      getStartupScreen(activeProfileId).then(setStartupId).catch((e) => console.error('Failed to load startup screen', e));
     }, [activeProfileId])
   );
 

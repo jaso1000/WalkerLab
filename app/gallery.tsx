@@ -68,7 +68,13 @@ export default function GalleryScreen() {
   const mainListRef = useRef<FlatList<GalleryPoster>>(null);
   const thumbListRef = useRef<FlatList<GalleryPoster>>(null);
 
+  // Guarded against a stale response landing after a newer request - the
+  // params driving this effect can change while a previous fetch is still
+  // in flight (e.g. quickly navigating between two gallery targets), and
+  // without the `cancelled` check below the older response could overwrite
+  // the newer one's result.
   useEffect(() => {
+    let cancelled = false;
     setIndex(0);
     const fallback: GalleryPoster[] = fallbackPosterUrl ? [{ full: fallbackPosterUrl, thumb: fallbackPosterUrl }] : [];
 
@@ -77,15 +83,22 @@ export default function GalleryScreen() {
       if (lidarrEntityType === 'album') {
         lidarrApi
           .getAlbumById(lidarrConfig, id)
-          .then((album) => setPosters(toGalleryImages(album.images, lidarrConfig, { type: 'album', id })))
-          .catch(() => setPosters([]));
-        return;
+          .then((album) => {
+            if (!cancelled) setPosters(toGalleryImages(album.images, lidarrConfig, { type: 'album', id }));
+          })
+          .catch(() => {
+            if (!cancelled) setPosters([]);
+          });
+        return () => {
+          cancelled = true;
+        };
       }
       // Artist: falls back to the most recent album with a cover image if
       // the artist has no photo of its own - same behavior the artist page
       // used to compute locally before this became a shared route.
       Promise.all([lidarrApi.getArtistById(lidarrConfig, id), lidarrApi.getAlbums(lidarrConfig, id)])
         .then(([artist, albums]) => {
+          if (cancelled) return;
           const own = toGalleryImages(artist.images, lidarrConfig, { type: 'artist', id });
           if (own.length > 0) {
             setPosters(own);
@@ -95,13 +108,19 @@ export default function GalleryScreen() {
           const fallbackAlbum = sorted.find((a) => a.images.some((i) => i.coverType === 'cover'));
           setPosters(fallbackAlbum ? toGalleryImages(fallbackAlbum.images, lidarrConfig, { type: 'album', id: fallbackAlbum.id }) : []);
         })
-        .catch(() => setPosters([]));
-      return;
+        .catch(() => {
+          if (!cancelled) setPosters([]);
+        });
+      return () => {
+        cancelled = true;
+      };
     }
 
     if (!tmdbConfig || !tmdbId || !mediaType) {
       setPosters(fallback);
-      return;
+      return () => {
+        cancelled = true;
+      };
     }
     setPosters(null);
     const id = Number(tmdbId);
@@ -113,6 +132,7 @@ export default function GalleryScreen() {
           : tmdbApi.personImages(tmdbConfig, id).then((res) => res.profiles);
     fetchImages
       .then((images) => {
+        if (cancelled) return;
         const items = images
           .map((p) => {
             const full = tmdbImageUrl(p.file_path, 'w780');
@@ -122,7 +142,12 @@ export default function GalleryScreen() {
           .filter((p): p is GalleryPoster => !!p);
         setPosters(items.length > 0 ? items : fallback);
       })
-      .catch(() => setPosters(fallback));
+      .catch(() => {
+        if (!cancelled) setPosters(fallback);
+      });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mediaType, tmdbId, fallbackPosterUrl, lidarrEntityType, lidarrEntityId, tmdbConfig, lidarrConfig]);
 

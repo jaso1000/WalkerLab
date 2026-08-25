@@ -146,6 +146,74 @@ function activityTone(item: LidarrQueueItem): 'danger' | 'lidarr' | 'success' {
   return 'success';
 }
 
+// Upcoming tab's row - memoized for the same reason as `ArtistLibraryRow`.
+// `config` only changes on a real profile/server-config change.
+const UpcomingRow = memo(function UpcomingRow({ item, config }: { item: LidarrAlbum; config: Parameters<typeof lidarrImageUrl>[1] }) {
+  const poster = item.artist?.images.find((i) => i.coverType === 'poster');
+  const posterUrl = lidarrImageUrl(poster, config, { type: 'artist', id: item.artistId });
+  return (
+    <Pressable style={[styles.card, styles.rowItem]} onPress={() => router.push(`/artist/${item.artistId}`)}>
+      {posterUrl ? (
+        <Image source={{ uri: posterUrl }} style={styles.poster} cachePolicy="memory-disk" />
+      ) : (
+        <View style={[styles.poster, styles.posterPlaceholder]} />
+      )}
+      <View style={styles.info}>
+        <Text style={styles.title} numberOfLines={1}>
+          {item.artist?.artistName ?? 'Unknown artist'}
+        </Text>
+        <Text style={styles.historySubtitle}>{item.title}</Text>
+        <Text style={styles.historyDate}>{formatDate(item.releaseDate) ?? ''}</Text>
+      </View>
+    </Pressable>
+  );
+});
+
+// Activity tab's row - same memoization reasoning as `ArtistLibraryRow`/`UpcomingRow`.
+const ActivityRow = memo(function ActivityRow({ item }: { item: LidarrQueueItem }) {
+  const pct = item.size > 0 ? Math.round(((item.size - item.sizeleft) / item.size) * 100) : 100;
+  const messages = item.statusMessages?.flatMap((m) => m.messages) ?? [];
+  return (
+    <Pressable
+      style={[styles.historyRow, styles.rowItem]}
+      onPress={() => item.artistId && router.push(`/artist/${item.artistId}`)}
+    >
+      <Text style={styles.historyTitle} numberOfLines={2}>
+        {item.title}
+      </Text>
+      <View style={styles.badgeRow}>
+        <Badge label={titleCase(item.status)} tone={activityTone(item)} />
+        <Text style={styles.historySubtitle}>
+          {pct}% · {formatBytes(item.size)}
+        </Text>
+      </View>
+      {item.errorMessage ? <Text style={styles.activityWarning}>{item.errorMessage}</Text> : null}
+      {messages.map((msg, i) => (
+        <Text key={i} style={styles.activityWarning}>
+          • {msg}
+        </Text>
+      ))}
+    </Pressable>
+  );
+});
+
+// History tab's row - not interactive, but still memoized so scrolling/
+// unrelated state changes don't re-render every off-screen entry.
+const HistoryRow = memo(function HistoryRow({ item }: { item: LidarrHistoryRecord }) {
+  return (
+    <View style={[styles.historyRow, styles.rowItem]}>
+      <Text style={styles.historyTitle} numberOfLines={2}>
+        {item.sourceTitle}
+      </Text>
+      <View style={styles.badgeRow}>
+        <Badge label={historyEventLabel(item.eventType)} tone={item.eventType === 'grabbed' ? 'lidarr' : 'success'} />
+        {item.quality ? <Text style={styles.historySubtitle}>{item.quality.quality.name}</Text> : null}
+      </View>
+      <Text style={styles.historyDate}>{formatDate(item.date) ?? ''}</Text>
+    </View>
+  );
+});
+
 // Only these sort fields make sense as section-header groups.
 const GROUPABLE_KEYS: SortKey[] = ['title', 'added', 'qualityProfile', 'genre'];
 
@@ -254,7 +322,7 @@ export default function MusicScreen() {
       setArtists(artistList);
       if (!profilesLoaded.current) {
         profilesLoaded.current = true;
-        lidarrApi.getQualityProfiles(config).then(setProfiles);
+        lidarrApi.getQualityProfiles(config).then(setProfiles).catch((e) => console.error('Failed to load quality profiles', e));
       }
       if (!prefsLoaded.current) {
         prefsLoaded.current = true;
@@ -717,26 +785,9 @@ export default function MusicScreen() {
             renderSectionHeader={({ section }) => <Text style={styles.dayHeader}>{section.title}</Text>}
             renderItem={({ item: row }) => (
               <View style={styles.row}>
-                {row.map((item) => {
-                  const poster = item.artist?.images.find((i) => i.coverType === 'poster');
-                  const posterUrl = lidarrImageUrl(poster, config, { type: 'artist', id: item.artistId });
-                  return (
-                    <Pressable key={item.id} style={[styles.card, styles.rowItem]} onPress={() => router.push(`/artist/${item.artistId}`)}>
-                      {posterUrl ? (
-                        <Image source={{ uri: posterUrl }} style={styles.poster} cachePolicy="memory-disk" />
-                      ) : (
-                        <View style={[styles.poster, styles.posterPlaceholder]} />
-                      )}
-                      <View style={styles.info}>
-                        <Text style={styles.title} numberOfLines={1}>
-                          {item.artist?.artistName ?? 'Unknown artist'}
-                        </Text>
-                        <Text style={styles.historySubtitle}>{item.title}</Text>
-                        <Text style={styles.historyDate}>{formatDate(item.releaseDate) ?? ''}</Text>
-                      </View>
-                    </Pressable>
-                  );
-                })}
+                {row.map((item) => (
+                  <UpcomingRow key={item.id} item={item} config={config} />
+                ))}
               </View>
             )}
             {...LIST_PERF_PROPS}
@@ -751,33 +802,9 @@ export default function MusicScreen() {
             ListEmptyComponent={!loadingActivity ? <Text style={styles.empty}>Nothing pending</Text> : null}
             renderItem={({ item: row }) => (
               <View style={styles.row}>
-                {row.map((item) => {
-                  const pct = item.size > 0 ? Math.round(((item.size - item.sizeleft) / item.size) * 100) : 100;
-                  const messages = item.statusMessages?.flatMap((m) => m.messages) ?? [];
-                  return (
-                    <Pressable
-                      key={item.id}
-                      style={[styles.historyRow, styles.rowItem]}
-                      onPress={() => item.artistId && router.push(`/artist/${item.artistId}`)}
-                    >
-                      <Text style={styles.historyTitle} numberOfLines={2}>
-                        {item.title}
-                      </Text>
-                      <View style={styles.badgeRow}>
-                        <Badge label={titleCase(item.status)} tone={activityTone(item)} />
-                        <Text style={styles.historySubtitle}>
-                          {pct}% · {formatBytes(item.size)}
-                        </Text>
-                      </View>
-                      {item.errorMessage ? <Text style={styles.activityWarning}>{item.errorMessage}</Text> : null}
-                      {messages.map((msg, i) => (
-                        <Text key={i} style={styles.activityWarning}>
-                          • {msg}
-                        </Text>
-                      ))}
-                    </Pressable>
-                  );
-                })}
+                {row.map((item) => (
+                  <ActivityRow key={item.id} item={item} />
+                ))}
               </View>
             )}
             {...LIST_PERF_PROPS}
@@ -793,16 +820,7 @@ export default function MusicScreen() {
             renderItem={({ item: row }) => (
               <View style={styles.row}>
                 {row.map((item) => (
-                  <View key={item.id} style={[styles.historyRow, styles.rowItem]}>
-                    <Text style={styles.historyTitle} numberOfLines={2}>
-                      {item.sourceTitle}
-                    </Text>
-                    <View style={styles.badgeRow}>
-                      <Badge label={historyEventLabel(item.eventType)} tone={item.eventType === 'grabbed' ? 'lidarr' : 'success'} />
-                      {item.quality ? <Text style={styles.historySubtitle}>{item.quality.quality.name}</Text> : null}
-                    </View>
-                    <Text style={styles.historyDate}>{formatDate(item.date) ?? ''}</Text>
-                  </View>
+                  <HistoryRow key={item.id} item={item} />
                 ))}
               </View>
             )}
