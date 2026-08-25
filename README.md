@@ -7,17 +7,18 @@
 
 **Walk your stack with ease.**
 
-A cross-platform (iOS + Android + Docker/web) app for managing your home media server stack — Sonarr, Radarr, Lidarr, SABnzbd/NZBGet, qBittorrent, Overseerr, Tautulli, and Portainer — all in one place, plus a Discover tab (TMDB/OMDb for movies & TV, Last.fm for music) for browsing and requesting new movies, shows, and artists. Supports multiple isolated server profiles with encrypted backup/restore, so one install can manage more than one stack. Self-hosted by design — your credentials, your infrastructure, nothing routed through a third party. The Docker/web build supports multiple user accounts too, each with their own independent set of profiles, managed by a single admin.
+A cross-platform (iOS + Android + Docker/web) app for managing your home media server stack — Sonarr, Radarr, Lidarr, SABnzbd/NZBGet, qBittorrent/Transmission, Overseerr, Tautulli, and Portainer — all in one place, plus a Discover tab (TMDB/OMDb for movies & TV, Last.fm for music) for browsing and requesting new movies, shows, and artists. Supports multiple isolated server profiles with encrypted backup/restore, so one install can manage more than one stack. Self-hosted by design — your credentials, your infrastructure, nothing routed through a third party. The Docker/web build supports multiple user accounts too, each with their own independent set of profiles, managed by a single admin.
 
 ## Features
 
 - **Discover** — search and browse movies, TV, and music, see what's trending, popular, upcoming, or newly released, and add straight to your library in one tap. Movie/TV detail pages include cast & crew, ratings from IMDb/Rotten Tomatoes/Metacritic/TMDB, similar-title recommendations, and where a title is currently streaming in your region. Music Discover (powered by Last.fm) surfaces top artists, new releases, and genre browsing, with artist bios and similar-artist recommendations.
 - **TV Shows & Movies** (Sonarr/Radarr) — browse your library, drill into seasons and episodes, monitor or search for missing content, view file quality, and manage what's downloaded.
 - **Music** (Lidarr) — browse your artist library, drill into albums and tracks, monitor or search for missing releases, and add new artists straight from Discover.
-- **Downloads & Torrents** (SABnzbd, NZBGet, and qBittorrent) — live queue and history, with pause/resume/delete and real-time progress. SABnzbd and NZBGet each get their own section, independently enabled — most setups only run one, but nothing stops you from enabling both.
+- **Downloads & Torrents** (SABnzbd, NZBGet, qBittorrent, and Transmission) — live queue and history, with pause/resume/delete and real-time progress. Each client gets its own section, independently enabled — most setups only run one Usenet client and one torrent client, but nothing stops you from enabling more than one of either.
 - **Requests** (Overseerr) — review, approve, or decline requests from the people you share your server with.
 - **Stats** (Tautulli) — see what's playing on Plex right now, who's watching, and library-wide watch history and trends.
 - **Containers** (Portainer) — start, stop, restart, or recreate any container in your Docker stack, right from the app.
+- **Spin** — build a wheel out of titles from your Movies and TV library (mix both, or keep them separate), then spin it to randomly pick something to watch. Save as many named wheels as you like and revisit them anytime, with an optional "remove after landing" toggle per wheel. On the Docker/web build, any wheel can be shared with every user on the instance.
 - **Server Profiles** — manage more than one server stack from a single install, each fully isolated, with encrypted backup and restore.
 - **Self-hosted web option** — run WalkerLab as its own Docker container with a secure admin login, so you can manage your stack remotely without exposing your other services directly to the internet.
 - **Multi-user (Docker/web)** — the admin can create additional accounts from Settings, each with their own completely independent set of Server Profiles on the same shared instance.
@@ -26,7 +27,7 @@ A cross-platform (iOS + Android + Docker/web) app for managing your home media s
 ## Tech Stack
 
 - [Expo](https://expo.dev) (SDK 57) + React Native + TypeScript, [Expo Router](https://docs.expo.dev/router/introduction/)
-- On iOS/Android, talks directly to the Sonarr, Radarr, Lidarr, SABnzbd, NZBGet, qBittorrent, Overseerr, TMDB, OMDb, Last.fm, Tautulli, and Portainer APIs, plus Apple's keyless iTunes Search/Marketing Tools endpoints for Music Discover cover art and new releases
+- On iOS/Android, talks directly to the Sonarr, Radarr, Lidarr, SABnzbd, NZBGet, qBittorrent, Transmission, Overseerr, TMDB, OMDb, Last.fm, Tautulli, and Portainer APIs, plus Apple's keyless iTunes Search/Marketing Tools endpoints for Music Discover cover art and new releases
 - The Docker/web build adds a small Express + TypeScript backend (`server/`) that proxies every service call and stores credentials encrypted at rest — see [Installation](#installation) below
 
 ## Installation
