@@ -236,13 +236,6 @@ export default function SeasonEpisodesScreen() {
             return (
               <View>
                 <Pressable style={styles.row} onPress={() => rowPress(item)} onLongPress={() => toggleSelected(item.id)}>
-                  <TouchableOpacity style={styles.checkbox} onPress={() => toggleSelected(item.id)}>
-                    <Ionicons
-                      name={isSelected ? 'checkbox' : 'square-outline'}
-                      size={22}
-                      color={isSelected ? colors.sonarr : colors.textSecondary}
-                    />
-                  </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.monitorButton}
                     onPress={() => setMonitoredBulk([item.id], !item.monitored)}
@@ -269,6 +262,13 @@ export default function SeasonEpisodesScreen() {
                     )}
                   </View>
                   {airDate ? <Text style={styles.rowDate}>{airDate}</Text> : null}
+                  <TouchableOpacity style={styles.checkbox} onPress={() => toggleSelected(item.id)}>
+                    <Ionicons
+                      name={isSelected ? 'checkbox' : 'square-outline'}
+                      size={22}
+                      color={isSelected ? colors.sonarr : colors.textSecondary}
+                    />
+                  </TouchableOpacity>
                 </Pressable>
 
                 {isExpanded ? (
