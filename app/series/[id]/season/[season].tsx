@@ -243,6 +243,17 @@ export default function SeasonEpisodesScreen() {
                       color={isSelected ? colors.sonarr : colors.textSecondary}
                     />
                   </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.monitorButton}
+                    onPress={() => setMonitoredBulk([item.id], !item.monitored)}
+                    disabled={busy}
+                  >
+                    <Ionicons
+                      name={item.monitored ? 'bookmark' : 'bookmark-outline'}
+                      size={18}
+                      color={item.monitored ? colors.sonarr : colors.textMuted}
+                    />
+                  </TouchableOpacity>
                   <View style={styles.rowInfo}>
                     <Text style={styles.rowTitle}>
                       E{item.episodeNumber} · {item.title}
@@ -385,6 +396,7 @@ const styles = StyleSheet.create({
   rowStatusOk: { color: colors.success, fontSize: 13, fontWeight: '600', marginTop: 2 },
   rowStatusMissing: { color: colors.danger, fontSize: 13, fontWeight: '600', marginTop: 2 },
   rowDate: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
+  monitorButton: { padding: 4 },
   expandActionRow: { flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 8 },
   expandActionRowNoFile: { marginBottom: 16 },
   expandAction: {

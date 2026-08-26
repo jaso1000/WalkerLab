@@ -17,7 +17,10 @@
 // not a tmdbId - Sonarr series carry no tmdbId at all (only tvdbId), so
 // using the local id keeps this feature independent of TMDB being
 // configured, and doubles as exactly what `/movie/[id]`/`/series/[id]`
-// need to open the item.
+// need to open the item. `tmdbId` is the alternative for an item added
+// from the wheel builder's TMDB tab - a title you don't (yet) have in your
+// library at all, so there's no local id to snapshot; exactly one of
+// `libraryId`/`tmdbId` is ever set on a given item, see `wheelItemHref`.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { apiFetch } from './backendApi';
@@ -26,11 +29,21 @@ import { profileKey } from './profileStorage';
 export type WheelItemMediaType = 'movie' | 'tv';
 
 export interface WheelItem {
-  id: string; // `${mediaType}-${libraryId}` - unique within one wheel
-  libraryId: number;
+  id: string; // `${mediaType}-${libraryId}` for library items, `${mediaType}-tmdb-${tmdbId}` for TMDB-only items - unique within one wheel
   mediaType: WheelItemMediaType;
+  libraryId?: number;
+  tmdbId?: number;
   title: string;
   posterUrl?: string;
+}
+
+// Where a wheel item's own detail page lives - TMDB's own Discover detail
+// page (works for any title, whether or not it's in your library) for
+// items added from the TMDB tab, the local Sonarr/Radarr detail page
+// otherwise.
+export function wheelItemHref(item: WheelItem): string {
+  if (item.tmdbId != null) return `/discover/${item.mediaType === 'movie' ? 'movie' : 'tv'}/${item.tmdbId}`;
+  return item.mediaType === 'movie' ? `/movie/${item.libraryId}` : `/series/${item.libraryId}`;
 }
 
 export interface Wheel {

@@ -18,6 +18,7 @@ import {
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { radarrApi, RadarrMovie, RadarrQualityProfile } from '../../src/api/radarr';
 import { sonarrApi, SonarrQualityProfile, SonarrSeries } from '../../src/api/sonarr';
+import { tmdbApi, tmdbImageUrl } from '../../src/api/tmdb';
 import { Badge } from '../../src/components/Badge';
 import { NotConfigured } from '../../src/components/NotConfigured';
 import { RatingBadges } from '../../src/components/RatingBadges';
@@ -29,7 +30,7 @@ import { alert } from '../../src/lib/alert';
 import { formatBytes, seriesStatusTone, titleCase } from '../../src/lib/format';
 import { chunk, useColumns, useContentWidth } from '../../src/lib/responsive';
 import { useTabBarClearance } from '../../src/lib/tabBarClearance';
-import { getWheels, newWheelId, saveWheel, Wheel, WheelItem } from '../../src/lib/wheels';
+import { getWheels, newWheelId, saveWheel, Wheel, WheelItem, wheelItemHref } from '../../src/lib/wheels';
 import { useProfiles } from '../../src/context/ProfilesContext';
 import { colors } from '../../src/theme/colors';
 
@@ -38,11 +39,40 @@ import { colors } from '../../src/theme/colors';
 // Structured as a real swipeable tab bar, same as Movies/TV Shows/Torrents
 // elsewhere in this app, rather than a small strip + segmented toggle -
 // "In Wheel" is its own full tab for reviewing/removing what's already
-// selected, and "Movies"/"TV Shows" are the browse-and-add tabs (only
-// shown for whichever service is actually configured). Movies and TV can
-// still mix in one wheel - the tabs only control which list is showing,
-// not what's allowed in the wheel.
-type TabKey = 'wheel' | 'movies' | 'tv';
+// selected, "Radarr"/"Sonarr" are the browse-your-library-and-add tabs
+// (only shown for whichever service is actually configured), and "TMDB" is
+// browse-anything-and-add (trending by default, searchable) for titles you
+// don't have in your library at all - only shown when TMDB is configured.
+// Movies and TV can still mix in one wheel - the tabs only control which
+// list is showing, not what's allowed in the wheel.
+type TabKey = 'wheel' | 'movies' | 'tv' | 'tmdb';
+
+// Normalized shape for the TMDB tab's grid - both `trendingAll` and
+// `searchMulti` already carry `media_type` directly on each result, but as
+// slightly different response types (and `searchMulti` can return
+// `media_type: 'person'` rows, which get filtered out here), so this is the
+// one place that reconciles them into what the grid actually needs to render.
+interface TmdbPickerItem {
+  id: number;
+  mediaType: 'movie' | 'tv';
+  title: string;
+  posterUrl?: string;
+  rating?: number;
+}
+
+function normalizeTmdbResults(
+  results: { id: number; media_type: 'movie' | 'tv' | 'person'; title?: string; name?: string; poster_path?: string; vote_average?: number }[]
+): TmdbPickerItem[] {
+  return results
+    .filter((r) => r.media_type === 'movie' || r.media_type === 'tv')
+    .map((r) => ({
+      id: r.id,
+      mediaType: r.media_type as 'movie' | 'tv',
+      title: (r.media_type === 'movie' ? r.title : r.name) ?? '',
+      posterUrl: tmdbImageUrl(r.poster_path),
+      rating: r.vote_average,
+    }));
+}
 
 // Same sort fields as movies.tsx/index.tsx's own "All" tabs (kept as two
 // separate lists, same as those screens, since the two services' sortable
@@ -205,16 +235,52 @@ const LibraryCard = memo(function LibraryCard({
   );
 });
 
+// TMDB tab's card - poster, title, rating, tap-to-select/long-press-to-
+// preview like LibraryCard, but no downloaded badge/size/quality profile
+// row since these titles aren't necessarily in the library at all (that's
+// the whole point of this tab).
+const TmdbCard = memo(function TmdbCard({
+  item,
+  selected,
+  onPress,
+  onLongPress,
+}: {
+  item: TmdbPickerItem;
+  selected: boolean;
+  onPress: () => void;
+  onLongPress: () => void;
+}) {
+  return (
+    <TouchableOpacity style={[styles.card, styles.rowItem]} onPress={onPress} onLongPress={onLongPress}>
+      {item.posterUrl ? (
+        <Image source={{ uri: item.posterUrl }} style={styles.poster} cachePolicy="memory-disk" />
+      ) : (
+        <View style={[styles.poster, styles.posterPlaceholder]} />
+      )}
+      {selected ? (
+        <View style={styles.cardCheckOverlay}>
+          <View style={styles.cardCheck}>
+            <Ionicons name="checkmark" size={14} color={colors.background} />
+          </View>
+        </View>
+      ) : null}
+      <View style={styles.info}>
+        <Text style={styles.title} numberOfLines={2}>
+          {item.title}
+        </Text>
+        <RatingBadges imdb={item.rating} compact />
+      </View>
+    </TouchableOpacity>
+  );
+});
+
 // "In Wheel" tab's row - same card shape as LibraryCard, but a WheelItem is
 // only a lightweight snapshot (no badge/size/rating data by design, see
 // wheels.ts), so this just shows poster + title + a real remove button
 // instead of a selection checkmark.
 const WheelRow = memo(function WheelRow({ item, onRemove }: { item: WheelItem; onRemove: (item: WheelItem) => void }) {
   return (
-    <TouchableOpacity
-      style={[styles.card, styles.rowItem]}
-      onPress={() => router.push(item.mediaType === 'movie' ? `/movie/${item.libraryId}` : `/series/${item.libraryId}`)}
-    >
+    <TouchableOpacity style={[styles.card, styles.rowItem]} onPress={() => router.push(wheelItemHref(item))}>
       {item.posterUrl ? (
         <Image source={{ uri: item.posterUrl }} style={styles.poster} cachePolicy="memory-disk" />
       ) : (
@@ -316,6 +382,7 @@ export default function WheelBuilderScreen() {
   });
   const radarrConfig = servers.radarr;
   const sonarrConfig = servers.sonarr;
+  const tmdbConfig = servers.tmdb;
 
   const [name, setName] = useState('');
   const [removeAfterSpin, setRemoveAfterSpin] = useState(false);
@@ -335,35 +402,51 @@ export default function WheelBuilderScreen() {
   const [seriesSort, setSeriesSort] = useState<{ key: SeriesSortKey; asc: boolean }>({ key: 'title', asc: true });
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
 
+  // TMDB tab: trending by default, `tmdbQuery` non-empty switches to search
+  // results instead (debounced, same 350ms pattern as Discover's own search
+  // bar - see `runTmdbSearch` below). Kept entirely separate from the
+  // Radarr/Sonarr tabs' `search` state since this hits a remote API per
+  // keystroke rather than filtering already-loaded data client-side.
+  const [tmdbTrending, setTmdbTrending] = useState<TmdbPickerItem[]>([]);
+  const [tmdbSearchResults, setTmdbSearchResults] = useState<TmdbPickerItem[]>([]);
+  const [tmdbQuery, setTmdbQuery] = useState('');
+  const [tmdbSearching, setTmdbSearching] = useState(false);
+  const tmdbSearchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [activeTab, setActiveTab] = useState(0);
 
   // Tabs are built from whichever services are actually configured - "In
-  // Wheel" always exists, "Movies"/"TV Shows" only appear when their
-  // service is set up (the screen already requires at least one, see the
-  // NotConfigured gate below).
+  // Wheel" always exists, "Radarr"/"Sonarr"/"TMDB" only appear when their
+  // service is set up (the screen already requires at least one of Radarr/
+  // Sonarr, see the NotConfigured gate below - TMDB is purely additive).
   const tabs = useMemo(() => {
     const list: { key: TabKey; label: string }[] = [{ key: 'wheel', label: `In Wheel (${items.length})` }];
-    if (radarrConfig) list.push({ key: 'movies', label: 'Movies' });
-    if (sonarrConfig) list.push({ key: 'tv', label: 'TV Shows' });
+    if (radarrConfig) list.push({ key: 'movies', label: 'Radarr' });
+    if (sonarrConfig) list.push({ key: 'tv', label: 'Sonarr' });
+    if (tmdbConfig) list.push({ key: 'tmdb', label: 'TMDB' });
     return list;
-  }, [items.length, radarrConfig, sonarrConfig]);
+  }, [items.length, radarrConfig, sonarrConfig, tmdbConfig]);
   const activeKey = tabs[activeTab]?.key ?? 'wheel';
 
-  // Loads the saved wheel (edit mode) and the Movies/TV library in
-  // parallel, once per focus - cheap enough (a plain library list fetch,
-  // same one Movies/TV Shows themselves already do) not to bother caching.
+  // Loads the saved wheel (edit mode), the Movies/TV library, and TMDB's
+  // trending row in parallel, once per focus - cheap enough (plain list
+  // fetches, same ones Movies/TV Shows/Discover themselves already do) not
+  // to bother caching. Trending loads eagerly alongside everything else
+  // (not lazily on first switching to the TMDB tab) so opening that tab is
+  // instant, same reasoning as why Movies/TV Shows load up front too.
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
       (async () => {
         setLoadingLibrary(true);
         try {
-          const [wheels, movieList, seriesList, movieProfileList, seriesProfileList] = await Promise.all([
+          const [wheels, movieList, seriesList, movieProfileList, seriesProfileList, trending] = await Promise.all([
             getWheels(activeProfileId),
             radarrConfig ? radarrApi.getMovies(radarrConfig).catch(() => []) : Promise.resolve([]),
             sonarrConfig ? sonarrApi.getSeries(sonarrConfig).catch(() => []) : Promise.resolve([]),
             radarrConfig ? radarrApi.getQualityProfiles(radarrConfig).catch(() => []) : Promise.resolve([]),
             sonarrConfig ? sonarrApi.getQualityProfiles(sonarrConfig).catch(() => []) : Promise.resolve([]),
+            tmdbConfig ? tmdbApi.trendingAll(tmdbConfig).catch(() => ({ results: [] })) : Promise.resolve({ results: [] }),
           ]);
           if (cancelled) return;
           setExistingWheels(wheels);
@@ -371,6 +454,7 @@ export default function WheelBuilderScreen() {
           setSeries(seriesList);
           setMovieProfiles(movieProfileList);
           setSeriesProfiles(seriesProfileList);
+          setTmdbTrending(normalizeTmdbResults(trending.results));
           if (wheelId) {
             const existing = wheels.find((w) => w.id === wheelId);
             if (existing) {
@@ -390,7 +474,7 @@ export default function WheelBuilderScreen() {
         cancelled = true;
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeProfileId, radarrConfig, sonarrConfig])
+    }, [activeProfileId, radarrConfig, sonarrConfig, tmdbConfig])
   );
 
   const handleTabChange = (index: number) => setActiveTab(index);
@@ -428,6 +512,52 @@ export default function WheelBuilderScreen() {
       .map((s) => ({ id: `tv-${s.id}`, libraryId: s.id, mediaType: 'tv', title: s.title, posterUrl: posterUrl(s.images) }));
     setItems((prev) => [...prev, ...toAdd]);
   };
+
+  const toggleTmdbItem = (item: TmdbPickerItem) => {
+    toggleItem({
+      id: `${item.mediaType}-tmdb-${item.id}`,
+      tmdbId: item.id,
+      mediaType: item.mediaType,
+      title: item.title,
+      posterUrl: item.posterUrl,
+    });
+  };
+
+  // Debounced the same way Discover's own search bar is (350ms) - this
+  // hits TMDB's real search API per query, not a client-side filter over
+  // already-loaded data like the Radarr/Sonarr tabs' `search` above.
+  const runTmdbSearch = useCallback(
+    (text: string) => {
+      if (tmdbSearchDebounce.current) clearTimeout(tmdbSearchDebounce.current);
+      if (!text.trim() || !tmdbConfig) {
+        setTmdbSearchResults([]);
+        setTmdbSearching(false);
+        return;
+      }
+      setTmdbSearching(true);
+      tmdbSearchDebounce.current = setTimeout(() => {
+        tmdbApi
+          .searchMulti(tmdbConfig, text.trim())
+          .then((res) => setTmdbSearchResults(normalizeTmdbResults(res.results)))
+          .catch(() => setTmdbSearchResults([]))
+          .finally(() => setTmdbSearching(false));
+      }, 350);
+    },
+    [tmdbConfig]
+  );
+
+  const handleTmdbQueryChange = (text: string) => {
+    setTmdbQuery(text);
+    runTmdbSearch(text);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (tmdbSearchDebounce.current) clearTimeout(tmdbSearchDebounce.current);
+    };
+  }, []);
+
+  const tmdbData = tmdbQuery.trim() ? tmdbSearchResults : tmdbTrending;
 
   // Tapping the currently-active sort field flips its direction; picking a
   // different field switches to it at that field's own default direction -
@@ -476,6 +606,7 @@ export default function WheelBuilderScreen() {
 
   const chunkedMovies = useMemo(() => chunk(movieData, columns), [movieData, columns]);
   const chunkedSeries = useMemo(() => chunk(seriesData, columns), [seriesData, columns]);
+  const chunkedTmdb = useMemo(() => chunk(tmdbData, columns), [tmdbData, columns]);
   const chunkedItems = useMemo(() => chunk(items, columns), [items, columns]);
   const rowKey = (row: { id: number | string }[]) => row.map((r) => r.id).join('-');
 
@@ -570,9 +701,7 @@ export default function WheelBuilderScreen() {
             data={chunkedItems}
             keyExtractor={rowKey}
             contentContainerStyle={[items.length === 0 ? styles.emptyContainer : styles.grid, { paddingBottom: 24 + tabBarClearance }]}
-            ListEmptyComponent={
-              <Text style={styles.empty}>Nothing added yet - switch to Movies or TV Shows to add titles.</Text>
-            }
+            ListEmptyComponent={<Text style={styles.empty}>Nothing added yet - switch to another tab to add titles.</Text>}
             renderItem={({ item: row }) => (
               <View style={styles.gridRow}>
                 {row.map((wi) => (
@@ -672,6 +801,54 @@ export default function WheelBuilderScreen() {
             />
           </View>
         ) : null}
+
+        {tmdbConfig ? (
+          <View style={[styles.page, { width }]}>
+            <View style={styles.pageHeaderRow}>
+              <View style={styles.searchInputWrapper}>
+                <Ionicons name="search" size={16} color={colors.textSecondary} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search movies & TV..."
+                  placeholderTextColor={colors.textMuted}
+                  value={tmdbQuery}
+                  onChangeText={handleTmdbQueryChange}
+                />
+                {tmdbQuery ? (
+                  <TouchableOpacity onPress={() => handleTmdbQueryChange('')}>
+                    <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            </View>
+            <Text style={styles.tmdbSectionLabel}>{tmdbQuery.trim() ? 'Search results' : 'Trending this week'}</Text>
+            {tmdbSearching ? (
+              <ActivityIndicator color={colors.spin} style={{ marginTop: 24 }} />
+            ) : (
+              <FlatList
+                data={chunkedTmdb}
+                keyExtractor={rowKey}
+                contentContainerStyle={[styles.grid, { paddingBottom: 24 + tabBarClearance }]}
+                ListEmptyComponent={
+                  <Text style={styles.empty}>{tmdbQuery.trim() ? 'No results.' : 'Nothing trending right now.'}</Text>
+                }
+                renderItem={({ item: row }) => (
+                  <View style={styles.gridRow}>
+                    {row.map((entry) => (
+                      <TmdbCard
+                        key={`${entry.mediaType}-${entry.id}`}
+                        item={entry}
+                        selected={selectedIds.has(`${entry.mediaType}-tmdb-${entry.id}`)}
+                        onPress={() => toggleTmdbItem(entry)}
+                        onLongPress={() => router.push(`/discover/${entry.mediaType}/${entry.id}`)}
+                      />
+                    ))}
+                  </View>
+                )}
+              />
+            )}
+          </View>
+        ) : null}
       </Animated.ScrollView>
 
       <SortMenu
@@ -710,6 +887,7 @@ const styles = StyleSheet.create({
   pager: { flex: 1 },
   page: { flex: 1 },
   pageHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, marginBottom: 8 },
+  tmdbSectionLabel: { color: colors.textSecondary, fontSize: 13, fontWeight: '600', paddingHorizontal: 16, marginBottom: 10 },
   searchInputWrapper: {
     flex: 1,
     flexDirection: 'row',

@@ -19,7 +19,7 @@ import { alert } from '../../src/lib/alert';
 import { useContentWidth } from '../../src/lib/responsive';
 import { SECTION_META } from '../../src/lib/sectionMeta';
 import { useTabBarClearance } from '../../src/lib/tabBarClearance';
-import { getWheels, saveWheel, Wheel, WheelItem } from '../../src/lib/wheels';
+import { getWheels, saveWheel, Wheel, WheelItem, wheelItemHref } from '../../src/lib/wheels';
 import { colors } from '../../src/theme/colors';
 
 // The actual spin: a horizontal strip of the wheel's posters, repeated many
@@ -39,8 +39,22 @@ const ITEM_WIDTH = TILE_WIDTH + TILE_GAP;
 // Bumped from 12 - the overshoot variant below needs a couple of spare
 // laps of strip *after* where the target normally would have landed, on
 // top of the laps needed for a full-length spin before it.
-const LAPS = 16;
+const MAX_LAPS = 16;
 const SPIN_DURATION = 5200;
+// Every tile in every lap renders a real <Image> (no placeholders - tried
+// that, but with a 5.2s spin most of the strip is on screen slowly enough
+// to actually see, so blank tiles were plainly visible, not an imperceptible
+// blur). What scales instead is lap COUNT: a small wheel gets the full
+// MAX_LAPS, but past ~30 items the total tile count is capped by shrinking
+// laps rather than growing 1:1 with the wheel's size - the whole reason a
+// big wheel was slower to begin with was mounting MAX_LAPS real <Image>
+// views per item regardless of how large the wheel already was.
+const MAX_TOTAL_TILES = MAX_LAPS * 30;
+const MIN_LAPS = 6;
+function lapsFor(itemCount: number): number {
+  if (itemCount <= 0) return MAX_LAPS;
+  return Math.max(MIN_LAPS, Math.min(MAX_LAPS, Math.floor(MAX_TOTAL_TILES / itemCount)));
+}
 // Just tall enough for one row of posters plus the flapper above it - not
 // `flex: 1`, so the strip sits right under the header instead of centering
 // itself in whatever space is left over (which read as "floating in the
@@ -48,8 +62,9 @@ const SPIN_DURATION = 5200;
 const VIEWPORT_HEIGHT = TILE_WIDTH * 1.5 + 40;
 
 function buildStrip(items: WheelItem[]): WheelItem[] {
+  const laps = lapsFor(items.length);
   const strip: WheelItem[] = [];
-  for (let lap = 0; lap < LAPS; lap++) strip.push(...items);
+  for (let lap = 0; lap < laps; lap++) strip.push(...items);
   return strip;
 }
 
@@ -96,6 +111,18 @@ export default function SpinWheelScreen() {
           const wheels = await getWheels(activeProfileId);
           if (cancelled) return;
           const found = wheels.find((w) => w.id === wheelId) ?? null;
+          if (found) {
+            // The strip repeats every item LAPS times, so without this the
+            // screen mounts up to LAPS * item-count real <Image> views all
+            // at once, each independently hitting network/decode - visible
+            // as lag on first open, worse the bigger the wheel. Prefetching
+            // just the wheel's *unique* posters first means by the time the
+            // strip actually mounts, every one of those repeated tiles is
+            // resolving from cache instead of racing a fresh fetch.
+            const posterUrls = [...new Set(found.items.map((i) => i.posterUrl).filter((u): u is string => !!u))];
+            if (posterUrls.length > 0) await Image.prefetch(posterUrls, 'memory-disk');
+          }
+          if (cancelled) return;
           setWheel(found);
           if (found) setStrip(buildStrip(found.items));
         } catch (e) {
@@ -165,6 +192,7 @@ export default function SpinWheelScreen() {
     setResult(null);
     setSpinning(true);
     const itemsLength = wheel.items.length;
+    const laps = lapsFor(itemsLength);
     const target = availableItems[Math.floor(Math.random() * availableItems.length)];
     const targetIndex = wheel.items.findIndex((i) => i.id === target.id);
     // Lands a couple of laps short of the very last one - keeps the same
@@ -172,9 +200,9 @@ export default function SpinWheelScreen() {
     // *after* the target for the variant that overshoots past it before
     // rolling back (the tease variants only ever look backward, which the
     // many preceding laps already comfortably cover).
-    const lap = LAPS - 3 - Math.floor(Math.random() * 2);
+    const lap = laps - 3 - Math.floor(Math.random() * 2);
     const targetFlatIndex = lap * itemsLength + targetIndex;
-    const totalTiles = LAPS * itemsLength;
+    const totalTiles = laps * itemsLength;
     const translateFor = (flatIndex: number) => -(flatIndex * ITEM_WIDTH + ITEM_WIDTH / 2 - width / 2);
     const targetTranslateX = translateFor(targetFlatIndex);
 
@@ -317,7 +345,7 @@ export default function SpinWheelScreen() {
                 </Text>
                 <TouchableOpacity
                   style={[styles.openButton, { backgroundColor: colors.spin }]}
-                  onPress={() => router.push(result.mediaType === 'movie' ? `/movie/${result.libraryId}` : `/series/${result.libraryId}`)}
+                  onPress={() => router.push(wheelItemHref(result))}
                 >
                   <Text style={styles.openButtonText}>Open</Text>
                 </TouchableOpacity>

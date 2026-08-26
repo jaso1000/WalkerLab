@@ -60,8 +60,12 @@ export type WheelItemMediaType = 'movie' | 'tv';
 
 export interface WheelItem {
   id: string;
-  libraryId: number;
   mediaType: WheelItemMediaType;
+  // Exactly one of these is set - `libraryId` for items from the user's
+  // Sonarr/Radarr library, `tmdbId` for items added from the wheel
+  // builder's TMDB tab (a title not necessarily in their library at all).
+  libraryId?: number;
+  tmdbId?: number;
   title: string;
   posterUrl?: string;
 }
