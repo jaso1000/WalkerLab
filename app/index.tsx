@@ -47,6 +47,7 @@ import {
   formatMonthYear,
   formatTime,
   historyEventLabel,
+  historyEventTone,
   seriesStatusTone,
   titleCase,
 } from '../src/lib/format';
@@ -834,18 +835,38 @@ export default function SeriesScreen() {
             ListEmptyComponent={!loadingHistory ? <Text style={styles.empty}>No history yet</Text> : null}
             renderItem={({ item: row }) => (
               <View style={styles.row}>
-                {row.map((item) => (
-                  <View key={item.id} style={[styles.historyRow, styles.rowItem]}>
-                    <Text style={styles.historyTitle} numberOfLines={2}>
-                      {item.sourceTitle}
-                    </Text>
-                    <View style={styles.badgeRow}>
-                      <Badge label={historyEventLabel(item.eventType)} tone={item.eventType === 'grabbed' ? 'sonarr' : 'success'} />
-                      {item.quality ? <Text style={styles.historySubtitle}>{item.quality.quality.name}</Text> : null}
+                {row.map((item) => {
+                  const poster = item.series?.images.find((i) => i.coverType === 'poster');
+                  const meta = [item.quality?.quality.name, item.data?.downloadClient].filter(Boolean).join(' · ');
+                  return (
+                    <View key={item.id} style={[styles.card, styles.rowItem]}>
+                      {poster?.remoteUrl ? (
+                        <Image source={{ uri: poster.remoteUrl }} style={styles.poster} cachePolicy="memory-disk" />
+                      ) : (
+                        <View style={[styles.poster, styles.posterPlaceholder]} />
+                      )}
+                      <View style={styles.info}>
+                        <View style={styles.historyTitleRow}>
+                          <Text style={styles.title} numberOfLines={1}>
+                            {item.series?.title ?? item.sourceTitle}
+                          </Text>
+                          <Text style={styles.historyRowDate}>{formatDate(item.date) ?? ''}</Text>
+                        </View>
+                        {item.episode ? (
+                          <Text style={styles.historySubtitle} numberOfLines={1}>
+                            S{item.episode.seasonNumber}E{item.episode.episodeNumber} · {item.episode.title}
+                          </Text>
+                        ) : null}
+                        <Badge label={historyEventLabel(item.eventType)} tone={historyEventTone(item.eventType, 'sonarr')} />
+                        {meta ? (
+                          <Text style={styles.historySubtitle} numberOfLines={1}>
+                            {meta}
+                          </Text>
+                        ) : null}
+                      </View>
                     </View>
-                    <Text style={styles.historyDate}>{formatDate(item.date) ?? ''}</Text>
-                  </View>
-                ))}
+                  );
+                })}
               </View>
             )}
             {...LIST_PERF_PROPS}
@@ -1007,7 +1028,12 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   historyTitle: { color: colors.textPrimary, fontWeight: '700', fontSize: 14 },
+  historyTitleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
   historySubtitle: { color: colors.textSecondary, fontSize: 12, marginTop: 4 },
+  // Upcoming's own date/time line sits stacked below other text, so it
+  // needs the top margin; History's date sits inline in `historyTitleRow`
+  // instead (see `historyRowDate` below, same color/weight, no margin).
   historyDate: { color: colors.sonarr, fontSize: 12, fontWeight: '600', marginTop: 6 },
+  historyRowDate: { color: colors.sonarr, fontSize: 12, fontWeight: '600' },
   activityWarning: { color: colors.sonarr, fontSize: 12, marginTop: 6, lineHeight: 16 },
 });

@@ -45,6 +45,7 @@ import {
   formatDayGroup,
   formatMonthYear,
   historyEventLabel,
+  historyEventTone,
   titleCase,
 } from '../src/lib/format';
 import { groupConsecutive } from '../src/lib/groupBy';
@@ -208,17 +209,33 @@ const ActivityRow = memo(function ActivityRow({ item }: { item: RadarrQueueItem 
 
 // History tab's row - not interactive (no Pressable), but still memoized so
 // scrolling/unrelated state changes don't re-render every off-screen entry.
+// Same poster-card shape as UpcomingRow (poster/title/subtitle), rather than
+// the old text-only row, so History reads like the rest of this screen's
+// tabs instead of a plain list.
 const HistoryRow = memo(function HistoryRow({ item }: { item: RadarrHistoryRecord }) {
+  const poster = item.movie?.images.find((i) => i.coverType === 'poster');
+  const meta = [item.quality?.quality.name, item.data?.downloadClient].filter(Boolean).join(' · ');
   return (
-    <View style={[styles.historyRow, styles.rowItem]}>
-      <Text style={styles.historyTitle} numberOfLines={2}>
-        {item.sourceTitle}
-      </Text>
-      <View style={styles.badgeRow}>
-        <Badge label={historyEventLabel(item.eventType)} tone={item.eventType === 'grabbed' ? 'accent' : 'success'} />
-        {item.quality ? <Text style={styles.historySubtitle}>{item.quality.quality.name}</Text> : null}
+    <View style={[styles.card, styles.rowItem]}>
+      {poster?.remoteUrl ? (
+        <Image source={{ uri: poster.remoteUrl }} style={styles.poster} cachePolicy="memory-disk" />
+      ) : (
+        <View style={[styles.poster, styles.posterPlaceholder]} />
+      )}
+      <View style={styles.info}>
+        <View style={styles.historyTitleRow}>
+          <Text style={styles.title} numberOfLines={1}>
+            {item.movie?.title ?? item.sourceTitle}
+          </Text>
+          <Text style={styles.historyDate}>{formatDate(item.date) ?? ''}</Text>
+        </View>
+        <Badge label={historyEventLabel(item.eventType)} tone={historyEventTone(item.eventType, 'accent')} />
+        {meta ? (
+          <Text style={styles.historySubtitle} numberOfLines={1}>
+            {meta}
+          </Text>
+        ) : null}
       </View>
-      <Text style={styles.historyDate}>{formatDate(item.date) ?? ''}</Text>
     </View>
   );
 });
@@ -1037,7 +1054,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   historyTitle: { color: colors.textPrimary, fontWeight: '700', fontSize: 14 },
+  historyTitleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
   historySubtitle: { color: colors.textSecondary, fontSize: 12, marginTop: 4 },
-  historyDate: { color: colors.accent, fontSize: 12, fontWeight: '600', marginTop: 6 },
+  historyDate: { color: colors.accent, fontSize: 12, fontWeight: '600' },
   activityWarning: { color: colors.accent, fontSize: 12, marginTop: 6, lineHeight: 16 },
 });

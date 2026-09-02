@@ -208,3 +208,17 @@ const HISTORY_EVENT_LABELS: Record<string, string> = {
 export function historyEventLabel(eventType: string): string {
   return HISTORY_EVENT_LABELS[eventType] ?? titleCase(eventType);
 }
+
+// Badge tone for a history event - "grabbed" uses whichever accent tone the
+// calling screen's own section already uses (differs per service: Radarr's
+// accent, Sonarr's own tint, Lidarr's own tint), a delete event reads as a
+// real warning, a rename/retag is neutral, and everything else (imports)
+// reads as a success - a closer match to how Sonarr/Radarr's own web UI
+// color-codes these than the old grabbed-vs-everything-else split.
+export function historyEventTone(eventType: string, grabbedTone: BadgeTone): BadgeTone {
+  if (eventType === 'grabbed') return grabbedTone;
+  const lower = eventType.toLowerCase();
+  if (lower.includes('delete')) return 'danger';
+  if (lower.includes('rename') || lower.includes('retag')) return 'muted';
+  return 'success';
+}

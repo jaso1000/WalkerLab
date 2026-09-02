@@ -59,13 +59,16 @@ export interface RadarrMovie {
 
 // One entry in Radarr's activity/history log (grabbed, imported, deleted,
 // renamed, etc - see `historyEventLabel` in `format.ts` for display labels).
+// `movie` is only populated because `getHistory` passes `includeMovie=true`
+// - `images` powers the History tab's poster thumbnail.
 export interface RadarrHistoryRecord {
   id: number;
   eventType: string;
   date: string;
   sourceTitle: string;
   quality?: { quality: { name: string } };
-  movie?: { title: string };
+  movie?: { title: string; images: RadarrImage[] };
+  data?: { downloadClient?: string };
 }
 
 // Technical media details for a downloaded movie file, shown on the file-

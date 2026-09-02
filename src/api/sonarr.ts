@@ -109,14 +109,18 @@ export interface SonarrEpisodeFile {
 
 // One entry in Sonarr's activity/history log (grabbed, imported, deleted,
 // renamed, etc). `episode` is only present for episode-scoped events.
+// `series`/`episode` are only populated because `getHistory` passes
+// `includeSeries=true`/`includeEpisode=true` - `images` powers the History
+// tab's poster thumbnail.
 export interface SonarrHistoryRecord {
   id: number;
   eventType: string;
   date: string;
   sourceTitle: string;
   quality?: { quality: { name: string } };
-  series?: { title: string };
+  series?: { title: string; images: SonarrImage[] };
   episode?: { seasonNumber: number; episodeNumber: number; title: string };
+  data?: { downloadClient?: string };
 }
 
 
