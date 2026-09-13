@@ -116,7 +116,7 @@ export default function AddMovieScreen() {
     if (!config || !selected || !qualityProfileId || !rootFolderPath) return;
     setAdding(true);
     try {
-      await radarrApi.addMovie(config, {
+      const added = await radarrApi.addMovie(config, {
         title: selected.title,
         tmdbId: selected.tmdbId,
         qualityProfileId,
@@ -126,8 +126,7 @@ export default function AddMovieScreen() {
         searchOnAdd,
       });
       await setLastQualityProfileId('radarr', qualityProfileId);
-      alert('Added', `${selected.title} was added to Radarr.`);
-      router.back();
+      router.replace(`/movie/${added.id}`);
     } catch (e) {
       alert('Failed to add', e instanceof Error ? e.message : 'Unknown error');
     } finally {

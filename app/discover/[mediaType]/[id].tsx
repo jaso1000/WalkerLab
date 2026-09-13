@@ -204,7 +204,7 @@ export default function DiscoverDetailScreen() {
     setAdding(true);
     try {
       if (mediaType === 'movie' && radarrConfig && lookupMovie && qualityProfileId && rootFolderPath) {
-        await radarrApi.addMovie(radarrConfig, {
+        const added = await radarrApi.addMovie(radarrConfig, {
           title: lookupMovie.title,
           tmdbId: lookupMovie.tmdbId,
           qualityProfileId,
@@ -215,10 +215,9 @@ export default function DiscoverDetailScreen() {
         });
         await deletedLibrary.unmarkMovieDeleted(lookupMovie.tmdbId);
         await setLastQualityProfileId('radarr', qualityProfileId);
-        alert('Added', `${lookupMovie.title} was added to Radarr.`);
-        router.back();
+        router.replace(`/movie/${added.id}`);
       } else if (mediaType === 'tv' && sonarrConfig && lookupSeries && tvdbId && qualityProfileId && rootFolderPath) {
-        await sonarrApi.addSeries(sonarrConfig, {
+        const added = await sonarrApi.addSeries(sonarrConfig, {
           title: lookupSeries.title,
           tvdbId,
           qualityProfileId,
@@ -229,8 +228,7 @@ export default function DiscoverDetailScreen() {
         await deletedLibrary.unmarkSeriesDeleted(tvdbId);
         await deletedLibrary.unmarkSeriesDeletedByTmdbId(tmdbId);
         await setLastQualityProfileId('sonarr', qualityProfileId);
-        alert('Added', `${lookupSeries.title} was added to Sonarr.`);
-        router.back();
+        router.replace(`/series/${added.id}`);
       }
     } catch (e) {
       alert('Failed to add', e instanceof Error ? e.message : 'Unknown error');

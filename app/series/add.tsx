@@ -128,7 +128,7 @@ export default function AddSeriesScreen() {
     if (!config || !selected || !qualityProfileId || !rootFolderPath || !selected.tvdbId) return;
     setAdding(true);
     try {
-      await sonarrApi.addSeries(config, {
+      const added = await sonarrApi.addSeries(config, {
         title: selected.title,
         tvdbId: selected.tvdbId,
         qualityProfileId,
@@ -137,8 +137,7 @@ export default function AddSeriesScreen() {
         searchOnAdd,
       });
       await setLastQualityProfileId('sonarr', qualityProfileId);
-      alert('Added', `${selected.title} was added to Sonarr.`);
-      router.back();
+      router.replace(`/series/${added.id}`);
     } catch (e) {
       alert('Failed to add', e instanceof Error ? e.message : 'Unknown error');
     } finally {
