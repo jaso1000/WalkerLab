@@ -225,6 +225,7 @@ export default function SeriesScreen() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
   const [menuFor, setMenuFor] = useState<SonarrSeries | null>(null);
+  const [queueMenuFor, setQueueMenuFor] = useState<SonarrQueueItem | null>(null);
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>('title');
   const [sortAsc, setSortAsc] = useState(true);
@@ -589,6 +590,45 @@ export default function SeriesScreen() {
       ]
     : [];
 
+  // Removes a queue item; `blocklist` also stops Sonarr grabbing the same
+  // release again. Refreshes the Activity tab on success so the resolved
+  // item actually disappears without waiting for the next pull-to-refresh.
+  const removeQueueItem = (item: SonarrQueueItem, blocklist: boolean) => {
+    if (!config) return;
+    sonarrApi
+      .removeQueueItem(config, item.id, { blocklist })
+      .then(loadActivity)
+      .catch((e) => alert('Failed to remove', e instanceof Error ? e.message : 'Unknown error'));
+  };
+
+  const confirmRemoveQueueItem = (item: SonarrQueueItem) => {
+    alert('Remove from Queue', `Remove "${item.title}" from the queue?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove Only', onPress: () => removeQueueItem(item, false) },
+      { text: 'Remove & Blocklist', style: 'destructive', onPress: () => removeQueueItem(item, true) },
+    ]);
+  };
+
+  // A blocked/errored queue item (see `activityTone`) is the one that
+  // actually needs Manual Import - shown first when it applies, but Remove/
+  // View Series stay available for every queue item, not just those.
+  const queueMenuOptions: ActionSheetOption[] = (() => {
+    if (!queueMenuFor) return [];
+    const item = queueMenuFor;
+    const downloadId = item.downloadId;
+    const options: ActionSheetOption[] = [];
+    if (downloadId) {
+      options.push({
+        label: 'Manual Import',
+        icon: 'download-outline',
+        onPress: () => router.push(`/series/manual-import/${encodeURIComponent(downloadId)}`),
+      });
+    }
+    options.push({ label: 'View Series', icon: 'tv-outline', onPress: () => router.push(`/series/${item.seriesId}`) });
+    options.push({ label: 'Remove from Queue', destructive: true, icon: 'trash-outline', onPress: () => confirmRemoveQueueItem(item) });
+    return options;
+  })();
+
   // Tapping the currently-active sort field flips its direction; picking a
   // different field switches to it at that field's own default direction.
   const handleSortSelect = (key: string) => {
@@ -801,23 +841,39 @@ export default function SeriesScreen() {
                 {row.map((item) => {
                   const pct = item.size > 0 ? Math.round(((item.size - item.sizeleft) / item.size) * 100) : 100;
                   const messages = item.statusMessages?.flatMap((m) => m.messages) ?? [];
+                  const poster = item.series?.images.find((i) => i.coverType === 'poster');
                   return (
-                    <Pressable key={item.id} style={[styles.historyRow, styles.rowItem]} onPress={() => router.push(`/series/${item.seriesId}`)}>
-                      <Text style={styles.historyTitle} numberOfLines={2}>
-                        {item.title}
-                      </Text>
-                      <View style={styles.badgeRow}>
-                        <Badge label={titleCase(item.status)} tone={activityTone(item)} />
-                        <Text style={styles.historySubtitle}>
-                          {pct}% · {formatBytes(item.size)}
+                    <Pressable key={item.id} style={[styles.card, styles.rowItem]} onPress={() => router.push(`/series/${item.seriesId}`)}>
+                      {poster?.remoteUrl ? (
+                        <Image source={{ uri: poster.remoteUrl }} style={styles.poster} cachePolicy="memory-disk" />
+                      ) : (
+                        <View style={[styles.poster, styles.posterPlaceholder]} />
+                      )}
+                      <View style={styles.info}>
+                        <View style={styles.historyTitleRow}>
+                          <Text style={[styles.title, { flex: 1 }]} numberOfLines={1}>
+                            {item.series?.title ?? item.title}
+                          </Text>
+                          <TouchableOpacity style={styles.menuButton} onPress={() => setQueueMenuFor(item)}>
+                            <Ionicons name="ellipsis-vertical" size={18} color={colors.textSecondary} />
+                          </TouchableOpacity>
+                        </View>
+                        <Text style={styles.historySubtitle} numberOfLines={1}>
+                          {item.title}
                         </Text>
+                        <View style={styles.badgeRow}>
+                          <Badge label={titleCase(item.status)} tone={activityTone(item)} />
+                          <Text style={styles.historySubtitle}>
+                            {pct}% · {formatBytes(item.size)}
+                          </Text>
+                        </View>
+                        {item.errorMessage ? <Text style={styles.activityWarning}>{item.errorMessage}</Text> : null}
+                        {messages.map((msg, i) => (
+                          <Text key={i} style={styles.activityWarning}>
+                            • {msg}
+                          </Text>
+                        ))}
                       </View>
-                      {item.errorMessage ? <Text style={styles.activityWarning}>{item.errorMessage}</Text> : null}
-                      {messages.map((msg, i) => (
-                        <Text key={i} style={styles.activityWarning}>
-                          • {msg}
-                        </Text>
-                      ))}
                     </Pressable>
                   );
                 })}
@@ -908,6 +964,12 @@ export default function SeriesScreen() {
       </View>
 
       <ActionSheet visible={!!menuFor} title={menuFor?.title ?? ''} options={menuOptions} onClose={() => setMenuFor(null)} />
+      <ActionSheet
+        visible={!!queueMenuFor}
+        title={queueMenuFor?.title ?? ''}
+        options={queueMenuOptions}
+        onClose={() => setQueueMenuFor(null)}
+      />
       <SortMenu
         visible={sortMenuOpen}
         fields={SORT_FIELDS as unknown as { key: string; label: string }[]}
@@ -1036,4 +1098,5 @@ const styles = StyleSheet.create({
   historyDate: { color: colors.sonarr, fontSize: 12, fontWeight: '600', marginTop: 6 },
   historyRowDate: { color: colors.sonarr, fontSize: 12, fontWeight: '600' },
   activityWarning: { color: colors.sonarr, fontSize: 12, marginTop: 6, lineHeight: 16 },
+  menuButton: { padding: 6, marginTop: -6, marginRight: -6 },
 });

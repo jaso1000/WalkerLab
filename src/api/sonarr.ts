@@ -132,6 +132,9 @@ export interface SonarrQueueItem {
   seriesId: number;
   title: string;
   status: string;
+  // Only present because `getQueue` passes `includeSeries=true` - powers the
+  // Activity tab's poster art, matching the Upcoming/History tabs' cards.
+  series?: SonarrSeries;
   trackedDownloadStatus?: string;
   trackedDownloadState?: string;
   errorMessage?: string;
@@ -139,6 +142,44 @@ export interface SonarrQueueItem {
   timeleft?: string;
   size: number;
   sizeleft: number;
+  // The download client's own id for this item (e.g. an nzo/torrent hash) -
+  // only present once Sonarr has actually grabbed it, which is always true
+  // by the time it shows up in the queue. Needed to look up manual-import
+  // candidates for a stuck/blocked item (`getManualImportItems`).
+  downloadId?: string;
+}
+
+// One quality tier from Sonarr's own quality-definition list (Settings >
+// Profiles > Quality), e.g. "Bluray-1080p" - distinct from a
+// `SonarrQualityProfile`, which is an ordered/cutoff *set* of these. Used by
+// the manual-import screen's quality picker.
+export interface SonarrQualityDefinition {
+  id: number;
+  quality: { id: number; name: string };
+  title: string;
+}
+
+// One file candidate for a stuck/blocked queue item, as suggested by
+// Sonarr's own manual-import matcher (`getManualImportItems`) - `series`/
+// `episodes`/`quality`/`languages` are Sonarr's best guess, editable before
+// submitting via `importManually`. `rejections` explains why automatic
+// import didn't happen (e.g. "matched to series by ID").
+export interface SonarrManualImportItem {
+  id: number;
+  path: string;
+  relativePath?: string;
+  folderName?: string;
+  name?: string;
+  size: number;
+  series?: SonarrSeries;
+  seasonNumber?: number;
+  episodes?: SonarrEpisode[];
+  episodeFileId?: number;
+  releaseGroup?: string;
+  quality?: { quality: { id: number; name: string }; revision?: { version: number; real: number } };
+  languages?: { id: number; name: string }[];
+  downloadId?: string;
+  rejections?: { reason: string; type: string }[];
 }
 
 export interface SonarrRootFolder {
@@ -317,8 +358,64 @@ export const sonarrApi = {
 
   // Sonarr's own download queue (distinct from SABnzbd's queue - this
   // reflects Sonarr's tracking of in-flight grabs, joined with series titles).
+  // `pageSize` is set well above any realistic queue size - the endpoint
+  // defaults to a small page (10) otherwise, which would silently drop
+  // older/blocked items off the end of a busy queue rather than erroring.
   getQueue: (config: ServiceConfig) =>
-    arrFetch<{ records: SonarrQueueItem[] }>(config, '/api/v3/queue', { params: { includeSeries: 'true' } }),
+    arrFetch<{ records: SonarrQueueItem[] }>(config, '/api/v3/queue', {
+      params: { includeSeries: 'true', pageSize: '250' },
+    }),
+
+  // Removes one item from Sonarr's queue. `blocklist` also prevents Sonarr
+  // from grabbing the same release again; `removeFromClient` (default true)
+  // also tells the download client itself to delete the job/files, matching
+  // Sonarr's own queue UI's default behavior for a plain "Remove".
+  removeQueueItem: (
+    config: ServiceConfig,
+    id: number,
+    opts: { removeFromClient?: boolean; blocklist?: boolean; skipRedownload?: boolean } = {}
+  ) =>
+    arrFetch<void>(config, `/api/v3/queue/${id}`, {
+      method: 'DELETE',
+      params: {
+        removeFromClient: String(opts.removeFromClient ?? true),
+        blocklist: String(opts.blocklist ?? false),
+        skipRedownload: String(opts.skipRedownload ?? false),
+      },
+    }),
+
+  // Candidate file(s) for a queue item Sonarr couldn't auto-import (e.g.
+  // "matched to series by ID") - Sonarr's own best-guess series/season/
+  // episode/quality match, editable before confirming via `importManually`.
+  getManualImportItems: (config: ServiceConfig, downloadId: string) =>
+    arrFetch<SonarrManualImportItem[]>(config, '/api/v3/manualimport', {
+      params: { downloadId, filterExistingFiles: 'true' },
+    }),
+
+  // The full list of quality tiers Sonarr knows about (Settings > Profiles >
+  // Quality) - powers the manual-import screen's quality picker, distinct
+  // from `getQualityProfiles` (an ordered/cutoff *set* of these).
+  getQualityDefinitions: (config: ServiceConfig) =>
+    arrFetch<SonarrQualityDefinition[]>(config, '/api/v3/qualitydefinition'),
+
+  // Confirms a manual import - one entry per file, each naming which
+  // series/episode(s)/quality/language it should be imported as. Runs as a
+  // background command (returns immediately; the import itself happens
+  // moments later), same as every other `/api/v3/command` call here.
+  importManually: (
+    config: ServiceConfig,
+    files: Array<{
+      path: string;
+      folderName?: string;
+      seriesId: number;
+      episodeIds: number[];
+      seasonNumber?: number;
+      quality?: SonarrManualImportItem['quality'];
+      languages?: SonarrManualImportItem['languages'];
+      releaseGroup?: string;
+      downloadId?: string;
+    }>
+  ) => arrFetch(config, '/api/v3/command', { method: 'POST', body: { name: 'ManualImport', files } }),
 
   getRootFolders: (config: ServiceConfig) => arrFetch<SonarrRootFolder[]>(config, '/api/v3/rootfolder'),
 

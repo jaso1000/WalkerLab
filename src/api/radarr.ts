@@ -106,6 +106,9 @@ export interface RadarrQueueItem {
   movieId: number;
   title: string;
   status: string;
+  // Only present because `getQueue` passes `includeMovie=true` - powers the
+  // Activity tab's poster art, matching the Upcoming/History tabs' cards.
+  movie?: RadarrMovie;
   trackedDownloadStatus?: string;
   trackedDownloadState?: string;
   errorMessage?: string;
@@ -113,6 +116,41 @@ export interface RadarrQueueItem {
   timeleft?: string;
   size: number;
   sizeleft: number;
+  // The download client's own id for this item (e.g. an nzo/torrent hash) -
+  // needed to look up manual-import candidates for a stuck/blocked item
+  // (`getManualImportItems`). See sonarr.ts's identical field for the story.
+  downloadId?: string;
+}
+
+// One quality tier from Radarr's own quality-definition list (Settings >
+// Profiles > Quality), e.g. "Bluray-1080p" - distinct from a
+// `RadarrQualityProfile`, which is an ordered/cutoff *set* of these. Used by
+// the manual-import screen's quality picker.
+export interface RadarrQualityDefinition {
+  id: number;
+  quality: { id: number; name: string };
+  title: string;
+}
+
+// One file candidate for a stuck/blocked queue item, as suggested by
+// Radarr's own manual-import matcher (`getManualImportItems`) - `movie`/
+// `quality`/`languages` are Radarr's best guess, editable before submitting
+// via `importManually`. `rejections` explains why automatic import didn't
+// happen (e.g. "matched to movie by ID").
+export interface RadarrManualImportItem {
+  id: number;
+  path: string;
+  relativePath?: string;
+  folderName?: string;
+  name?: string;
+  size: number;
+  movie?: RadarrMovie;
+  movieFileId?: number;
+  releaseGroup?: string;
+  quality?: { quality: { id: number; name: string }; revision?: { version: number; real: number } };
+  languages?: { id: number; name: string }[];
+  downloadId?: string;
+  rejections?: { reason: string; type: string }[];
 }
 
 export interface RadarrRootFolder {
@@ -253,8 +291,56 @@ export const radarrApi = {
 
   // Radarr's own download queue (distinct from SABnzbd's queue - this
   // reflects Radarr's tracking of in-flight grabs, joined with movie titles).
+  // `pageSize` is set well above any realistic queue size - see sonarr.ts's
+  // identical `getQueue` comment for why.
   getQueue: (config: ServiceConfig) =>
-    arrFetch<{ records: RadarrQueueItem[] }>(config, '/api/v3/queue', { params: { includeMovie: 'true' } }),
+    arrFetch<{ records: RadarrQueueItem[] }>(config, '/api/v3/queue', {
+      params: { includeMovie: 'true', pageSize: '250' },
+    }),
+
+  // Removes one item from Radarr's queue - see sonarr.ts's identical
+  // `removeQueueItem` for the full parameter rationale.
+  removeQueueItem: (
+    config: ServiceConfig,
+    id: number,
+    opts: { removeFromClient?: boolean; blocklist?: boolean; skipRedownload?: boolean } = {}
+  ) =>
+    arrFetch<void>(config, `/api/v3/queue/${id}`, {
+      method: 'DELETE',
+      params: {
+        removeFromClient: String(opts.removeFromClient ?? true),
+        blocklist: String(opts.blocklist ?? false),
+        skipRedownload: String(opts.skipRedownload ?? false),
+      },
+    }),
+
+  // Candidate file(s) for a queue item Radarr couldn't auto-import - see
+  // sonarr.ts's identical `getManualImportItems` for the full rationale.
+  getManualImportItems: (config: ServiceConfig, downloadId: string) =>
+    arrFetch<RadarrManualImportItem[]>(config, '/api/v3/manualimport', {
+      params: { downloadId, filterExistingFiles: 'true' },
+    }),
+
+  // The full list of quality tiers Radarr knows about - powers the manual-
+  // import screen's quality picker, distinct from `getQualityProfiles`.
+  getQualityDefinitions: (config: ServiceConfig) =>
+    arrFetch<RadarrQualityDefinition[]>(config, '/api/v3/qualitydefinition'),
+
+  // Confirms a manual import - see sonarr.ts's identical `importManually`
+  // for the full rationale (movieId in place of seriesId/episodeIds, no
+  // season concept).
+  importManually: (
+    config: ServiceConfig,
+    files: Array<{
+      path: string;
+      folderName?: string;
+      movieId: number;
+      quality?: RadarrManualImportItem['quality'];
+      languages?: RadarrManualImportItem['languages'];
+      releaseGroup?: string;
+      downloadId?: string;
+    }>
+  ) => arrFetch(config, '/api/v3/command', { method: 'POST', body: { name: 'ManualImport', files } }),
 
   getRootFolders: (config: ServiceConfig) => arrFetch<RadarrRootFolder[]>(config, '/api/v3/rootfolder'),
 
