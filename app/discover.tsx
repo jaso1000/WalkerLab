@@ -50,6 +50,7 @@ import { useContentWidth } from '../src/lib/responsive';
 import { useTabBarClearance } from '../src/lib/tabBarClearance';
 import { HeaderTitle } from '../src/components/HeaderTitle';
 import { SECTION_META } from '../src/lib/sectionMeta';
+import { useSectionReset } from '../src/lib/sectionReset';
 import { colors } from '../src/theme/colors';
 
 // Main Discover screen: universal search with quick-add, plus three
@@ -537,6 +538,8 @@ export default function DiscoverScreen() {
     setQuery(text);
     runSearch(text);
   };
+
+  useSectionReset(SECTION_META.discover.href, () => handleQueryChange(''));
 
   // Adds a search result using the first quality profile (or last-
   // remembered one) and first root folder, without opening the full

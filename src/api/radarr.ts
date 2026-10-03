@@ -63,6 +63,7 @@ export interface RadarrMovie {
 // - `images` powers the History tab's poster thumbnail.
 export interface RadarrHistoryRecord {
   id: number;
+  movieId: number;
   eventType: string;
   date: string;
   sourceTitle: string;

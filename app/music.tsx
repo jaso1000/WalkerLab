@@ -56,6 +56,7 @@ import { chunk, useColumns, useContentWidth } from '../src/lib/responsive';
 import { useTabBarClearance } from '../src/lib/tabBarClearance';
 import { HeaderTitle } from '../src/components/HeaderTitle';
 import { SECTION_META } from '../src/lib/sectionMeta';
+import { useSectionReset } from '../src/lib/sectionReset';
 import { colors } from '../src/theme/colors';
 
 // Music screen (Lidarr) - the library root screen (`app/music.tsx` route).
@@ -293,6 +294,7 @@ export default function MusicScreen() {
   const [defaultSort, setDefaultSort] = useState<{ key: SortKey; asc: boolean } | null>(null);
   const [groupHeadersEnabled, setGroupHeadersEnabled] = useState(true);
   const [query, setQuery] = useState('');
+  useSectionReset(SECTION_META.music.href, () => setQuery(''));
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const profilesLoaded = useRef(false);

@@ -114,6 +114,7 @@ export interface SonarrEpisodeFile {
 // tab's poster thumbnail.
 export interface SonarrHistoryRecord {
   id: number;
+  seriesId: number;
   eventType: string;
   date: string;
   sourceTitle: string;

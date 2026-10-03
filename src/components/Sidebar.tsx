@@ -25,6 +25,7 @@ import { useSectionNames } from '../context/SectionNamesContext';
 import { isSectionActive } from '../lib/activeSection';
 import { SIDEBAR_WIDTH } from '../lib/navChrome';
 import { SECTION_META } from '../lib/sectionMeta';
+import { navigateToSection } from '../lib/sectionReset';
 import { StartupSectionId } from '../lib/startupScreen';
 import { colors } from '../theme/colors';
 
@@ -65,7 +66,7 @@ export function Sidebar({ order, onCollapse }: { order: StartupSectionId[]; onCo
             <TouchableOpacity
               key={item.href}
               style={[styles.row, active && { backgroundColor: `${item.tint}26` }]}
-              onPress={() => router.navigate(item.href as never)}
+              onPress={() => navigateToSection(pathname, item.href, item.activePrefixes)}
             >
               <View style={[styles.iconCircle, { backgroundColor: `${item.tint}26` }]}>
                 <Ionicons name={item.icon} size={18} color={item.tint} />

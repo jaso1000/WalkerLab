@@ -25,12 +25,13 @@
 // (unfelt on web, where there's no comparable persistent native stack).
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import { router, usePathname } from 'expo-router';
+import { usePathname } from 'expo-router';
 import { RefObject } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isSectionActive } from '../lib/activeSection';
 import { SECTION_META } from '../lib/sectionMeta';
+import { navigateToSection } from '../lib/sectionReset';
 import { StartupSectionId } from '../lib/startupScreen';
 import { colors } from '../theme/colors';
 
@@ -79,7 +80,11 @@ export function FloatingPill({
           const meta = SECTION_META[id];
           const active = isSectionActive(pathname, meta.href, meta.activePrefixes);
           return (
-            <TouchableOpacity key={id} style={styles.item} onPress={() => router.navigate(meta.href as never)}>
+            <TouchableOpacity
+              key={id}
+              style={styles.item}
+              onPress={() => navigateToSection(pathname, meta.href, meta.activePrefixes)}
+            >
               <Ionicons name={meta.icon} size={24} color={active ? meta.tint : colors.textSecondary} />
             </TouchableOpacity>
           );

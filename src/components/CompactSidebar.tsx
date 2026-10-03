@@ -26,6 +26,7 @@ import { useAuth } from '../context/AuthContext';
 import { isSectionActive } from '../lib/activeSection';
 import { COMPACT_SIDEBAR_WIDTH } from '../lib/navChrome';
 import { SECTION_META } from '../lib/sectionMeta';
+import { navigateToSection } from '../lib/sectionReset';
 import { StartupSectionId } from '../lib/startupScreen';
 import { colors } from '../theme/colors';
 
@@ -55,7 +56,11 @@ export function CompactSidebar({ order, onExpand }: { order: StartupSectionId[];
         {visibleItems.map((item) => {
           const active = isSectionActive(pathname, item.href, item.activePrefixes);
           return (
-            <TouchableOpacity key={item.href} style={styles.iconButton} onPress={() => router.navigate(item.href as never)}>
+            <TouchableOpacity
+              key={item.href}
+              style={styles.iconButton}
+              onPress={() => navigateToSection(pathname, item.href, item.activePrefixes)}
+            >
               <View style={[styles.iconCircle, active ? { backgroundColor: `${item.tint}26` } : null]}>
                 <Ionicons name={item.icon} size={20} color={active ? item.tint : colors.textSecondary} />
               </View>

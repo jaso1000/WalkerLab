@@ -40,6 +40,7 @@ import { chunk, useColumns, useContentWidth } from '../src/lib/responsive';
 import { useTabBarClearance } from '../src/lib/tabBarClearance';
 import { HeaderTitle } from '../src/components/HeaderTitle';
 import { SECTION_META } from '../src/lib/sectionMeta';
+import { useSectionReset } from '../src/lib/sectionReset';
 import { colors } from '../src/theme/colors';
 
 // Containers screen (Portainer) - Containers/Stacks swipeable tabs, mirroring
@@ -105,6 +106,7 @@ export default function ContainersScreen() {
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState<{ title: string; options: ActionSheetOption[] } | null>(null);
   const [search, setSearch] = useState('');
+  useSectionReset(SECTION_META.containers.href, () => setSearch(''));
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortAsc, setSortAsc] = useState(true);
   const [sortMenuOpen, setSortMenuOpen] = useState(false);

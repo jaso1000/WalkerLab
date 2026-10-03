@@ -57,6 +57,7 @@ import { chunk, useColumns, useContentWidth } from '../src/lib/responsive';
 import { useTabBarClearance } from '../src/lib/tabBarClearance';
 import { HeaderTitle } from '../src/components/HeaderTitle';
 import { SECTION_META } from '../src/lib/sectionMeta';
+import { useSectionReset } from '../src/lib/sectionReset';
 import { colors } from '../src/theme/colors';
 
 // TV Shows screen (Sonarr) - the library root screen (`app/index.tsx`
@@ -232,6 +233,7 @@ export default function SeriesScreen() {
   const [defaultSort, setDefaultSort] = useState<{ key: SortKey; asc: boolean } | null>(null);
   const [groupHeadersEnabled, setGroupHeadersEnabled] = useState(true);
   const [query, setQuery] = useState('');
+  useSectionReset(SECTION_META.tvShows.href, () => setQuery(''));
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   // Each tab's data (and quality profiles / saved sort+group prefs) only
@@ -894,8 +896,16 @@ export default function SeriesScreen() {
                 {row.map((item) => {
                   const poster = item.series?.images.find((i) => i.coverType === 'poster');
                   const meta = [item.quality?.quality.name, item.data?.downloadClient].filter(Boolean).join(' · ');
+                  // `item.series` is only joined in while the series is still
+                  // in the library, so a removed show's history stays inert
+                  // rather than opening a dead detail page.
                   return (
-                    <View key={item.id} style={[styles.card, styles.rowItem]}>
+                    <Pressable
+                      key={item.id}
+                      style={[styles.card, styles.rowItem]}
+                      disabled={!item.series}
+                      onPress={() => router.push(`/series/${item.seriesId}`)}
+                    >
                       {poster?.remoteUrl ? (
                         <Image source={{ uri: poster.remoteUrl }} style={styles.poster} cachePolicy="memory-disk" />
                       ) : (
@@ -920,7 +930,7 @@ export default function SeriesScreen() {
                           </Text>
                         ) : null}
                       </View>
-                    </View>
+                    </Pressable>
                   );
                 })}
               </View>

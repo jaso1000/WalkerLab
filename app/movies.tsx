@@ -54,6 +54,7 @@ import { chunk, useColumns, useContentWidth } from '../src/lib/responsive';
 import { useTabBarClearance } from '../src/lib/tabBarClearance';
 import { HeaderTitle } from '../src/components/HeaderTitle';
 import { SECTION_META } from '../src/lib/sectionMeta';
+import { useSectionReset } from '../src/lib/sectionReset';
 import { colors } from '../src/theme/colors';
 
 // Movies screen (Radarr) - same shape as the TV Shows screen (`index.tsx`),
@@ -225,16 +226,22 @@ const ActivityRow = memo(function ActivityRow({ item, onOpenMenu }: { item: Rada
   );
 });
 
-// History tab's row - not interactive (no Pressable), but still memoized so
-// scrolling/unrelated state changes don't re-render every off-screen entry.
-// Same poster-card shape as UpcomingRow (poster/title/subtitle), rather than
-// the old text-only row, so History reads like the rest of this screen's
-// tabs instead of a plain list.
+// History tab's row - memoized so scrolling/unrelated state changes don't
+// re-render every off-screen entry. Same poster-card shape as UpcomingRow
+// (poster/title/subtitle), rather than the old text-only row, so History
+// reads like the rest of this screen's tabs instead of a plain list. Tapping
+// opens the movie, but only while it's still in the library - `item.movie`
+// is only joined in for movies that still exist, so a removed movie's
+// history entry stays inert rather than opening a dead detail page.
 const HistoryRow = memo(function HistoryRow({ item }: { item: RadarrHistoryRecord }) {
   const poster = item.movie?.images.find((i) => i.coverType === 'poster');
   const meta = [item.quality?.quality.name, item.data?.downloadClient].filter(Boolean).join(' · ');
   return (
-    <View style={[styles.card, styles.rowItem]}>
+    <Pressable
+      style={[styles.card, styles.rowItem]}
+      disabled={!item.movie}
+      onPress={() => router.push(`/movie/${item.movieId}`)}
+    >
       {poster?.remoteUrl ? (
         <Image source={{ uri: poster.remoteUrl }} style={styles.poster} cachePolicy="memory-disk" />
       ) : (
@@ -254,7 +261,7 @@ const HistoryRow = memo(function HistoryRow({ item }: { item: RadarrHistoryRecor
           </Text>
         ) : null}
       </View>
-    </View>
+    </Pressable>
   );
 });
 
@@ -357,6 +364,7 @@ export default function MoviesScreen() {
   const [defaultSort, setDefaultSort] = useState<{ key: SortKey; asc: boolean } | null>(null);
   const [groupHeadersEnabled, setGroupHeadersEnabled] = useState(true);
   const [query, setQuery] = useState('');
+  useSectionReset(SECTION_META.movies.href, () => setQuery(''));
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   // Each tab's data only needs to load once per screen visit, not on every
