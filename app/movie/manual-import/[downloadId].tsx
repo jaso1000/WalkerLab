@@ -149,7 +149,7 @@ export default function MovieManualImportScreen() {
       ) : items.length === 0 ? (
         <Text style={styles.empty}>No importable files found for this download.</Text>
       ) : (
-        <ScrollView contentContainerStyle={[styles.list, { paddingBottom: tabBarClearance + 90 }]}>
+        <ScrollView contentContainerStyle={styles.list}>
           {items.map((item) => {
             const { qualityName } = resolve(item);
             const isSelected = selected.has(item.id);
@@ -193,7 +193,7 @@ export default function MovieManualImportScreen() {
       )}
 
       {items.length > 0 ? (
-        <View style={styles.footer}>
+        <View style={[styles.footer, { paddingBottom: 16 + tabBarClearance }]}>
           <TouchableOpacity
             style={[styles.importButton, (importing || selectedCount === 0) && styles.importButtonDisabled]}
             onPress={submit}
