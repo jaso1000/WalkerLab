@@ -55,3 +55,6 @@ yarn-error.*
 # tracked; its own build/ output dir is not, same reasoning as /android above)
 modules/**/android/build/
 modules/**/ios/build/
+
+# Android TV build workspace (scripts/build-tv.sh): a patched copy of the project with react-native-tvos
+/.tv-build

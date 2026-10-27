@@ -22,19 +22,18 @@ import { lastfmApi, LastfmArtist, LastfmTag } from '../src/api/lastfm';
 import { lidarrApi, LidarrArtist } from '../src/api/lidarr';
 import { radarrApi, RadarrMovie } from '../src/api/radarr';
 import { sonarrApi, SonarrSeries } from '../src/api/sonarr';
-import { TMDB_STUDIOS, tmdbApi, tmdbImageUrl, TmdbMovie, TmdbSearchResult, TmdbTv, TmdbWatchProvider } from '../src/api/tmdb';
+import { TMDB_STUDIOS, tmdbApi, tmdbImageUrl, TmdbMovie, TmdbSearchResult, TmdbTv } from '../src/api/tmdb';
 import { ServiceConfig } from '../src/api/types';
 import { AlbumRow, AlbumRowItem } from '../src/components/AlbumRow';
 import { ArtistRow, ArtistRowItem } from '../src/components/ArtistRow';
-import { DiscoverCardItem, DiscoverRow } from '../src/components/DiscoverRow';
+import { DiscoverRow } from '../src/components/DiscoverRow';
 import { LogoRow, LogoRowItem } from '../src/components/LogoRow';
 import { SwipeTabBar } from '../src/components/SwipeTabBar';
 import { useServers } from '../src/context/ServersContext';
 import { useSectionNames } from '../src/context/SectionNamesContext';
 import { alert } from '../src/lib/alert';
-import { deletedLibrary } from '../src/lib/deletedLibrary';
-import { getCachedProviders, getCachedStudios, setCachedProviders, setCachedStudios } from '../src/lib/discoverCache';
-import { FALLBACK_WATCH_REGION, getDefaultRegion, getLastQualityProfileId, setLastQualityProfileId } from '../src/lib/preferences';
+import { getCachedStudios, setCachedStudios } from '../src/lib/discoverCache';
+import { FALLBACK_WATCH_REGION, getDefaultRegion } from '../src/lib/preferences';
 import {
   CATEGORY_LABELS,
   DiscoverCategory,
@@ -42,10 +41,19 @@ import {
   fetchDiscoverCategory,
   interleave,
   MediaKind,
-  resolveMediaKind,
 } from '../src/lib/discoverCategories';
 import { capitalizeWords } from '../src/lib/format';
-import { badgeForMovie, badgeForSeries, buildLibraryIndex, EMPTY_LIBRARY_INDEX, LibraryIndex } from '../src/lib/libraryStatus';
+import { buildLibraryIndex, EMPTY_LIBRARY_INDEX, LibraryIndex } from '../src/lib/libraryStatus';
+import {
+  loadProviders,
+  mergeProviderItems,
+  toCardItems,
+  toLocalMovieCardItems,
+  toLocalSeriesCardItems,
+  toMixedCardItems,
+  toMixedLocalCardItems,
+} from '../src/lib/discoverRows';
+import { quickAddToLibrary } from '../src/lib/quickAdd';
 import { useContentWidth } from '../src/lib/responsive';
 import { useTabBarClearance } from '../src/lib/tabBarClearance';
 import { HeaderTitle } from '../src/components/HeaderTitle';
@@ -64,8 +72,6 @@ import { colors } from '../src/theme/colors';
 // client-side from separate movie+TV calls, Recently Added merged by real
 // date across both libraries. All is both the default tab and the only one
 // loaded eagerly; Movies/TV Shows lazy-load on first swipe to them.
-const PREVIEW_COUNT = 15;
-const PROVIDER_PREVIEW_COUNT = 20;
 const CATEGORIES: DiscoverCategory[] = ['trending', 'popular', 'upcoming'];
 const TABS = ['All', 'Movies', 'TV Shows', 'Music'] as const;
 const MUSIC_PREVIEW_COUNT = 15;
@@ -77,62 +83,6 @@ interface CategoryData {
   recent: (TmdbMovie | TmdbTv)[];
 }
 const EMPTY_CATEGORY_DATA: CategoryData = { trending: [], popular: [], upcoming: [], recent: [] };
-
-// Movies/TV Shows tabs - a single-type array, same shape as before this
-// screen had an "All" tab at all.
-function toCardItems(items: (TmdbMovie | TmdbTv)[], type: MediaKind, library: LibraryIndex): DiscoverCardItem[] {
-  return items.slice(0, PREVIEW_COUNT).map((item) => ({
-    id: item.id,
-    title: type === 'movie' ? (item as TmdbMovie).title : (item as TmdbTv).name,
-    posterUrl: tmdbImageUrl(item.poster_path),
-    rating: item.vote_average,
-    badge: type === 'movie' ? badgeForMovie(item.id, library) : badgeForSeries(item.id, library),
-  }));
-}
-
-// "All" tab's mixed-array counterpart - tags each card with its own
-// resolved type so DiscoverRow's onPressItem can route it correctly.
-function toMixedCardItems(items: (TmdbMovie | TmdbTv)[], library: LibraryIndex): DiscoverCardItem[] {
-  return items.slice(0, PREVIEW_COUNT).map((item) => {
-    const type = resolveMediaKind(item);
-    return {
-      id: item.id,
-      title: type === 'movie' ? (item as TmdbMovie).title : (item as TmdbTv).name,
-      posterUrl: tmdbImageUrl(item.poster_path),
-      rating: item.vote_average,
-      badge: type === 'movie' ? badgeForMovie(item.id, library) : badgeForSeries(item.id, library),
-      mediaType: type,
-    };
-  });
-}
-
-// Sourced from Radarr/Sonarr's own `added` timestamp (not TMDB), sorted
-// newest-first and capped the same way the TMDB preview rows are.
-function toLocalMovieCardItems(movies: RadarrMovie[]): DiscoverCardItem[] {
-  return [...movies]
-    .filter((m) => m.added)
-    .sort((a, b) => new Date(b.added!).getTime() - new Date(a.added!).getTime())
-    .slice(0, PREVIEW_COUNT)
-    .map((m) => ({
-      id: m.id,
-      title: m.title,
-      posterUrl: m.images.find((i) => i.coverType === 'poster')?.remoteUrl,
-      rating: m.ratings?.imdb?.value,
-    }));
-}
-
-function toLocalSeriesCardItems(series: SonarrSeries[]): DiscoverCardItem[] {
-  return [...series]
-    .filter((s) => s.added)
-    .sort((a, b) => new Date(b.added!).getTime() - new Date(a.added!).getTime())
-    .slice(0, PREVIEW_COUNT)
-    .map((s) => ({
-      id: s.id,
-      title: s.title,
-      posterUrl: s.images.find((i) => i.coverType === 'poster')?.remoteUrl,
-      rating: s.ratings?.value,
-    }));
-}
 
 // Music tab's Recently Added row - sourced from the real Lidarr library
 // (same as Movies/TV's own Recently Added rows), sorted newest-first by
@@ -195,72 +145,6 @@ function MusicSearchRow({ artist }: { artist: LastfmArtist }) {
       </View>
     </Pressable>
   );
-}
-
-function providersToItems(providers: TmdbWatchProvider[]): LogoRowItem[] {
-  return providers.slice(0, PROVIDER_PREVIEW_COUNT).map((p) => ({
-    id: p.provider_id,
-    name: p.provider_name,
-    logoUrl: tmdbImageUrl(p.logo_path, 'w185'),
-  }));
-}
-
-// Cache-first: a region's streaming catalog doesn't change minute to
-// minute, so a warm cache hit turns this into a local AsyncStorage read
-// instead of a real TMDB round-trip - the "All" tab's own load function
-// calls this on *every* focus (same as it already did for Trending/Popular/
-// Upcoming before Streaming Service existed), so this is what actually
-// keeps repeat visits fast (see discoverCache.ts's own header comment for
-// the full story on why this was added).
-async function loadProviders(config: ServiceConfig, mediaType: 'movie' | 'tv', region: string): Promise<LogoRowItem[]> {
-  const cached = await getCachedProviders(mediaType, region);
-  if (cached) return cached;
-  const fresh = await tmdbApi.watchProviders(config, mediaType, region).catch(() => [] as TmdbWatchProvider[]);
-  const items = providersToItems(fresh);
-  if (items.length > 0) setCachedProviders(mediaType, region, items);
-  return items;
-}
-
-// "All" tab's Streaming Service row merges both catalogs (deduped by id -
-// the same service carries the same provider id across movie/tv catalogs
-// in the same region) since a single row has to represent both.
-function mergeProviderItems(a: LogoRowItem[], b: LogoRowItem[]): LogoRowItem[] {
-  const seen = new Set<number>();
-  return [...a, ...b].filter((p) => {
-    if (seen.has(p.id)) return false;
-    seen.add(p.id);
-    return true;
-  });
-}
-
-// "All" tab's Recently Added - true chronological merge of both libraries by
-// their real `added` timestamp (not alternating, unlike Popular/Upcoming
-// below - both already carry a real added date to sort by).
-function toMixedLocalCardItems(movies: RadarrMovie[], series: SonarrSeries[]): DiscoverCardItem[] {
-  const tagged = [
-    ...movies
-      .filter((m) => m.added)
-      .map((m) => ({
-        id: m.id,
-        title: m.title,
-        added: m.added!,
-        posterUrl: m.images.find((i) => i.coverType === 'poster')?.remoteUrl,
-        rating: m.ratings?.imdb?.value,
-        mediaType: 'movie' as const,
-      })),
-    ...series
-      .filter((s) => s.added)
-      .map((s) => ({
-        id: s.id,
-        title: s.title,
-        added: s.added!,
-        posterUrl: s.images.find((i) => i.coverType === 'poster')?.remoteUrl,
-        rating: s.ratings?.value,
-        mediaType: 'tv' as const,
-      })),
-  ];
-  tagged.sort((a, b) => new Date(b.added).getTime() - new Date(a.added).getTime());
-  return tagged.slice(0, PREVIEW_COUNT);
 }
 
 export default function DiscoverScreen() {
@@ -549,48 +433,7 @@ export default function DiscoverScreen() {
     const key = `${result.media_type}:${result.id}`;
     setQuickAddBusy((prev) => new Set(prev).add(key));
     try {
-      if (result.media_type === 'movie') {
-        if (!radarrConfig) throw new Error('Radarr isn’t connected.');
-        const [profiles, folders, matches] = await Promise.all([
-          radarrApi.getQualityProfiles(radarrConfig),
-          radarrApi.getRootFolders(radarrConfig),
-          radarrApi.searchMovies(radarrConfig, `tmdb:${result.id}`),
-        ]);
-        const match = matches[0];
-        if (!match || !profiles[0] || !folders[0]) throw new Error('Could not resolve defaults for this movie.');
-        const remembered = await getLastQualityProfileId('radarr');
-        const qualityProfileId = profiles.find((p) => p.id === remembered)?.id ?? profiles[0].id;
-        await radarrApi.addMovie(radarrConfig, {
-          title: match.title,
-          tmdbId: match.tmdbId,
-          qualityProfileId,
-          rootFolderPath: folders[0].path,
-        });
-        await deletedLibrary.unmarkMovieDeleted(result.id);
-        await setLastQualityProfileId('radarr', qualityProfileId);
-      } else {
-        if (!sonarrConfig || !config) throw new Error('Sonarr isn’t connected.');
-        const ids = await tmdbApi.tvExternalIds(config, result.id);
-        if (!ids.tvdb_id) throw new Error("This show couldn't be matched to TheTVDB.");
-        const [profiles, folders, matches] = await Promise.all([
-          sonarrApi.getQualityProfiles(sonarrConfig),
-          sonarrApi.getRootFolders(sonarrConfig),
-          sonarrApi.searchSeries(sonarrConfig, `tvdb:${ids.tvdb_id}`),
-        ]);
-        const match = matches[0];
-        if (!match || !profiles[0] || !folders[0]) throw new Error('Could not resolve defaults for this show.');
-        const remembered = await getLastQualityProfileId('sonarr');
-        const qualityProfileId = profiles.find((p) => p.id === remembered)?.id ?? profiles[0].id;
-        await sonarrApi.addSeries(sonarrConfig, {
-          title: match.title,
-          tvdbId: ids.tvdb_id,
-          qualityProfileId,
-          rootFolderPath: folders[0].path,
-        });
-        await deletedLibrary.unmarkSeriesDeleted(ids.tvdb_id);
-        await deletedLibrary.unmarkSeriesDeletedByTmdbId(result.id);
-        await setLastQualityProfileId('sonarr', qualityProfileId);
-      }
+      await quickAddToLibrary({ tmdb: config, radarr: radarrConfig, sonarr: sonarrConfig }, result.id, result.media_type === 'movie' ? 'movie' : 'tv');
       loadLibrary();
     } catch (e) {
       alert('Failed to add', e instanceof Error ? e.message : 'Unknown error');
