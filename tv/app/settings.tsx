@@ -2,7 +2,8 @@
 // Services - every service with its address and on/off state; OK offers Edit connection (URL, key,
 //   section name - tv/app/settings/service) and Turn on/off, which hides or shows its section.
 // Section order - the rail's order; OK moves a section up or down (the phone's up/down buttons).
-// Profiles - switch, add, restore from a phone backup (tv/app/setup) and delete.
+// Profiles - switch, add, restore from a phone backup (tv/app/setup) and delete; plus the WalkerLab
+//   server connection (src/lib/serverMode.ts): connect (tv/app/setup), or log out / use standalone.
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { FlatList, ScrollView, View } from 'react-native';
@@ -11,12 +12,14 @@ import { useSectionNames } from '../../src/context/SectionNamesContext';
 import { useServers } from '../../src/context/ServersContext';
 import { useServiceEnabled } from '../../src/context/ServiceEnabledContext';
 import { alert } from '../../src/lib/alert';
+import { getServerSession, logoutServer } from '../../src/lib/serverMode';
 import { SECTION_META } from '../../src/lib/sectionMeta';
 import { sectionEnabled, SERVICE_META } from '../../src/lib/serviceMeta';
 import { StartupSectionId } from '../../src/lib/startupScreen';
 import { DEFAULT_TAB_ORDER, getTabOrder, setTabOrder } from '../../src/lib/tabOrder';
 import { colors } from '../../src/theme/colors';
 import { listStyles } from '../components/DownloadClientView';
+import { confirmUseStandalone } from '../components/ServerConnect';
 import { Shell } from '../components/Shell';
 import { errText, ListFrame, ListRow, ScreenHeader, TV_LIST } from '../components/ui';
 import { tabOrderChanged } from '../lib/sections';
@@ -110,8 +113,32 @@ function SectionOrder() {
 function Profiles() {
   const { profiles, activeProfileId, switchProfile, addProfile, deleteProfile } = useProfiles();
   const run = (fn: () => Promise<unknown>) => fn().catch((e) => alert('Failed', errText(e)));
+  const server = getServerSession();
   return (
     <ScrollView {...TV_LIST} contentContainerStyle={listStyles.list}>
+      {server ? (
+        <ListRow
+          title="WalkerLab server"
+          subtitle={`${server.url} · ${server.username}`}
+          icon="cloud-done-outline"
+          tint={tint}
+          onPress={() =>
+            alert('WalkerLab server', `Connected to ${server.url} as ${server.username}.`, [
+              { text: 'Log out', onPress: () => logoutServer() },
+              { text: 'Use this TV standalone', style: 'destructive', onPress: confirmUseStandalone },
+              { text: 'Cancel', style: 'cancel' },
+            ])
+          }
+        />
+      ) : (
+        <ListRow
+          title="Connect to a WalkerLab server"
+          subtitle="Use the profiles and services on your WalkerLab Docker server; API keys stay there"
+          icon="cloud-outline"
+          tint={tint}
+          onPress={() => router.push('/setup' as never)}
+        />
+      )}
       {profiles.map((p, i) => {
         const active = p.id === activeProfileId;
         return (
@@ -132,7 +159,7 @@ function Profiles() {
                         text: 'Delete profile',
                         style: 'destructive' as const,
                         onPress: () =>
-                          alert('Delete profile', `Delete "${p.name}" and every server saved in it from this TV?`, [
+                          alert('Delete profile', `Delete "${p.name}" and every server saved in it from ${server ? 'the WalkerLab server' : 'this TV'}?`, [
                             { text: 'Cancel', style: 'cancel' },
                             { text: 'Delete', style: 'destructive', onPress: () => run(() => deleteProfile(p.id)) },
                           ]),

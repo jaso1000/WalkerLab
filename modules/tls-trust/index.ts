@@ -9,6 +9,7 @@
 import { requireNativeModule } from 'expo-modules-core';
 import { Platform } from 'react-native';
 import { apiFetch } from '../../src/lib/backendApi';
+import { usesServer } from '../../src/lib/serverMode';
 
 export interface TlsCertificateInfo {
   sha256: string;
@@ -42,7 +43,7 @@ const NativeTlsTrust: NativeTlsTrustModule | null =
 // backend can reach the host directly (same LAN as the media-server stack),
 // which a browser generally can't.
 export async function getCertificateInfo(host: string, port: number): Promise<TlsCertificateInfo | null> {
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     return apiFetch<TlsCertificateInfo | null>(`/api/tls/certificate-info?host=${encodeURIComponent(host)}&port=${port}`);
   }
   if (!NativeTlsTrust) return null;

@@ -2,7 +2,7 @@ import cookieParser from 'cookie-parser';
 import express from 'express';
 import helmet from 'helmet';
 import path from 'path';
-import { requireAuth, seedAdminFromEnvIfAbsent } from './auth';
+import { requireAuth, requireImageAuth, seedAdminFromEnvIfAbsent } from './auth';
 import { authRouter } from './authRoutes';
 import { configRouter } from './configRoutes';
 import { imageProxyRouter } from './imageProxyRoutes';
@@ -53,9 +53,12 @@ async function main() {
   // can't do cookie or bearer auth, the path-embedded secret is the auth)
   // would get rejected by requireAuth before its own handler ever ran.
   app.use('/api/webhooks', notificationWebhookRouter);
+  // Also ahead of the broad `/api` mount, for the same reason: the image
+  // proxy additionally accepts the native app's image token (see
+  // requireImageAuth), which requireAuth would reject first.
+  app.use('/api/image-proxy', requireImageAuth, imageProxyRouter);
   app.use('/api', requireAuth, configRouter);
   app.use('/api/proxy', requireAuth, proxyRouter);
-  app.use('/api/image-proxy', requireAuth, imageProxyRouter);
   app.use('/api/itunes', requireAuth, itunesRouter);
   app.use('/api/tls', requireAuth, tlsRouter);
   app.use('/api/notifications', requireAuth, notificationRouter);

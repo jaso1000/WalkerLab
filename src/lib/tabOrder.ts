@@ -5,7 +5,7 @@
 // concept. Mirrors `startupScreen.ts`'s exact storage pattern (native
 // AsyncStorage, web via the backend).
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
+import { usesServer } from './serverMode';
 import { apiFetch } from './backendApi';
 import { profileKey } from './profileStorage';
 import { SECTION_ORDER } from './sectionMeta';
@@ -40,7 +40,7 @@ function isValidOrder(value: unknown): value is StartupSectionId[] {
 }
 
 export async function getTabOrder(profileId: string): Promise<StartupSectionId[]> {
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     const res = await apiFetch<{ order: StartupSectionId[] | null }>(`/api/tab-order/${profileId}`);
     return isValidOrder(res.order) ? res.order : DEFAULT_TAB_ORDER;
   }
@@ -55,7 +55,7 @@ export async function getTabOrder(profileId: string): Promise<StartupSectionId[]
 }
 
 export async function setTabOrder(profileId: string, order: StartupSectionId[]): Promise<void> {
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     await apiFetch(`/api/tab-order/${profileId}`, { method: 'PUT', body: { order } });
     return;
   }

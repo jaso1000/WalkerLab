@@ -4,7 +4,7 @@
 // paths, field names, and enum values below are verified directly against
 // Lidarr's own openapi.json spec (Lidarr/Lidarr repo, develop branch), not
 // assumed from Sonarr's shape - see a few genuine differences noted inline.
-import { Platform } from 'react-native';
+import { serverImageUrl, usesServer } from '../lib/serverMode';
 import { arrFetch as arrFetchBase, ArrFetchOptions } from './arrFetch';
 import { ArrRelease, ServiceConfig } from './types';
 
@@ -51,8 +51,8 @@ export interface LidarrImage {
 //   (confirmed live for both artist and album entities, multiple sizes) -
 //   built from `entity`/`image.coverType`/`image.extension` directly, not
 //   derived from `url`'s own path at all anymore.
-// - On web, the real apiKey never reaches the browser (see `ServiceConfig`'s
-//   own doc comment) - routes through this app's own image-proxy server
+// - On web and in native server mode, the real apiKey never reaches the
+//   client (see `ServiceConfig`'s own doc comment) - routes through this app's own image-proxy server
 //   route instead, mirroring `tautulliImageUrl()`'s exact same native-vs-
 //   web split for the identical reason (an authenticated source an `<Image>`
 //   tag can't attach credentials to itself).
@@ -67,13 +67,9 @@ export function lidarrImageUrl(
   if (!image.coverType) return undefined;
   const filename = `${image.coverType}-${size}${image.extension || '.jpg'}`;
 
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     if (!config.profileId) return undefined;
-    const url = new URL(`/api/image-proxy/${config.profileId}/lidarr`, window.location.origin);
-    url.searchParams.set('entityType', entity.type);
-    url.searchParams.set('entityId', String(entity.id));
-    url.searchParams.set('filename', filename);
-    return url.toString();
+    return serverImageUrl(`/api/image-proxy/${config.profileId}/lidarr`, { entityType: entity.type, entityId: String(entity.id), filename });
   }
 
   const url = new URL(`${config.baseUrl.replace(/\/+$/, '')}/api/v1/mediacover/${entity.type}/${entity.id}/${filename}`);

@@ -2,7 +2,7 @@
 // rename its nav section (e.g. renaming "TV Shows" to something else)
 // without changing the underlying `SectionId` used throughout the app.
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
+import { usesServer } from './serverMode';
 import { apiFetch } from './backendApi';
 import { profileKey } from './profileStorage';
 
@@ -54,7 +54,7 @@ const keyFor = (profileId: string) => profileKey(profileId, 'walkerlab_section_n
 // it's shared across any browser logged into the same instance rather than
 // diverging per-browser.
 export async function getSectionNameOverrides(profileId: string): Promise<Partial<Record<SectionId, string>>> {
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     return apiFetch<Partial<Record<SectionId, string>>>(`/api/section-names/${profileId}`);
   }
   const raw = await AsyncStorage.getItem(keyFor(profileId));
@@ -65,7 +65,7 @@ export async function setSectionNameOverrides(
   profileId: string,
   overrides: Partial<Record<SectionId, string>>
 ): Promise<void> {
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     await apiFetch(`/api/section-names/${profileId}`, { method: 'PUT', body: overrides });
     return;
   }

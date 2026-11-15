@@ -5,9 +5,12 @@
 // deployment reachable from the internet, real secrets must never reach the
 // browser at all - see server/src/store.ts for where they actually live,
 // encrypted at rest. (This replaces the old plaintext-localStorage web
-// fallback that existed before a real backend did.)
+// fallback that existed before a real backend did.) Native server mode
+// (src/lib/serverMode.ts) takes the same server path as web; the device's
+// own SecureStore records are left alone there, so going back to
+// standalone finds them exactly as they were.
 import * as SecureStore from 'expo-secure-store';
-import { Platform } from 'react-native';
+import { usesServer } from './serverMode';
 import { ServiceConfig, ServiceName } from '../api/types';
 import { apiFetch } from './backendApi';
 import { profileKey } from './profileStorage';
@@ -68,17 +71,17 @@ async function clearServiceConfigWeb(profileId: string, name: ServiceName): Prom
 }
 
 export async function getServiceConfig(profileId: string, name: ServiceName): Promise<ServiceConfig | null> {
-  if (Platform.OS === 'web') return getServiceConfigWeb(profileId, name);
+  if (usesServer()) return getServiceConfigWeb(profileId, name);
   const raw = await SecureStore.getItemAsync(keyFor(profileId, name));
   return raw ? (JSON.parse(raw) as ServiceConfig) : null;
 }
 
 export async function setServiceConfig(profileId: string, name: ServiceName, config: ServiceConfig): Promise<void> {
-  if (Platform.OS === 'web') return setServiceConfigWeb(profileId, name, config);
+  if (usesServer()) return setServiceConfigWeb(profileId, name, config);
   await SecureStore.setItemAsync(keyFor(profileId, name), JSON.stringify(config));
 }
 
 export async function clearServiceConfig(profileId: string, name: ServiceName): Promise<void> {
-  if (Platform.OS === 'web') return clearServiceConfigWeb(profileId, name);
+  if (usesServer()) return clearServiceConfigWeb(profileId, name);
   await SecureStore.deleteItemAsync(keyFor(profileId, name));
 }

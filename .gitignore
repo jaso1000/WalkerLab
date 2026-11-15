@@ -58,3 +58,6 @@ modules/**/ios/build/
 
 # Android TV build workspace (scripts/build-tv.sh): a patched copy of the project with react-native-tvos
 /.tv-build
+
+# Windows installer build output (scripts/build-windows-installer.sh)
+/dist-windows

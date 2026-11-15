@@ -3,7 +3,7 @@
 // endpoint (`/api`) dispatched by a `mode` query param, with errors reported
 // as `{ error: "..." }` inside an otherwise-200 JSON response rather than as
 // an HTTP status code.
-import { Platform } from 'react-native';
+import { usesServer } from '../lib/serverMode';
 import { ServiceConfig } from './types';
 import { webProxyFetch } from './webProxy';
 
@@ -57,7 +57,7 @@ async function sabRequest<T>(
   params: Record<string, string> = {}
 ): Promise<T> {
   const fullParams = { mode, output: 'json', ...params };
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     return webProxyFetch<T>('sabnzbd', config, { path: '/api', params: fullParams });
   }
 

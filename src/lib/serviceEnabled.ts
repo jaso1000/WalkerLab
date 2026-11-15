@@ -2,7 +2,7 @@
 // nav section is hidden from navigation entirely (see `sectionEnabled` in
 // `serviceMeta.ts`).
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
+import { usesServer } from './serverMode';
 import { ServiceName } from '../api/types';
 import { apiFetch } from './backendApi';
 import { profileKey } from './profileStorage';
@@ -15,7 +15,7 @@ const keyFor = (profileId: string) => profileKey(profileId, 'walkerlab_service_e
 // than AsyncStorage, so it's shared across any browser logged into the same
 // instance.
 export async function getServiceEnabledOverrides(profileId: string): Promise<Partial<Record<ServiceName, boolean>>> {
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     return apiFetch<Partial<Record<ServiceName, boolean>>>(`/api/service-enabled/${profileId}`);
   }
   const raw = await AsyncStorage.getItem(keyFor(profileId));
@@ -26,7 +26,7 @@ export async function setServiceEnabledOverrides(
   profileId: string,
   overrides: Partial<Record<ServiceName, boolean>>
 ): Promise<void> {
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     await apiFetch(`/api/service-enabled/${profileId}`, { method: 'PUT', body: overrides });
     return;
   }

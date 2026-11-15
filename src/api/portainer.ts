@@ -15,7 +15,7 @@
 // `/api/endpoints`), and (2) the Docker Engine API itself, which Portainer
 // proxies 1:1 under `/api/endpoints/{envId}/docker/...` - container list/
 // inspect/start/stop/etc. all go through that prefix.
-import { Platform } from 'react-native';
+import { usesServer } from '../lib/serverMode';
 import { pinnedFetch } from '../../modules/tls-trust';
 import { arrFetch, ArrFetchOptions } from './arrFetch';
 import { apiFetch } from '../lib/backendApi';
@@ -114,7 +114,7 @@ async function portainerFetch<T>(config: ServiceConfig, path: string, options: A
   // route anyway, but going straight there avoids the pointless
   // `!config.trustedCertFingerprint` check below on a redacted (blank) web
   // config.
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     return webProxyFetch<T>('portainer', config, { path, method: options.method, params: options.params, body: options.body });
   }
 
@@ -182,7 +182,7 @@ function parseImageRef(image: string): { repo: string; tag: string } {
 // dedicated route (see server/src/services/portainerProxy.ts's
 // `portainerPullImage`, mirroring this function almost line-for-line).
 async function pullImage(config: ServiceConfig, envId: number, image: string): Promise<void> {
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     await apiFetch(`/api/proxy/${config.profileId}/portainer/pull-image`, { method: 'POST', body: { envId, image } });
     return;
   }

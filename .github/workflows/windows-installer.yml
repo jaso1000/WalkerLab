@@ -1,0 +1,133 @@
+name: Windows installer
+
+# Builds the Windows Server installer (scripts/build-windows-installer.sh) on
+# Linux, then installs it on a real Windows Server runner and checks it end
+# to end: service running, app + API served, data dir locked down, firewall
+# rule present, an in-place upgrade keeps the data and port, and uninstall
+# removes the service but keeps the data. The tested .exe is uploaded as a
+# workflow artifact to attach to a GitHub release.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version stamped into the installer (x.y.z, e.g. 2.11.0)'
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install NSIS
+        run: sudo apt-get update -q && sudo apt-get install -y -q nsis
+      - name: Build installer
+        run: scripts/build-windows-installer.sh "${{ inputs.version }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WalkerLab-Server-Setup-${{ inputs.version }}
+          path: dist-windows/WalkerLab-Server-Setup-*
+          if-no-files-found: error
+
+  smoke-test:
+    needs: build
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      PORT: '3456'
+      DATA_DIR: C:\ProgramData\WalkerLab
+      INSTALL_DIR: C:\Program Files\WalkerLab Server
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: WalkerLab-Server-Setup-${{ inputs.version }}
+
+      - name: Silent install on a custom port
+        run: |
+          $exe = (Get-ChildItem WalkerLab-Server-Setup-*.exe).FullName
+          $p = Start-Process $exe -ArgumentList '/S', "/PORT=$env:PORT" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Installer exited with $($p.ExitCode)" }
+
+      - name: Service runs and serves the app
+        run: |
+          $svc = Get-Service WalkerLab
+          $svc | Format-List Name, DisplayName, Status, StartType
+          if ($svc.StartType -ne 'Automatic') { throw 'Service is not set to start automatically' }
+          $ok = $false
+          for ($i = 0; $i -lt 30 -and -not $ok; $i++) {
+            try { $r = Invoke-WebRequest "http://localhost:$env:PORT/" -UseBasicParsing; $ok = $r.StatusCode -eq 200 } catch { Start-Sleep 2 }
+          }
+          if (-not $ok) { throw 'App not served on the chosen port' }
+          if ($r.Content -notmatch '_expo/static/js/web/entry-') { throw 'Served page is not the Expo web export' }
+          # Deep link must fall through to the SPA, like on Docker.
+          $deep = Invoke-WebRequest "http://localhost:$env:PORT/settings" -UseBasicParsing
+          if ($deep.StatusCode -ne 200) { throw 'SPA fallback route failed' }
+          $session = Invoke-RestMethod "http://localhost:$env:PORT/api/auth/session"
+          $session | ConvertTo-Json -Compress
+
+      - name: Data dir created and locked down
+        run: |
+          if (-not (Test-Path "$env:DATA_DIR\walkerlab.key")) { throw 'Encryption key was not created in the data dir' }
+          icacls $env:DATA_DIR
+          $acl = Get-Acl $env:DATA_DIR
+          if (-not $acl.AreAccessRulesProtected) { throw 'Data dir still inherits permissions' }
+          $sids = $acl.Access | ForEach-Object { $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value } | Sort-Object -Unique
+          $extra = $sids | Where-Object { $_ -notin 'S-1-5-18', 'S-1-5-32-544' }
+          if ($extra) { throw "Data dir grants access to unexpected accounts: $extra" }
+          Get-FileHash "$env:DATA_DIR\walkerlab.key" | Select-Object -ExpandProperty Hash | Out-File key-hash.txt
+
+      - name: Firewall rule present
+        run: |
+          $rule = Get-NetFirewallRule -DisplayName 'WalkerLab Server'
+          $port = ($rule | Get-NetFirewallPortFilter).LocalPort
+          if ($port -ne $env:PORT) { throw "Firewall rule is for port $port" }
+
+      - name: Upgrade in place keeps port and data
+        run: |
+          $exe = (Get-ChildItem WalkerLab-Server-Setup-*.exe).FullName
+          $p = Start-Process $exe -ArgumentList '/S' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Re-install exited with $($p.ExitCode)" }
+          $ok = $false
+          for ($i = 0; $i -lt 30 -and -not $ok; $i++) {
+            try { $ok = (Invoke-WebRequest "http://localhost:$env:PORT/" -UseBasicParsing).StatusCode -eq 200 } catch { Start-Sleep 2 }
+          }
+          if (-not $ok) { throw 'Not serving on the original port after upgrade' }
+          icacls $env:DATA_DIR /T
+          $before = Get-Content key-hash.txt
+          $after = (Get-FileHash "$env:DATA_DIR\walkerlab.key").Hash
+          if ($before -ne $after) { throw 'Encryption key changed during upgrade' }
+
+      - name: Uninstall removes service, keeps data
+        run: |
+          # _?= runs the uninstaller in place so Start-Process -Wait actually waits.
+          $p = Start-Process "$env:INSTALL_DIR\uninstall.exe" -ArgumentList '/S', "_?=$env:INSTALL_DIR" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Uninstaller exited with $($p.ExitCode)" }
+          if (Get-Service WalkerLab -ErrorAction SilentlyContinue) { throw 'Service still registered' }
+          if (Get-NetFirewallRule -DisplayName 'WalkerLab Server' -ErrorAction SilentlyContinue) { throw 'Firewall rule still present' }
+          if (-not (Test-Path "$env:DATA_DIR\walkerlab.key")) { throw 'Data was deleted without /PURGE' }
+
+      - name: Diagnostics
+        if: failure()
+        continue-on-error: true
+        run: |
+          whoami /groups | Select-String 'Mandatory Label|S-1-5-32-544'
+          "== data dir"; if (Test-Path $env:DATA_DIR) { Get-ChildItem -Force -Recurse $env:DATA_DIR } else { "missing" }
+          "== icacls"; icacls $env:DATA_DIR /T 2>&1
+          "== C:\data"; Get-ChildItem -Force C:\data 2>&1
+          "== service config"; Get-Content "$env:INSTALL_DIR\WalkerLabService.xml" 2>&1
+          "== node process"; Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Select-Object ProcessId, CommandLine | Format-List
+
+      - name: Service logs
+        if: always()
+        run: |
+          Get-Service WalkerLab -ErrorAction SilentlyContinue | Format-List Name, Status
+          # The service keeps its logs open, so read them with shared access.
+          Get-ChildItem "$env:DATA_DIR\logs" | ForEach-Object {
+            "== $($_.Name)"
+            $fs = [System.IO.File]::Open($_.FullName, 'Open', 'Read', 'ReadWrite')
+            try { (New-Object System.IO.StreamReader($fs)).ReadToEnd() } finally { $fs.Dispose() }
+          }

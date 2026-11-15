@@ -1,15 +1,22 @@
-// Restoring a profile on the TV: the phone app's backup code and passphrase, pasted rather than typed
-// (the Google TV phone app's keyboard pastes into the focused field). Same flow as the phone's
-// Profiles screen (app/profiles.tsx): a new profile is created and filled from the backup, never
-// overwriting an existing one, and a failed restore removes the half-made profile again.
+// Setting up the TV, two ways:
+// - Connect to the user's WalkerLab Docker server (server mode, src/lib/serverMode.ts): profiles and
+//   services come from the server and API keys never reach the TV. Not shown once connected.
+// - Restore a profile from the phone app's backup code and passphrase, pasted rather than typed (the
+//   Google TV phone app's keyboard pastes into the focused field). Same flow as the phone's Profiles
+//   screen (app/profiles.tsx): a new profile is created and filled from the backup, never
+//   overwriting an existing one, and a failed restore removes the half-made profile again. In server
+//   mode that profile is created on the server (keys go up to it, never down).
+// Every field is pasted the same way.
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useProfiles } from '../../src/context/ProfilesContext';
 import { useServers } from '../../src/context/ServersContext';
 import { importProfileInto } from '../../src/lib/profileBackup';
+import { getServerSession } from '../../src/lib/serverMode';
 import { colors } from '../../src/theme/colors';
 import { FocusCard } from '../components/FocusCard';
+import { TvServerConnectForm } from '../components/ServerConnect';
 import { TV_LIST } from '../components/ui';
 
 export default function TvSetup() {
@@ -22,6 +29,7 @@ export default function TvSetup() {
   const [restoredId, setRestoredId] = useState<string | null>(null);
   const passRef = useRef<TextInput>(null);
   const configured = Object.keys(servers).length > 0;
+  const server = getServerSession();
 
   // ServersProvider reloads when the active profile changes, which happens when the new profile is
   // created - before the backup has been written into it. Reload once more after the write, from a
@@ -58,7 +66,21 @@ export default function TvSetup() {
 
   return (
     <ScrollView {...TV_LIST} style={styles.screen} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Restore a profile</Text>
+      {server ? (
+        <Text style={styles.hint}>Connected to your WalkerLab server at {server.url}. Profiles restored here are saved on the server.</Text>
+      ) : (
+        <>
+          <Text style={styles.title}>Connect to your WalkerLab server</Text>
+          <Text style={styles.hint}>
+            Use the profiles and services set up on your WalkerLab Docker server; API keys stay on the server. Select a box and use the
+            Google TV app's keyboard on your phone to type or paste, so nothing has to be typed with the remote.
+          </Text>
+          <TvServerConnectForm preferredFocus={!configured} />
+          <View style={{ height: 40 }} />
+        </>
+      )}
+
+      <Text style={styles.title}>{server ? 'Restore a profile' : 'Or restore a profile from your phone'}</Text>
       <Text style={styles.hint}>
         On your phone, open WalkerLab → Profiles → Backup, then paste the backup code here. On the TV, select a box and use the
         Google TV app's keyboard on your phone to paste, so nothing has to be typed with the remote.
@@ -76,7 +98,7 @@ export default function TvSetup() {
         multiline
         returnKeyType="next"
         onSubmitEditing={() => passRef.current?.focus()}
-        hasTVPreferredFocus={!configured}
+        hasTVPreferredFocus={!configured && !!server}
       />
 
       <Text style={styles.label}>PASSPHRASE</Text>
@@ -108,7 +130,7 @@ export default function TvSetup() {
 
       {profiles.length > 1 && (
         <>
-          <Text style={[styles.label, { marginTop: 28 }]}>PROFILES ON THIS TV</Text>
+          <Text style={[styles.label, { marginTop: 28 }]}>{server ? 'PROFILES' : 'PROFILES ON THIS TV'}</Text>
           <View style={styles.profiles}>
             {profiles.map((p) => (
               <FocusCard

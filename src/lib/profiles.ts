@@ -11,7 +11,7 @@
 // diverge. The backend's GET/PUT /api/profiles mirror this file's whole-list
 // get/set contract exactly, so ProfilesContext.tsx needs no changes.
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
+import { usesServer } from './serverMode';
 import { apiFetch } from './backendApi';
 import { DEFAULT_PROFILE_ID } from './profileStorage';
 
@@ -28,7 +28,7 @@ const ACTIVE_PROFILE_KEY = 'walkerlab_active_profile_id';
 const DEFAULT_PROFILES: Profile[] = [{ id: DEFAULT_PROFILE_ID, name: 'Home Lab' }];
 
 export async function getProfiles(): Promise<Profile[]> {
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     const profiles = await apiFetch<Profile[]>('/api/profiles');
     return profiles.length > 0 ? profiles : DEFAULT_PROFILES;
   }
@@ -39,7 +39,7 @@ export async function getProfiles(): Promise<Profile[]> {
 }
 
 export async function setProfiles(profiles: Profile[]): Promise<void> {
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     await apiFetch('/api/profiles', { method: 'PUT', body: profiles });
     return;
   }
@@ -47,7 +47,7 @@ export async function setProfiles(profiles: Profile[]): Promise<void> {
 }
 
 export async function getActiveProfileId(): Promise<string> {
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     const res = await apiFetch<{ id: string }>('/api/profiles/active');
     return res.id;
   }
@@ -56,7 +56,7 @@ export async function getActiveProfileId(): Promise<string> {
 }
 
 export async function setActiveProfileId(id: string): Promise<void> {
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     await apiFetch('/api/profiles/active', { method: 'PUT', body: { id } });
     return;
   }

@@ -2,7 +2,7 @@
 // Metacritic ratings (TMDB doesn't provide either). Note RT data is
 // confirmed-missing for TV series on OMDb's side, a known upstream
 // limitation, not a bug here.
-import { Platform } from 'react-native';
+import { usesServer } from '../lib/serverMode';
 import { ServiceConfig } from './types';
 import { webProxyFetch } from './webProxy';
 
@@ -25,7 +25,7 @@ interface OmdbRawResponse {
 // response. OMDb signals failures via `Response: 'False'` in a 200 response
 // rather than an HTTP error status, so callers must check that field too.
 async function omdbFetch(config: ServiceConfig, params: Record<string, string>): Promise<OmdbRawResponse> {
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     return webProxyFetch<OmdbRawResponse>('omdb', config, { path: '', params });
   }
 

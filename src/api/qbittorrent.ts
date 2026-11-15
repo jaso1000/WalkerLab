@@ -2,7 +2,7 @@
 // WebUI authenticates via a session cookie from a username/password login
 // (not a plain API key), with an optional Bearer API-key path for reverse-
 // proxy setups that front it with their own auth.
-import { Platform } from 'react-native';
+import { usesServer } from '../lib/serverMode';
 import { ServiceConfig } from './types';
 import { webProxyFetch } from './webProxy';
 
@@ -95,7 +95,7 @@ interface QbRequestOptions {
 // browser handles it - no manual cookie jar needed. If nothing comes back
 // authenticated, log in (when credentials are configured) and retry once.
 async function qbRequest<T>(config: ServiceConfig, path: string, options: QbRequestOptions = {}): Promise<T> {
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     // The backend keeps its own per-profile session-cookie jar server-side
     // (Node's fetch has no implicit one either) and does the exact same
     // 401/403-then-retry-once login dance - see

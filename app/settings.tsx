@@ -18,6 +18,7 @@ import { useServiceEnabled } from '../src/context/ServiceEnabledContext';
 import { isPushSupported } from '../src/lib/notificationsApi';
 import { SECTION_META } from '../src/lib/sectionMeta';
 import { SERVICE_META } from '../src/lib/serviceMeta';
+import { getServerSession, usesServer } from '../src/lib/serverMode';
 import { DEFAULT_STARTUP_SCREEN, getStartupScreen, StartupSectionId } from '../src/lib/startupScreen';
 import { useTabBarClearance } from '../src/lib/tabBarClearance';
 import { colors } from '../src/theme/colors';
@@ -106,7 +107,20 @@ export default function SettingsScreen() {
         </>
       ) : null}
 
-      {Platform.OS === 'web' ? (
+      {Platform.OS !== 'web' ? (
+        <>
+          <Text style={styles.groupLabel}>WALKERLAB SERVER</Text>
+          <View style={styles.navCard}>
+            <SelectRow
+              label="Connection"
+              value={getServerSession() ? 'Server' : 'Standalone'}
+              onPress={() => router.push('/settings/server')}
+            />
+          </View>
+        </>
+      ) : null}
+
+      {usesServer() ? (
         <>
           <Text style={styles.groupLabel}>ACCOUNT</Text>
           <View style={styles.list}>
@@ -136,7 +150,7 @@ export default function SettingsScreen() {
         </>
       ) : null}
     </ScrollView>
-    {Platform.OS === 'web' ? (
+    {usesServer() ? (
       <ChangePasswordModal visible={changePasswordOpen} onClose={() => setChangePasswordOpen(false)} />
     ) : null}
     </>

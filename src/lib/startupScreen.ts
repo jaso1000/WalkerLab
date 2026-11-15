@@ -2,7 +2,7 @@
 // the startup screen (hence excluding 'settings' from `SectionId`), since
 // there'd be nothing useful to land on immediately after opening the app.
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
+import { usesServer } from './serverMode';
 import { apiFetch } from './backendApi';
 import { profileKey } from './profileStorage';
 import { SectionId } from './sectionNames';
@@ -38,7 +38,7 @@ const VALID_IDS = new Set<string>(Object.keys(ROUTE_FOR));
 // than AsyncStorage, so it's shared across any browser logged into the same
 // instance.
 export async function getStartupScreen(profileId: string): Promise<StartupSectionId> {
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     const res = await apiFetch<{ id: StartupSectionId | null }>(`/api/startup-screen/${profileId}`);
     return res.id && VALID_IDS.has(res.id) ? res.id : DEFAULT_STARTUP_SCREEN;
   }
@@ -47,7 +47,7 @@ export async function getStartupScreen(profileId: string): Promise<StartupSectio
 }
 
 export async function setStartupScreen(profileId: string, id: StartupSectionId): Promise<void> {
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     await apiFetch(`/api/startup-screen/${profileId}`, { method: 'PUT', body: { id } });
     return;
   }

@@ -4,7 +4,7 @@
 // this instead of duplicating fetch/error-handling logic. Also the fallback
 // path for Portainer's own API (see `portainerFetch` in portainer.ts) and
 // Overseerr's, which happen to share this exact same request shape.
-import { Platform } from 'react-native';
+import { usesServer } from '../lib/serverMode';
 import { ServiceConfig, ServiceName } from './types';
 import { webProxyFetch } from './webProxy';
 
@@ -20,7 +20,7 @@ export interface ArrFetchOptions {
 // response. `path` is joined onto `config.baseUrl` (trailing slash on the
 // base URL is tolerated). Throws `ArrApiError` on any non-2xx response.
 //
-// `serviceName` is only needed on web (see below) - every internal caller of
+// `serviceName` is only needed on web and in native server mode (see below) - every internal caller of
 // this function (sonarr.ts/radarr.ts/overseerr.ts each wrap this in their
 // own locally-shadowed `arrFetch` that bakes their own literal service name
 // in, and portainer.ts passes it directly) always supplies it, so no
@@ -32,12 +32,13 @@ export async function arrFetch<T>(
   options: ArrFetchOptions = {},
   serviceName?: ServiceName
 ): Promise<T> {
-  // On web, the real baseUrl/apiKey never reach the browser (see storage.ts)
+  // On web (and in native server mode, src/lib/serverMode.ts), the real
+  // baseUrl/apiKey never reach the client (see storage.ts)
   // - the backend holds them server-side, keyed by profile+service, and
   // makes the real request itself. `config.profileId` (stamped on by
   // storage.ts's web branch) tells the backend which profile's stored
   // config to use.
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     if (!serviceName) throw new ArrApiError('arrFetch called on web without a serviceName - this is a bug.');
     return webProxyFetch<T>(serviceName, config, { path, method: options.method, params: options.params, body: options.body });
   }

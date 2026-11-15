@@ -1,13 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Platform, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PromptModal } from '../src/components/PromptModal';
 import { useProfiles } from '../src/context/ProfilesContext';
 import { alert } from '../src/lib/alert';
 import { Profile } from '../src/lib/profiles';
 import { exportProfile, importProfileInto } from '../src/lib/profileBackup';
+import { getServerSession, isNativeServerMode } from '../src/lib/serverMode';
 import { useTabBarClearance } from '../src/lib/tabBarClearance';
 import { colors } from '../src/theme/colors';
 
@@ -20,6 +21,7 @@ import { colors } from '../src/theme/colors';
 export default function ProfilesScreen() {
   const tabBarClearance = useTabBarClearance();
   const { profiles, activeProfile, switchProfile, addProfile, renameProfile, deleteProfile } = useProfiles();
+  const serverMode = isNativeServerMode();
 
   const [renameTarget, setRenameTarget] = useState<Profile | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -142,23 +144,49 @@ export default function ProfilesScreen() {
           </TouchableOpacity>
         </View>
 
+        {Platform.OS !== 'web' ? (
+          <>
+            <Text style={styles.sectionLabel}>WALKERLAB SERVER</Text>
+            <View style={styles.card}>
+              <Text style={styles.cardHint}>
+                {serverMode
+                  ? `These profiles come from your WalkerLab server (${getServerSession()?.url}).`
+                  : 'These profiles are saved on this device. You can connect to your WalkerLab Docker server instead and use the profiles set up there.'}
+              </Text>
+              <TouchableOpacity style={[styles.button, styles.primaryButton]} onPress={() => router.push('/settings/server')}>
+                <Text style={styles.primaryButtonText}>{serverMode ? 'Server connection' : 'Connect to a WalkerLab server'}</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : null}
+
         <Text style={styles.sectionLabel}>BACKUP</Text>
         <View style={styles.card}>
-          <Text style={styles.cardHint}>
-            Encrypt everything configured under "{activeProfile.name}" (servers, drawer names, enabled services,
-            startup screen) into a code you can save or send anywhere.
-          </Text>
-          <TouchableOpacity
-            style={[styles.button, styles.primaryButton]}
-            onPress={() => setBackupPromptOpen(true)}
-            disabled={backingUp}
-          >
-            {backingUp ? (
-              <ActivityIndicator color={colors.background} />
-            ) : (
-              <Text style={styles.primaryButtonText}>Backup "{activeProfile.name}"</Text>
-            )}
-          </TouchableOpacity>
+          {serverMode ? (
+            // Server mode keeps API keys on the server; a backup would have to bring them to the device
+            // (see profileBackup.ts), so it's made from the web app instead.
+            <Text style={styles.cardHint}>
+              Connected to a WalkerLab server, API keys never come to this device, so backups are made from the WalkerLab web app.
+            </Text>
+          ) : (
+            <>
+              <Text style={styles.cardHint}>
+                Encrypt everything configured under "{activeProfile.name}" (servers, drawer names, enabled services,
+                startup screen) into a code you can save or send anywhere.
+              </Text>
+              <TouchableOpacity
+                style={[styles.button, styles.primaryButton]}
+                onPress={() => setBackupPromptOpen(true)}
+                disabled={backingUp}
+              >
+                {backingUp ? (
+                  <ActivityIndicator color={colors.background} />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Backup "{activeProfile.name}"</Text>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
         </View>
 
         <Text style={styles.sectionLabel}>RESTORE FROM BACKUP</Text>

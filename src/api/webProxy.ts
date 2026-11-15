@@ -1,9 +1,10 @@
-// Shared web-only transport for every API client's low-level fetch helper
-// (arrFetch.ts, qbittorrent.ts, portainer.ts) - on web, none of them call
-// `fetch()` against the real service directly (the real baseUrl/apiKey
-// never reach the browser, see storage.ts); instead they all POST here,
-// which forwards to this app's own Node backend (server/), which holds the
-// real per-profile config and makes the actual request server-side.
+// Shared server-backed transport for every API client's low-level fetch
+// helper (arrFetch.ts, qbittorrent.ts, portainer.ts...) - on web and in
+// native server mode (`usesServer()`, src/lib/serverMode.ts), none of them
+// call `fetch()` against the real service directly (the real baseUrl/apiKey
+// never reach the client, see storage.ts); instead they all POST here, which
+// forwards to this app's own Node backend (server/), which holds the real
+// per-profile config and makes the actual request server-side.
 import { apiFetch } from '../lib/backendApi';
 import { ServiceConfig, ServiceName } from './types';
 

@@ -6,7 +6,9 @@
 // bytes server-side (where the real credentials/network access live) and
 // streams them back. Session-cookie auth still applies (browsers send
 // same-origin cookies automatically on `<img>` requests, no extra wiring
-// needed) - mounted behind `requireAuth` in index.ts same as everything else.
+// needed) - mounted behind `requireImageAuth` in index.ts, which also takes
+// the native app's server-mode image token (an `<Image>` there can't send
+// the Bearer header the rest of its requests use).
 //
 // TMDB doesn't need this: `tmdbImageUrl()` points straight at TMDB's own
 // public CDN (image.tmdb.org), which every browser can already reach
@@ -68,7 +70,9 @@ imageProxyRouter.get('/:profileId/:service', async (req, res) => {
   url.searchParams.set('apikey', config.apiKey);
   url.searchParams.set('cmd', 'pms_image_proxy');
   for (const [key, value] of Object.entries(req.query)) {
-    if (typeof value === 'string') url.searchParams.set(key, value);
+    // `token` is the native app's image token (auth.ts's requireImageAuth already drops it) - never
+    // pass a WalkerLab credential on to Tautulli.
+    if (typeof value === 'string' && key !== 'token') url.searchParams.set(key, value);
   }
 
   try {

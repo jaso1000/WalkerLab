@@ -18,7 +18,7 @@
 import { Image } from 'expo-image';
 import { router, usePathname } from 'expo-router';
 import { useState } from 'react';
-import { Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ProfileSwitcher } from './ProfileSwitcher';
@@ -29,6 +29,7 @@ import { SECTION_META } from '../lib/sectionMeta';
 import { navigateToSection } from '../lib/sectionReset';
 import { StartupSectionId } from '../lib/startupScreen';
 import { colors } from '../theme/colors';
+import { usesServer } from '../lib/serverMode';
 
 // `order` is the caller's already-resolved (per-profile, already
 // enabled-service-filtered) list of non-Settings sections to show, in the
@@ -81,7 +82,7 @@ export function CompactSidebar({ order, onExpand }: { order: StartupSectionId[];
             <Ionicons name="server-outline" size={20} color={colors.textSecondary} />
           </View>
         </TouchableOpacity>
-        {Platform.OS === 'web' ? (
+        {usesServer() ? (
           <TouchableOpacity style={styles.iconButton} onPress={logout}>
             <View style={styles.iconCircle}>
               <Ionicons name="log-out-outline" size={20} color={colors.danger} />

@@ -5,7 +5,7 @@
 // request (or any request whose cached token has since expired/rotated)
 // gets rejected with 409, carrying the fresh token in that same response
 // header, and must be retried once with it attached.
-import { Platform } from 'react-native';
+import { usesServer } from '../lib/serverMode';
 import { ServiceConfig } from './types';
 import { webProxyFetch } from './webProxy';
 
@@ -104,7 +104,7 @@ interface TransmissionRequestOptions {
 }
 
 async function transmissionRequest<T>(config: ServiceConfig, options: TransmissionRequestOptions): Promise<T> {
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     // The backend keeps its own per-profile session-id cache server-side -
     // see server/src/services/transmissionProxy.ts.
     return webProxyFetch<T>('transmission', config, {

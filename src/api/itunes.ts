@@ -10,7 +10,7 @@
 // off-browser); web routes through this app's own `/api/itunes/*`
 // passthrough instead, since neither endpoint sends CORS headers for
 // arbitrary browser origins (verified live) - see server/src/itunesRoutes.ts.
-import { Platform } from 'react-native';
+import { usesServer } from '../lib/serverMode';
 import { apiFetch } from '../lib/backendApi';
 
 const SEARCH_URL = 'https://itunes.apple.com/search';
@@ -56,7 +56,7 @@ const cache = new Map<string, Promise<string | undefined>>();
 async function fetchArtwork(name: string): Promise<string | undefined> {
   const params = new URLSearchParams({ term: name, entity: 'album', limit: '1' });
   const json =
-    Platform.OS === 'web'
+    usesServer()
       ? await apiFetch<ItunesSearchResponse>(`/api/itunes/search?${params.toString()}`)
       : await fetch(`${SEARCH_URL}?${params.toString()}`).then((res) => res.json() as Promise<ItunesSearchResponse>);
   const artworkUrl100 = json.results[0]?.artworkUrl100;
@@ -78,7 +78,7 @@ export const itunesApi = {
   async newReleaseAlbums(): Promise<AppleAlbum[]> {
     try {
       const json =
-        Platform.OS === 'web'
+        usesServer()
           ? await apiFetch<AppleChartResponse>('/api/itunes/new-releases')
           : await fetch(NEW_RELEASES_URL).then((res) => res.json() as Promise<AppleChartResponse>);
       return (json.feed?.results ?? []).map((a) => ({ ...a, artworkUrl100: upsize(a.artworkUrl100) }));

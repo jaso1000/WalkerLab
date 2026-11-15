@@ -7,7 +7,6 @@ import {
   FlatList,
   NativeScrollEvent,
   NativeSyntheticEvent,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -33,6 +32,7 @@ import { useTabBarClearance } from '../../src/lib/tabBarClearance';
 import { getWheels, newWheelId, saveWheel, Wheel, WheelItem, wheelItemHref } from '../../src/lib/wheels';
 import { useProfiles } from '../../src/context/ProfilesContext';
 import { colors } from '../../src/theme/colors';
+import { usesServer } from '../../src/lib/serverMode';
 
 // Create/edit screen for one wheel - `wheelId` (search param) selects edit
 // mode, prefilling from the saved wheel; omitted, it's a fresh new wheel.
@@ -667,7 +667,7 @@ export default function WheelBuilderScreen() {
           onChangeText={setName}
         />
         <SwitchRow label="Remove title after landing on it" value={removeAfterSpin} onChange={setRemoveAfterSpin} tint={colors.spin} />
-        {Platform.OS === 'web' ? (
+        {usesServer() ? (
           <SwitchRow label="Share with all users on this instance" value={shared} onChange={setShared} tint={colors.spin} />
         ) : null}
       </View>

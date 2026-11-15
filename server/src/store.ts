@@ -252,6 +252,29 @@ export function touchSession(sessionId: string, extendBy: number): SessionRecord
   return record;
 }
 
+// Image-proxy tokens: an `<Image>` on the native app (server mode) can't send
+// an Authorization header, and putting the session id itself in image URLs
+// would leak a credential that can do anything (URLs end up in caches and
+// proxy logs). Instead each session gets a derived token - an HMAC of its id
+// under a key derived from the master key - that auth.ts's requireImageAuth
+// accepts on the image proxy only. Nothing is stored: a token is valid
+// exactly as long as its session is (logout/expiry/user deletion revoke it).
+let imageTokenKey: Buffer | undefined;
+
+export function imageTokenForSession(sessionId: string): string {
+  imageTokenKey ??= Buffer.from(crypto.hkdfSync('sha256', masterKey, Buffer.alloc(0), 'walkerlab-image-proxy-token', 32));
+  return crypto.createHmac('sha256', imageTokenKey).update(sessionId).digest('base64url');
+}
+
+export function findSessionIdByImageToken(token: string): string | undefined {
+  const given = Buffer.from(token);
+  for (const sessionId of Object.keys(data.sessions)) {
+    const expected = Buffer.from(imageTokenForSession(sessionId));
+    if (expected.length === given.length && crypto.timingSafeEqual(expected, given)) return sessionId;
+  }
+  return undefined;
+}
+
 export function deleteSession(sessionId: string) {
   delete data.sessions[sessionId];
   lastPersistedExpiry.delete(sessionId);

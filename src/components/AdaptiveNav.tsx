@@ -16,7 +16,7 @@
 // PLAN.md's "Current status" for why the old per-profile Drawer/Tabs
 // preference was removed rather than kept alongside this.
 import { useEffect, useRef, useState } from 'react';
-import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { BlurTargetView } from 'expo-blur';
 import { router, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,6 +36,7 @@ import { StartupSectionId } from '../lib/startupScreen';
 import { FLOATING_BAR_GAP, TabBarClearanceContext } from '../lib/tabBarClearance';
 import { DEFAULT_TAB_ORDER, getTabOrder, splitTabOrder } from '../lib/tabOrder';
 import { colors } from '../theme/colors';
+import { usesServer } from '../lib/serverMode';
 
 export function AdaptiveNav({ children }: { children: React.ReactNode }) {
   const { width } = useWindowDimensions();
@@ -123,7 +124,7 @@ export function AdaptiveNav({ children }: { children: React.ReactNode }) {
       icon: 'server-outline' as const,
       onPress: () => setProfileMenuOpen(true),
     },
-    ...(Platform.OS === 'web'
+    ...(usesServer()
       ? [{ label: 'Log Out', icon: 'log-out-outline' as const, tint: colors.danger, onPress: logout }]
       : []),
   ];

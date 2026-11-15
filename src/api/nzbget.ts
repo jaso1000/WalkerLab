@@ -9,7 +9,7 @@
 // (https://nzbget.com/documentation/api/) before writing any of this, the
 // same way sabnzbd.ts's own `mode=version` bug was found and fixed by
 // checking docs rather than assuming.
-import { Platform } from 'react-native';
+import { usesServer } from '../lib/serverMode';
 import { ServiceConfig } from './types';
 import { webProxyFetch } from './webProxy';
 
@@ -82,7 +82,7 @@ function base64Encode(input: string): string {
 // token pattern (Settings' API Key field already describes this generically
 // for every credential-based service, not just qBittorrent).
 async function nzbgetRequest<T>(config: ServiceConfig, method: string, params: unknown[] = []): Promise<T> {
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     return webProxyFetch<T>('nzbget', config, { path: '/jsonrpc', method: 'POST', body: { method, params } });
   }
 

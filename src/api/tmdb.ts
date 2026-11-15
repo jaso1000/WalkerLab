@@ -4,7 +4,7 @@
 // Discover needs to match Sonarr's TV library against TMDB cards. The
 // biggest/most-varied API client in the app since Discover's detail pages
 // surface almost everything TMDB returns.
-import { Platform } from 'react-native';
+import { usesServer } from '../lib/serverMode';
 import { ServiceConfig } from './types';
 import { webProxyFetch } from './webProxy';
 
@@ -414,7 +414,7 @@ export function tmdbImageUrl(path: string | undefined, size: 'w45' | 'w185' | 'w
 // this app doesn't use) and JSON-decodes the response, surfacing TMDB's own
 // `status_message` field on error responses when present.
 async function tmdbFetch<T>(config: ServiceConfig, path: string, params: Record<string, string> = {}): Promise<T> {
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     return webProxyFetch<T>('tmdb', config, { path, params });
   }
 

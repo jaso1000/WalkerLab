@@ -3,7 +3,7 @@
 // by a `cmd` query param, authenticated via an `apikey` query param (not a
 // header, unlike the arr apps). Every response is wrapped in
 // `{ response: { result, message, data } }` regardless of `cmd`.
-import { Platform } from 'react-native';
+import { serverImageUrl, usesServer } from '../lib/serverMode';
 import { ServiceConfig } from './types';
 import { webProxyFetch } from './webProxy';
 
@@ -153,7 +153,7 @@ export interface TautulliGraphData {
 // `response.message` (or a generic error) when `result` isn't 'success'.
 async function tautulliFetch<T>(config: ServiceConfig, cmd: string, params: Record<string, string> = {}): Promise<T> {
   const fullParams = { cmd, out_type: 'json', ...params };
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     return webProxyFetch<T>('tautulli', config, { path: '/api/v2', params: fullParams });
   }
 
@@ -182,21 +182,24 @@ async function tautulliFetch<T>(config: ServiceConfig, cmd: string, params: Reco
 // can't reach the user's LAN-only Tautulli instance any more than a
 // `fetch()` call could, so this points at this app's own backend image
 // proxy instead (`GET /api/image-proxy/:profileId/tautulli`, see
-// server/src/imageProxyRoutes.ts), which holds the real key server-side.
+// server/src/imageProxyRoutes.ts), which holds the real key server-side -
+// and so does native server mode (src/lib/serverMode.ts), where the device
+// has no key to inline.
 export function tautulliImageUrl(
   config: ServiceConfig,
   opts: { ratingKey?: string | number; img?: string; width?: number; height?: number }
 ): string | undefined {
   if (!opts.ratingKey && !opts.img) return undefined;
 
-  if (Platform.OS === 'web') {
-    const url = new URL(`/api/image-proxy/${config.profileId}/tautulli`, window.location.origin);
-    if (opts.ratingKey !== undefined) url.searchParams.set('rating_key', String(opts.ratingKey));
-    if (opts.img) url.searchParams.set('img', opts.img);
-    url.searchParams.set('width', String(opts.width ?? 300));
-    url.searchParams.set('height', String(opts.height ?? 450));
-    url.searchParams.set('fallback', 'poster');
-    return url.toString();
+  if (usesServer()) {
+    if (!config.profileId) return undefined;
+    return serverImageUrl(`/api/image-proxy/${config.profileId}/tautulli`, {
+      ...(opts.ratingKey !== undefined ? { rating_key: String(opts.ratingKey) } : {}),
+      ...(opts.img ? { img: opts.img } : {}),
+      width: String(opts.width ?? 300),
+      height: String(opts.height ?? 450),
+      fallback: 'poster',
+    });
   }
 
   const url = new URL(config.baseUrl.replace(/\/+$/, '') + '/api/v2');

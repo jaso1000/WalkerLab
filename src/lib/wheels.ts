@@ -22,7 +22,7 @@
 // library at all, so there's no local id to snapshot; exactly one of
 // `libraryId`/`tmdbId` is ever set on a given item, see `wheelItemHref`.
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
+import { usesServer } from './serverMode';
 import { apiFetch } from './backendApi';
 import { profileKey } from './profileStorage';
 
@@ -72,7 +72,7 @@ async function getOwnWheelsNative(profileId: string): Promise<Wheel[]> {
 // sharing is a multi-user, web-only concept, so native just returns the
 // caller's own list, same as before this feature existed.
 export async function getWheels(profileId: string): Promise<Wheel[]> {
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     return apiFetch<Wheel[]>(`/api/wheels/${profileId}`);
   }
   return getOwnWheelsNative(profileId);
@@ -85,7 +85,7 @@ export async function getWheels(profileId: string): Promise<Wheel[]> {
 // plain read-modify-write of the profile's own array, since there's no
 // concept of another user's data to resolve against.
 export async function saveWheel(profileId: string, wheel: Wheel): Promise<void> {
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     await apiFetch(`/api/wheels/${profileId}/${wheel.id}`, { method: 'PUT', body: wheel });
     return;
   }
@@ -96,7 +96,7 @@ export async function saveWheel(profileId: string, wheel: Wheel): Promise<void> 
 }
 
 export async function deleteWheel(profileId: string, wheelId: string): Promise<void> {
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     await apiFetch(`/api/wheels/${profileId}/${wheelId}`, { method: 'DELETE' });
     return;
   }

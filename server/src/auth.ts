@@ -16,6 +16,7 @@ import {
   getUserById,
   getUserByUsername,
   hasAnyUsers,
+  findSessionIdByImageToken,
   touchSession,
   updateUser,
 } from './store';
@@ -58,14 +59,25 @@ function isSecureRequest(req: Request): boolean {
 // jar to persist an httpOnly cookie across restarts, so it stores the raw
 // session id itself instead, returned in the login response body
 // specifically for this - see issueSession below). Same session store
-// either way, just two ways to present the same token.
-function getAuthenticatedUser(req: Request): UserRecord | undefined {
+// either way, just two ways to present the same token. An explicit Bearer
+// header wins over a cookie: browsers never send one, and React Native's
+// networking layer keeps its own cookie jar, which could otherwise replay a
+// stale cookie from an earlier login over the session the app chose.
+function requestSessionId(req: Request): string | undefined {
   const bearerMatch = req.get('authorization')?.match(/^Bearer (.+)$/);
-  const sessionId = req.cookies?.[SESSION_COOKIE] ?? bearerMatch?.[1];
-  if (!sessionId) return undefined;
+  return bearerMatch?.[1] ?? req.cookies?.[SESSION_COOKIE];
+}
+
+function userForSession(sessionId: string): UserRecord | undefined {
   const session = touchSession(sessionId, SESSION_DURATION_MS);
   if (!session) return undefined;
   return getUserById(session.userId);
+}
+
+function getAuthenticatedUser(req: Request): UserRecord | undefined {
+  const sessionId = requestSessionId(req);
+  if (!sessionId) return undefined;
+  return userForSession(sessionId);
 }
 
 export function authState(req: Request): AuthState {
@@ -100,8 +112,7 @@ export function clearSession(req: Request, res: Response) {
   // Same cookie-or-Bearer fallback as getAuthenticatedUser above, so a
   // native client's "disconnect" actually invalidates its session id
   // server-side too, not just locally.
-  const bearerMatch = req.get('authorization')?.match(/^Bearer (.+)$/);
-  const sessionId = req.cookies?.[SESSION_COOKIE] ?? bearerMatch?.[1];
+  const sessionId = requestSessionId(req);
   if (sessionId) deleteSession(sessionId);
   res.clearCookie(SESSION_COOKIE, { path: '/' });
 }
@@ -163,13 +174,43 @@ export async function seedAdminFromEnvIfAbsent() {
   console.log(`[auth] Seeded admin account "${username}" from environment variables.`);
 }
 
+// The only 401 that means "your session is gone" - the WWW-Authenticate header
+// is how the native app (src/lib/backendApi.ts) tells it apart from other
+// 401s like change-password's wrong-current-password, so it only drops back
+// to its login form for a real session failure.
+function rejectUnauthenticated(res: Response) {
+  res.set('WWW-Authenticate', 'Bearer');
+  res.status(401).json({ error: 'Not authenticated.' });
+}
+
 // Express middleware for every /api/config, /api/proxy, /api/image-proxy
 // route - rejects with 401 unless a valid session cookie is present, and
 // attaches the authenticated user's id/role for every downstream handler.
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const user = getAuthenticatedUser(req);
   if (!user) {
-    res.status(401).json({ error: 'Not authenticated.' });
+    rejectUnauthenticated(res);
+    return;
+  }
+  req.userId = user.id;
+  req.userRole = user.role;
+  next();
+}
+
+// The image proxy only (/api/image-proxy): a normal session (cookie/Bearer),
+// or the native app's image token in `?token=` - see store.ts's
+// imageTokenForSession for why images get their own, narrower credential.
+// The token is removed from req.query so it's never forwarded upstream.
+export function requireImageAuth(req: Request, res: Response, next: NextFunction) {
+  let user = getAuthenticatedUser(req);
+  const token = req.query.token;
+  if (!user && typeof token === 'string' && token) {
+    const sessionId = findSessionIdByImageToken(token);
+    if (sessionId) user = userForSession(sessionId);
+  }
+  delete req.query.token;
+  if (!user) {
+    rejectUnauthenticated(res);
     return;
   }
   req.userId = user.id;

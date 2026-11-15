@@ -10,7 +10,7 @@ import {
   requireAuth,
   verifyCredentials,
 } from './auth';
-import { deleteUserData, getUserById, getUserByUsername, getUsers, hasAnyUsers } from './store';
+import { deleteUserData, getUserById, getUserByUsername, getUsers, hasAnyUsers, imageTokenForSession } from './store';
 
 export const authRouter = Router();
 
@@ -68,12 +68,13 @@ authRouter.post('/login', authAttemptLimiter, async (req, res) => {
     res.status(401).json({ error: 'Incorrect username or password.' });
     return;
   }
-  // sessionId: unused by the web client (the httpOnly cookie already set
-  // above handles it) - present for the native app's notification-relay
-  // login (src/lib/notificationsApi.ts), which has no cookie jar to persist
-  // across app restarts and stores this directly instead.
+  // sessionId/imageToken: unused by the web client (the httpOnly cookie
+  // already set above handles it) - present for the native app's server
+  // mode (src/lib/serverMode.ts), which stores the session id itself and
+  // replays it as a Bearer header, and puts the image token (good for the
+  // image proxy only, see store.ts) in `<Image>` URLs.
   const sessionId = issueSession(req, res, user.id);
-  res.json({ username: user.username, sessionId });
+  res.json({ username: user.username, sessionId, imageToken: imageTokenForSession(sessionId) });
 });
 
 authRouter.post('/logout', (req, res) => {

@@ -59,7 +59,18 @@ docker run -d \
 
 Open the container's address in a browser — the first visit walks you through a setup wizard to create your admin account, then you configure each service under Settings, same as on mobile. Every credential is encrypted at rest server-side and never touches the browser directly. From Settings > Manage Users, the admin can add accounts for anyone else who needs access — each one gets their own independent set of Server Profiles. See [`docker-compose.yml`](docker-compose.yml) for optional environment variables (seeding an admin account, supplying your own encryption key).
 
-### Option 3: Build from source
+### Option 3: Windows Server
+
+Download `WalkerLab-Server-Setup-<version>.exe` from [Releases](../../releases/latest) and run it on a 64-bit Windows Server 2016 or later (Windows 10/11 works too). It's the same self-hosted web app as the Docker build, installed as a Windows service, with nothing else to install first (Node is bundled). The installer asks which port to use (3000 by default) and adds a Windows Firewall rule for it, limited to your local subnet.
+
+- App files go in `C:\Program Files\WalkerLab Server`. Data (the encrypted credential store, its key, and logs) goes in `C:\ProgramData\WalkerLab`, readable only by SYSTEM and Administrators.
+- To upgrade, run a newer installer over the top. Your accounts, settings and port are kept.
+- Uninstalling keeps your data unless you choose to delete it.
+- Unattended install: `WalkerLab-Server-Setup-<version>.exe /S /PORT=3000`. Unattended uninstall: `"C:\Program Files\WalkerLab Server\uninstall.exe" /S`, adding `/PURGE` to also delete the data.
+
+Open `http://<server>:<port>` and the first visit runs the same setup wizard as Docker. Like Docker, it serves plain HTTP, so put a reverse proxy or tunnel in front of it for HTTPS or remote access.
+
+### Option 4: Build from source
 
 ```bash
 npm install

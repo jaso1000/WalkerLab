@@ -9,6 +9,7 @@ import { Platform } from 'react-native';
 import { ServiceConfig, ServiceName } from '../api/types';
 import { apiFetch } from './backendApi';
 import { decryptPayload, encryptPayload } from './backupCrypto';
+import { isNativeServerMode } from './serverMode';
 import { SectionId, getSectionNameOverrides, setSectionNameOverrides } from './sectionNames';
 import { getServiceConfig, setServiceConfig } from './storage';
 import { getServiceEnabledOverrides, setServiceEnabledOverrides } from './serviceEnabled';
@@ -23,9 +24,16 @@ const SERVICE_NAMES: ServiceName[] = ['sonarr', 'radarr', 'lidarr', 'sabnzbd', '
 // web-created backup would silently contain blank credentials. This calls
 // a dedicated unredacted endpoint instead (server/src/configRoutes.ts),
 // used nowhere else - not a general-purpose way to read secrets back out.
+// Native server mode (src/lib/serverMode.ts) deliberately does NOT use it:
+// the point of that mode is that keys never reach the device, so a backup
+// there has to be made from the web app. Restoring a backup in server mode
+// is fine - that sends keys up to the server, never down.
 async function getServiceConfigForBackup(profileId: string, name: ServiceName): Promise<ServiceConfig | null> {
   if (Platform.OS === 'web') {
     return apiFetch<ServiceConfig | null>(`/api/config/${profileId}/${name}/unredacted`);
+  }
+  if (isNativeServerMode()) {
+    throw new Error("Connected to a WalkerLab server, the API keys stay on the server, so this device can't put them in a backup. Make the backup from the WalkerLab web app instead.");
   }
   return getServiceConfig(profileId, name);
 }

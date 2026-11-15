@@ -4,7 +4,7 @@
 // Last.fm's own support forum, an unresolved multi-year issue) - this client
 // never surfaces them. Real cover art for Music Discover comes from
 // `src/api/itunes.ts` instead, resolved separately by artist name.
-import { Platform } from 'react-native';
+import { usesServer } from '../lib/serverMode';
 import { ServiceConfig } from './types';
 import { webProxyFetch } from './webProxy';
 
@@ -87,7 +87,7 @@ export function stripBioHtml(html: string): string {
 // surfacing Last.fm's own `{error, message}` shape on failure - Last.fm
 // signals errors this way in an HTTP 200 response, not via status code.
 async function lastfmFetch<T>(config: ServiceConfig, method: string, params: Record<string, string> = {}): Promise<T> {
-  if (Platform.OS === 'web') {
+  if (usesServer()) {
     return webProxyFetch<T>('lastfm', config, { path: '', params: { method, ...params } });
   }
 

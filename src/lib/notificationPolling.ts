@@ -25,6 +25,7 @@ import { radarrApi } from '../api/radarr';
 import { sonarrApi } from '../api/sonarr';
 import { ServiceConfig, ServiceName } from '../api/types';
 import { getLastSeen, getPollingPrefs, PollIntervalMinutes, setLastSeenForService } from './notificationPrefs';
+import { getServerSession, isNativeServerMode, loadServerSession } from './serverMode';
 import { getServiceConfig } from './storage';
 
 const TASK_NAME = 'walkerlab-notification-poll';
@@ -147,7 +148,16 @@ async function notify(items: NewItem[]): Promise<void> {
 // The one poll function used both by the background task and by the
 // immediate check app/_layout.tsx runs on launch. Safe to call with no
 // prefs saved yet or no services enabled (no-ops).
+//
+// In native server mode (src/lib/serverMode.ts) the same checks run through
+// the server's proxy: getServiceConfig returns the server's redacted config
+// and the API clients send it via /api/proxy with the stored session. The
+// background task runs in a fresh JS context with no AuthGate, so the
+// stored server state is loaded here first, and a logged-out server mode
+// skips the run rather than falling back to the device's standalone keys.
 export async function checkForNewContent(): Promise<void> {
+  await loadServerSession();
+  if (isNativeServerMode() && !getServerSession()?.sessionId) return;
   const prefs = await getPollingPrefs();
   if (!prefs) return;
   const enabledServices = (Object.keys(prefs.services) as ServiceName[]).filter((s) => prefs.services[s] && CHECKERS[s]);
@@ -157,7 +167,8 @@ export async function checkForNewContent(): Promise<void> {
   const allNewItems: NewItem[] = [];
 
   for (const service of enabledServices) {
-    const config = await getServiceConfig(prefs.profileId, service);
+    // Can throw in server mode (e.g. the saved profile id belongs to the other mode) - skip, don't abort.
+    const config = await getServiceConfig(prefs.profileId, service).catch(() => null);
     if (!config) continue;
     const checker = CHECKERS[service]!;
     try {
