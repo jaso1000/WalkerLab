@@ -32,6 +32,7 @@ import {
 import { ServiceConfig } from '../src/api/types';
 import { Badge, BadgeTone } from '../src/components/Badge';
 import { NotConfigured } from '../src/components/NotConfigured';
+import { sectionErrorBoundary } from '../src/components/SectionErrorBoundary';
 import { SwipeTabBar } from '../src/components/SwipeTabBar';
 import { WebRefreshButton } from '../src/components/WebRefreshButton';
 import { TautulliHistoryCard } from '../src/components/TautulliHistoryCard';
@@ -44,6 +45,10 @@ import { useTabBarClearance } from '../src/lib/tabBarClearance';
 import { HeaderTitle } from '../src/components/HeaderTitle';
 import { SECTION_META } from '../src/lib/sectionMeta';
 import { colors } from '../src/theme/colors';
+
+// Any render crash on this screen shows an error card with Try Again instead
+// of taking the whole app down - see SectionErrorBoundary.tsx.
+export const ErrorBoundary = sectionErrorBoundary('Stats', colors.tautulli);
 
 const TABS = ['Activity', 'Users', 'History', 'Stats', 'Graphs'] as const;
 const HISTORY_PAGE_SIZE = 25;
@@ -113,7 +118,9 @@ const SessionRow = memo(function SessionRow({ item, config }: { item: TautulliSe
         </Text>
         <View style={styles.badgeRow}>
           <Ionicons name={sessionStateIcon(item.state)} size={14} color={colors.tautulli} />
-          <Badge label={titleCase(item.transcode_decision)} tone={transcodeTone(item.transcode_decision)} />
+          {item.transcode_decision ? (
+            <Badge label={titleCase(item.transcode_decision)} tone={transcodeTone(item.transcode_decision)} />
+          ) : null}
         </View>
         {qualityLine ? (
           <Text style={styles.qualityText} numberOfLines={1}>
@@ -378,6 +385,8 @@ export default function TautulliScreen() {
         setHistoryStart((s) => s + res.data.length);
         setHistoryTotal(res.recordsFiltered);
       })
+      // A failed next page just stops here; pull to refresh retries.
+      .catch(() => setHistoryTotal(0))
       .finally(() => {
         setLoadingMoreHistory(false);
         loadMoreHistoryLock.current = false;

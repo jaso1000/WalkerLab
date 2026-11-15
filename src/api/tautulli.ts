@@ -213,50 +213,97 @@ export function tautulliImageUrl(
   return url.toString();
 }
 
+// Tautulli can answer "success" with an empty or partial body - it did
+// while it had lost its Plex token, and Stats then crashed on the phone, the
+// TV and the web alike, since every screen trusted these shapes outright.
+// Every list/graph response is normalized here, once, so no screen has to:
+// missing arrays become empty ones and graph values become numbers.
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value.filter((v) => v !== null && v !== undefined) as T[]) : [];
+}
+
+function normalizeActivity(raw: Partial<TautulliActivity> | null | undefined): TautulliActivity {
+  return {
+    sessions: asArray<TautulliSession>(raw?.sessions),
+    stream_count: String(raw?.stream_count ?? 0),
+    stream_count_direct_play: Number(raw?.stream_count_direct_play) || 0,
+    stream_count_direct_stream: Number(raw?.stream_count_direct_stream) || 0,
+    stream_count_transcode: Number(raw?.stream_count_transcode) || 0,
+    total_bandwidth: Number(raw?.total_bandwidth) || 0,
+    wan_bandwidth: Number(raw?.wan_bandwidth) || 0,
+    lan_bandwidth: Number(raw?.lan_bandwidth) || 0,
+  };
+}
+
+function normalizeTable<T>(raw: Partial<TautulliTableResponse<T>> | null | undefined): TautulliTableResponse<T> {
+  const data = asArray<T>(raw?.data);
+  return {
+    data,
+    recordsTotal: Number(raw?.recordsTotal) || data.length,
+    recordsFiltered: Number(raw?.recordsFiltered) || data.length,
+  };
+}
+
+function normalizeStatGroups(raw: unknown): TautulliStatGroup[] {
+  return asArray<TautulliStatGroup>(raw)
+    .filter((g) => typeof g === 'object')
+    .map((g) => ({ ...g, stat_id: String(g.stat_id ?? ''), rows: asArray<TautulliStatRow>(g.rows) }));
+}
+
+function normalizeGraph(raw: Partial<TautulliGraphData> | null | undefined): TautulliGraphData {
+  return {
+    categories: asArray<unknown>(raw?.categories).map((c) => String(c)),
+    series: asArray<{ name?: unknown; data?: unknown }>(raw?.series).map((s) => ({
+      name: String(s.name ?? ''),
+      data: Array.isArray(s.data) ? s.data.map((n) => Number(n) || 0) : [],
+    })),
+  };
+}
+
 export const tautulliApi = {
   // Settings' "Test Connection" check - cheap and always returns a valid
   // (possibly empty) result, so it just confirms the API key/URL work.
   testConnection: (config: ServiceConfig) => tautulliFetch<TautulliActivity>(config, 'get_activity'),
 
-  getActivity: (config: ServiceConfig) => tautulliFetch<TautulliActivity>(config, 'get_activity'),
+  getActivity: (config: ServiceConfig) => tautulliFetch<Partial<TautulliActivity>>(config, 'get_activity').then(normalizeActivity),
 
   // Ordered by play count descending, with a generous page size since home
   // Plex libraries typically have few users - no infinite scroll needed.
   getUsersTable: (config: ServiceConfig, length = 100) =>
-    tautulliFetch<TautulliTableResponse<TautulliUserRow>>(config, 'get_users_table', {
+    tautulliFetch<Partial<TautulliTableResponse<TautulliUserRow>>>(config, 'get_users_table', {
       order_column: 'plays',
       order_dir: 'desc',
       start: '0',
       length: String(length),
-    }),
+    }).then((res) => normalizeTable(res)),
 
   // Paginated playback history, optionally scoped to one user (the per-user
   // watch-history screen reuses this with `userId` set).
   getHistory: (config: ServiceConfig, opts: { start?: number; length?: number; userId?: number } = {}) =>
-    tautulliFetch<TautulliTableResponse<TautulliHistoryItem>>(config, 'get_history', {
+    tautulliFetch<Partial<TautulliTableResponse<TautulliHistoryItem>>>(config, 'get_history', {
       start: String(opts.start ?? 0),
       length: String(opts.length ?? 25),
       order_column: 'date',
       order_dir: 'desc',
       ...(opts.userId !== undefined ? { user_id: String(opts.userId) } : {}),
-    }),
+    }).then((res) => normalizeTable(res)),
 
   // Called with no `stat_id` filter to get Tautulli's full default set of
   // home-page stat groups in one call; callers pick out the specific
   // `stat_id`s they need (top_movies, popular_movies, popular_tv, top_users,
   // most_concurrent) from the returned array.
   getHomeStats: (config: ServiceConfig, timeRange = 30) =>
-    tautulliFetch<TautulliStatGroup[]>(config, 'get_home_stats', {
+    tautulliFetch<unknown>(config, 'get_home_stats', {
       time_range: String(timeRange),
       stats_count: '5',
-    }),
+    }).then(normalizeStatGroups),
 
   getPlaysByDate: (config: ServiceConfig, days = 30) =>
-    tautulliFetch<TautulliGraphData>(config, 'get_plays_by_date', { time_range: String(days) }),
+    tautulliFetch<Partial<TautulliGraphData>>(config, 'get_plays_by_date', { time_range: String(days) }).then(normalizeGraph),
 
   getPlaysByDayOfWeek: (config: ServiceConfig, days = 30) =>
-    tautulliFetch<TautulliGraphData>(config, 'get_plays_by_dayofweek', { time_range: String(days) }),
+    tautulliFetch<Partial<TautulliGraphData>>(config, 'get_plays_by_dayofweek', { time_range: String(days) }).then(normalizeGraph),
 
   getPlaysByMonth: (config: ServiceConfig, months = 12) =>
-    tautulliFetch<TautulliGraphData>(config, 'get_plays_by_month', { time_range: String(months) }),
+    tautulliFetch<Partial<TautulliGraphData>>(config, 'get_plays_by_month', { time_range: String(months) }).then(normalizeGraph),
 };

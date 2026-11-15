@@ -14,8 +14,12 @@ import { listStyles } from '../components/DownloadClientView';
 import { FocusCard } from '../components/FocusCard';
 import { Shell } from '../components/Shell';
 import { HistoryList, Thumb } from '../components/TautulliHistory';
+import { screenErrorBoundary } from '../components/ScreenError';
 import { ListFrame, ListRow, Loading, Message, NotConfigured, ScreenHeader, SIDE, StatTiles, TV_LIST, useLoad, usePoll } from '../components/ui';
 import { useEnabledServers } from '../lib/useEnabledServers';
+
+// A render crash here shows an error screen with Try Again instead of closing the app.
+export const ErrorBoundary = screenErrorBoundary('stats', 'Stats', colors.tautulli);
 
 const TABS = ['Activity', 'Users', 'History', 'Stats', 'Graphs'] as const;
 const tint = colors.tautulli;
@@ -102,7 +106,7 @@ function Activity({ config }: { config: ServiceConfig }) {
           return (
             <ListRow
               title={title}
-              subtitle={`${s.friendly_name} · ${s.state} · ${s.transcode_decision}`}
+              subtitle={[s.friendly_name, s.state, s.transcode_decision].filter(Boolean).join(' · ')}
               meta={`${s.progress_percent}%`}
               metaColor={tint}
               tint={tint}

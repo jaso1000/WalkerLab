@@ -139,7 +139,11 @@ export function formatTime(date?: string): string {
 
 // Converts a camelCase API field/enum value into a spaced, capitalized
 // display string, e.g. "downloadFolderImported" -> "Download Folder Imported".
-export function titleCase(value: string): string {
+// Tolerates a missing value (returns '') - service data isn't guaranteed to
+// carry every field (Tautulli sessions without a transcode_decision crashed
+// Stats once).
+export function titleCase(value?: string | null): string {
+  if (!value) return '';
   return value.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase()).trim();
 }
 

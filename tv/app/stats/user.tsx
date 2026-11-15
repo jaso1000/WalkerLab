@@ -2,9 +2,12 @@
 import { useLocalSearchParams } from 'expo-router';
 import { View } from 'react-native';
 import { colors } from '../../../src/theme/colors';
+import { screenErrorBoundary } from '../../components/ScreenError';
 import { HistoryList } from '../../components/TautulliHistory';
 import { Loading, ScreenHeader } from '../../components/ui';
 import { useEnabledServers } from '../../lib/useEnabledServers';
+
+export const ErrorBoundary = screenErrorBoundary('stats', 'Watch history', colors.tautulli);
 
 export default function TvStatsUser() {
   const { id, name } = useLocalSearchParams<{ id: string; name?: string }>();

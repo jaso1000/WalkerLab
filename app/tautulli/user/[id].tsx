@@ -10,10 +10,13 @@ import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View }
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TautulliHistoryItem, tautulliApi } from '../../../src/api/tautulli';
 import { TautulliHistoryCard } from '../../../src/components/TautulliHistoryCard';
+import { sectionErrorBoundary } from '../../../src/components/SectionErrorBoundary';
 import { useServers } from '../../../src/context/ServersContext';
 import { alert } from '../../../src/lib/alert';
 import { useTabBarClearance } from '../../../src/lib/tabBarClearance';
 import { colors } from '../../../src/theme/colors';
+
+export const ErrorBoundary = sectionErrorBoundary('Watch history', colors.tautulli);
 
 const PAGE_SIZE = 25;
 
@@ -63,6 +66,8 @@ export default function TautulliUserHistoryScreen() {
         setStart((s) => s + res.data.length);
         setTotal(res.recordsFiltered);
       })
+      // A failed next page just stops here; pull to refresh retries.
+      .catch(() => setTotal(0))
       .finally(() => {
         setLoadingMore(false);
         loadMoreLock.current = false;
