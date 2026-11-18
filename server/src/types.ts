@@ -203,6 +203,19 @@ export function isServiceName(value: string): value is ServiceName {
   return (SERVICE_NAMES as string[]).includes(value);
 }
 
+// Profile/user ids come straight from URL params and request bodies and are
+// used as keys into store.ts's plain-object maps. Without this check, a
+// logged-in user could send `__proto__` as a profile id
+// (PUT /api/config/__proto__/sonarr) and write onto Object.prototype, which
+// would affect every user's lookups until the process restarts. Real ids are
+// short alphanumerics (`default`, `p<base36>`, `u<base36>`), so this
+// allow-list rejects nothing legitimate.
+const RESERVED_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+export function isSafeId(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value) && !RESERVED_KEYS.has(value);
+}
+
 export const SERVICE_NAMES: ServiceName[] = [
   'sonarr',
   'radarr',

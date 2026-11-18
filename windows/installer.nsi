@@ -217,6 +217,9 @@ Section "Install"
   FileWrite $0 '  <env name="PORT" value="$Port"/>$\r$\n'
   FileWrite $0 '  <env name="WALKERLAB_DATA_DIR" value="$DataDir"/>$\r$\n'
   FileWrite $0 '  <env name="WALKERLAB_PUBLIC_DIR" value="$INSTDIR\app\public"/>$\r$\n'
+  ; LAN clients reach this port directly, so only believe X-Forwarded-For from
+  ; a proxy on this same machine (IIS, cloudflared) - see server/src/index.ts.
+  FileWrite $0 '  <env name="WALKERLAB_TRUST_PROXY" value="loopback"/>$\r$\n'
   FileWrite $0 '  <startmode>Automatic</startmode>$\r$\n'
   FileWrite $0 '  <onfailure action="restart" delay="10 sec"/>$\r$\n'
   FileWrite $0 '  <onfailure action="restart" delay="30 sec"/>$\r$\n'

@@ -14,9 +14,20 @@ import { qbittorrentProxyRequest } from './services/qbittorrentProxy';
 import { lastfmProxyRequest, omdbProxyRequest, sabnzbdProxyRequest, tautulliProxyRequest, tmdbProxyRequest } from './services/queryKeyProxy';
 import { transmissionProxyRequest } from './services/transmissionProxy';
 import { getServiceConfig } from './store';
+import { validateIdParam } from './auth';
 import { isServiceName, ProxyRequestBody } from './types';
 
 export const proxyRouter = Router();
+
+// Every request still gets one cheap log line (service, method, path,
+// ok/FAILED) - that's what `docker logs ... | grep <service>` debugging
+// relies on. The query params and a preview of the upstream result are
+// opt-in (WALKERLAB_DEBUG_PROXY=1): the preview re-serialized whole upstream
+// responses on the hot path (JSON.stringify of e.g. a full Tautulli history
+// object, just to keep 300 chars) and wrote service data such as usernames
+// and titles into the container logs by default.
+const DEBUG_PROXY = process.env.WALKERLAB_DEBUG_PROXY === '1';
+proxyRouter.param('profileId', validateIdParam);
 
 // Recreate's pull-latest-image step streams newline-delimited JSON progress
 // events rather than one JSON body, so it can't go through the generic
@@ -56,7 +67,8 @@ proxyRouter.post('/:profileId/:service', async (req, res) => {
     return;
   }
 
-  console.log(`[proxy] ${service} ${body.method ?? 'GET'} ${body.path} params=${JSON.stringify(body.params ?? {})}`);
+  const params = DEBUG_PROXY ? ` params=${JSON.stringify(body.params ?? {})}` : '';
+  console.log(`[proxy] ${service} ${body.method ?? 'GET'} ${body.path}${params}`);
 
   try {
     let result: unknown;
@@ -103,11 +115,12 @@ proxyRouter.post('/:profileId/:service', async (req, res) => {
         res.status(501).json({ error: `Proxying for "${service}" isn't implemented yet.` });
         return;
     }
-    console.log(
-      `[proxy] ${service} ${body.path} -> ok, result=${
-        Array.isArray(result) ? `array[${result.length}]` : JSON.stringify(result)?.slice(0, 300)
-      }`
-    );
+    const preview = DEBUG_PROXY
+      ? `, result=${Array.isArray(result) ? `array[${result.length}]` : JSON.stringify(result)?.slice(0, 300)}`
+      : Array.isArray(result)
+        ? `, array[${result.length}]`
+        : '';
+    console.log(`[proxy] ${service} ${body.path} -> ok${preview}`);
     res.json(result ?? {});
   } catch (e) {
     console.error(`[proxy] ${service} ${body.path} -> FAILED:`, e);

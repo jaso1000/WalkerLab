@@ -3,9 +3,15 @@
 // stays smooth on this hardware. Then Open (the title's page) or Spin again. With "remove title after
 // landing" on, landed titles leave the wheel when you leave the screen, as on the phone; titles
 // already landed on this visit are not picked again.
+//
+// Same spin rules as the phone (keep the two in step): the lap count scales with the wheel's size
+// (lapsFor), about 45% of spins on a 3+ title wheel play one of four near-miss "fake-outs" before
+// landing, and a pointer above the marker ticks as each poster passes it. The winner is always picked
+// first; the fake-outs only change the path the strip takes to get there.
+import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useProfiles } from '../../../src/context/ProfilesContext';
 import { alert } from '../../../src/lib/alert';
@@ -19,8 +25,23 @@ const TILE_W = 150;
 const TILE_H = 225;
 const GAP = 22;
 const STEP = TILE_W + GAP;
-const LAPS = 8;
 const SPIN_MS = 5200;
+const POINTER_SIZE = 30;
+
+// Same lap rule as the phone's lapsFor: small wheels get MAX_LAPS, big ones fewer so the strip never
+// mounts more than MAX_TOTAL_TILES posters. Needs a few spare laps after the target for the overshoot.
+const MAX_LAPS = 16;
+const MIN_LAPS = 6;
+const MAX_TOTAL_TILES = MAX_LAPS * 30;
+function lapsFor(itemCount: number): number {
+  if (itemCount <= 0) return MAX_LAPS;
+  return Math.max(MIN_LAPS, Math.min(MAX_LAPS, Math.floor(MAX_TOTAL_TILES / itemCount)));
+}
+
+// One leg of a spin: move the strip to `toValue` over a share of SPIN_MS.
+function leg(x: Animated.Value, toValue: number, share: number, easing: (t: number) => number) {
+  return Animated.timing(x, { toValue, duration: SPIN_MS * share, easing, useNativeDriver: true });
+}
 
 export default function TvSpinWheel() {
   const { wheelId } = useLocalSearchParams<{ wheelId: string }>();
@@ -30,6 +51,7 @@ export default function TvSpinWheel() {
   const [spinning, setSpinning] = useState(false);
   const [landed, setLanded] = useState<WheelItem | null>(null);
   const x = useRef(new Animated.Value(0)).current;
+  const pointerTilt = useRef(new Animated.Value(0)).current;
   const landedIds = useRef<Set<string>>(new Set());
   const wheelRef = useRef<Wheel | null>(null);
   wheelRef.current = wheel;
@@ -51,9 +73,31 @@ export default function TvSpinWheel() {
     [activeProfileId]
   );
 
+  // The ticking pointer: whenever the poster under the marker changes, flick the pointer aside and let
+  // it spring back. Driven by the strip's real position, so the ticks slow down as the spin does. The
+  // listener only reads the value; the tilt itself runs on the native driver.
+  useEffect(() => {
+    let lastTile: number | null = null;
+    const id = x.addListener(({ value }) => {
+      const tile = Math.floor(-value / STEP + 0.5);
+      if (lastTile !== null && tile !== lastTile) {
+        pointerTilt.stopAnimation();
+        Animated.sequence([
+          Animated.timing(pointerTilt, { toValue: 26, duration: 45, useNativeDriver: true }),
+          Animated.spring(pointerTilt, { toValue: 0, damping: 5, stiffness: 300, useNativeDriver: true }),
+        ]).start();
+      }
+      lastTile = tile;
+    });
+    return () => x.removeListener(id);
+  }, [x, pointerTilt]);
+
+  const items = wheel?.items ?? [];
+  const laps = lapsFor(items.length);
+  const strip = useMemo(() => Array.from({ length: laps }, () => items).flat(), [items, laps]);
+  const pointerRotate = pointerTilt.interpolate({ inputRange: [-90, 90], outputRange: ['-90deg', '90deg'] });
+
   if (!wheel) return <Loading tint={colors.spin} />;
-  const items = wheel.items;
-  const strip = Array.from({ length: LAPS + 2 }, () => items).flat();
   const centerOffset = width / 2 - TILE_W / 2;
 
   const spin = () => {
@@ -63,17 +107,56 @@ export default function TvSpinWheel() {
       return;
     }
     const target = available[Math.floor(Math.random() * available.length)];
-    const lap = LAPS - 1 - Math.floor(Math.random() * 2);
-    const flatIndex = lap * items.length + items.indexOf(target);
+    const count = items.length;
+    // A couple of laps short of the end, leaving strip after the target for the overshoot.
+    const lap = laps - 3 - Math.floor(Math.random() * 2);
+    const targetFlat = lap * count + items.indexOf(target);
+    const lastFlat = laps * count - 1;
+    const at = (flatIndex: number) => -flatIndex * STEP;
+    const end = at(targetFlat);
+
+    // Near-miss beats, same odds and shapes as the phone.
+    const shouldTease = count >= 3 && Math.random() < 0.45;
+    const variant = shouldTease ? 1 + Math.floor(Math.random() * 4) : 0;
+    let animation: Animated.CompositeAnimation;
+    if (variant === 1) {
+      // Single tease: hard brake near one wrong title, then carries on.
+      const tease = Math.max(0, targetFlat - (2 + Math.floor(Math.random() * 3)));
+      const share = 0.55 + Math.random() * 0.15;
+      animation = Animated.sequence([
+        leg(x, at(tease), share, Easing.out(Easing.cubic)),
+        leg(x, end, 1 - share, Easing.inOut(Easing.cubic)),
+      ]);
+    } else if (variant === 2) {
+      // Double tease: two separate near-misses before the real winner.
+      const tease1 = Math.max(0, targetFlat - (7 + Math.floor(Math.random() * 3)));
+      const tease2 = Math.max(0, targetFlat - (2 + Math.floor(Math.random() * 3)));
+      animation = Animated.sequence([
+        leg(x, at(tease1), 0.42, Easing.out(Easing.cubic)),
+        leg(x, at(tease2), 0.33, Easing.inOut(Easing.cubic)),
+        leg(x, end, 0.25, Easing.inOut(Easing.cubic)),
+      ]);
+    } else if (variant === 3) {
+      // Overshoot: rolls just past the winner, then rolls back onto it.
+      const past = Math.min(lastFlat, targetFlat + 1 + Math.floor(Math.random() * 2));
+      animation = Animated.sequence([
+        leg(x, at(past), 0.85, Easing.out(Easing.cubic)),
+        leg(x, end, 0.15, Easing.inOut(Easing.quad)),
+      ]);
+    } else if (variant === 4) {
+      // Long hover: creeps to a near-stop on the title before the winner, then inches onto it.
+      animation = Animated.sequence([
+        leg(x, at(Math.max(0, targetFlat - 1)), 0.82, Easing.out(Easing.cubic)),
+        leg(x, end, 0.18, Easing.inOut(Easing.cubic)),
+      ]);
+    } else {
+      animation = leg(x, end, 1, Easing.out(Easing.cubic));
+    }
+
     setLanded(null);
     setSpinning(true);
     x.setValue(0);
-    Animated.timing(x, {
-      toValue: -flatIndex * STEP,
-      duration: SPIN_MS,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start(() => {
+    animation.start(() => {
       setSpinning(false);
       setLanded(target);
       if (wheel.removeAfterSpin) landedIds.current.add(target.id);
@@ -100,6 +183,12 @@ export default function TvSpinWheel() {
               ))}
             </Animated.View>
             <View pointerEvents="none" style={[styles.marker, { left: width / 2 - TILE_W / 2 - 6 }]} />
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.pointer, { left: width / 2 - POINTER_SIZE / 2, transform: [{ rotate: pointerRotate }] }]}
+            >
+              <Ionicons name="caret-down" size={POINTER_SIZE} color={colors.spin} />
+            </Animated.View>
           </View>
           <View style={styles.result}>
             <Text style={styles.resultTitle} numberOfLines={1}>
@@ -118,13 +207,18 @@ export default function TvSpinWheel() {
   );
 }
 
+// The stage is taller than the tile row by enough to fit the pointer above the marker's top edge.
+const STAGE_H = TILE_H + 70;
+const MARKER_TOP = (STAGE_H - TILE_H) / 2 - 12;
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  stage: { height: TILE_H + 40, marginTop: 30, overflow: 'hidden', justifyContent: 'center' },
+  stage: { height: STAGE_H, marginTop: 20, overflow: 'hidden', justifyContent: 'center' },
   strip: { flexDirection: 'row', gap: GAP },
   tile: { width: TILE_W, height: TILE_H, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
   tileText: { color: colors.textSecondary, fontSize: 14, textAlign: 'center', padding: 8 },
-  marker: { position: 'absolute', top: 8, width: TILE_W + 12, height: TILE_H + 24, borderRadius: 16, borderWidth: 4, borderColor: colors.spin },
+  marker: { position: 'absolute', top: MARKER_TOP, width: TILE_W + 12, height: TILE_H + 24, borderRadius: 16, borderWidth: 4, borderColor: colors.spin },
+  pointer: { position: 'absolute', top: MARKER_TOP - POINTER_SIZE + 8, transformOrigin: 'top' },
   result: { alignItems: 'center', marginTop: 24 },
   resultTitle: { color: colors.textPrimary, fontSize: 26, fontWeight: '700' },
   buttons: { flexDirection: 'row', gap: 14, marginTop: 16 },

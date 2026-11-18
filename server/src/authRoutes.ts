@@ -93,7 +93,7 @@ authRouter.post('/change-password', requireAuth, async (req, res) => {
     res.status(400).json({ error: 'Current password and a new password of at least 8 characters are required.' });
     return;
   }
-  const result = await changeOwnPassword(req.userId!, currentPassword, newPassword);
+  const result = await changeOwnPassword(req, req.userId!, currentPassword, newPassword);
   if (result === 'wrong-password') {
     res.status(401).json({ error: 'Current password is incorrect.' });
     return;

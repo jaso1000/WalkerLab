@@ -18,6 +18,26 @@ const PORT = Number(process.env.PORT ?? 3000);
 // manually-run `expo export -p web`.
 const PUBLIC_DIR = process.env.WALKERLAB_PUBLIC_DIR ?? path.join(__dirname, '..', 'public');
 
+// How many/which proxies in front of this process to believe about the real
+// client IP (X-Forwarded-For) and scheme (X-Forwarded-Proto). Default `1`
+// fits the documented setup (one tunnel/reverse proxy in front). With NO
+// proxy in front - e.g. the port exposed straight to a LAN - `1` lets any
+// client invent its own X-Forwarded-For and dodge the per-IP login rate
+// limit, so such installs should set WALKERLAB_TRUST_PROXY=false (or
+// `loopback` when the only proxy runs on the same machine; the Windows
+// installer does this). Accepts false/true, a hop count, or anything
+// Express's `trust proxy` takes (comma-separated IPs/subnets, `loopback`,
+// `uniquelocal`, ...).
+function trustProxySetting(): boolean | number | string {
+  const raw = process.env.WALKERLAB_TRUST_PROXY?.trim();
+  if (!raw) return 1;
+  const lower = raw.toLowerCase();
+  if (lower === 'false' || lower === 'no' || lower === 'off') return false;
+  if (lower === 'true' || lower === 'yes' || lower === 'on') return true;
+  if (/^\d+$/.test(raw)) return Number(raw) === 0 ? false : Number(raw);
+  return raw;
+}
+
 async function main() {
   initStore();
   await seedAdminFromEnvIfAbsent();
@@ -28,7 +48,7 @@ async function main() {
   // terminates TLS in front of it (see auth.ts's isSecureRequest), and so
   // express-rate-limit below keys off the real client IP (X-Forwarded-For)
   // instead of the tunnel/proxy's own address.
-  app.set('trust proxy', 1);
+  app.set('trust proxy', trustProxySetting());
 
   // CSP left off deliberately: the Expo web export and its poster/backdrop
   // images (TMDB, OMDb, Tautulli's pms_image_proxy) span enough external

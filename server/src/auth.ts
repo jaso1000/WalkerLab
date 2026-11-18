@@ -12,6 +12,7 @@ import { hashPassword, randomToken, verifyPassword } from './crypto';
 import {
   createSession,
   createUser,
+  deleteOtherSessions,
   deleteSession,
   getUserById,
   getUserByUsername,
@@ -20,7 +21,7 @@ import {
   touchSession,
   updateUser,
 } from './store';
-import { newUserId, UserRecord } from './types';
+import { isSafeId, newUserId, UserRecord } from './types';
 
 // Augments Express's own Request type so requireAuth can attach the
 // authenticated user's id/role for every downstream route handler to read,
@@ -45,9 +46,10 @@ export type AuthState =
 function isSecureRequest(req: Request): boolean {
   // Behind a TLS-terminating reverse proxy/tunnel, the connection to this
   // process itself is often plain HTTP - `X-Forwarded-Proto` is how the
-  // proxy tells us the original scheme was https. `req.secure` alone would
-  // otherwise report false and the cookie would never get `Secure` set.
-  return req.secure || req.get('x-forwarded-proto') === 'https';
+  // proxy tells us the original scheme was https. `req.secure` already reads
+  // that header, but only from proxies the `trust proxy` setting
+  // (index.ts, WALKERLAB_TRUST_PROXY) says to believe.
+  return req.secure;
 }
 
 // Resolves the request's session all the way to a real user record, or
@@ -145,19 +147,20 @@ export async function verifyCredentials(username: string, password: string): Pro
 }
 
 // Changes the calling user's own password in place - requires the correct
-// *current* password first, same as any account settings page. Doesn't
-// touch other sessions (including this one) - a password change only
-// affects future logins, matching the common pattern of not forcing an
-// immediate re-login in your own already-authenticated session.
+// *current* password first, same as any account settings page. Every OTHER
+// session for this user is revoked (a password change is usually a response
+// to "someone else might have access"); the session making the change is
+// kept so the person doing it isn't logged out mid-flow.
 export type ChangePasswordResult = 'ok' | 'wrong-password' | 'no-user';
 
-export async function changeOwnPassword(userId: string, currentPassword: string, newPassword: string): Promise<ChangePasswordResult> {
+export async function changeOwnPassword(req: Request, userId: string, currentPassword: string, newPassword: string): Promise<ChangePasswordResult> {
   const user = getUserById(userId);
   if (!user) return 'no-user';
   const valid = await verifyPassword(currentPassword, user.passwordHash);
   if (!valid) return 'wrong-password';
   const passwordHash = await hashPassword(newPassword);
   updateUser(userId, { passwordHash });
+  deleteOtherSessions(userId, requestSessionId(req));
   return 'ok';
 }
 
@@ -215,6 +218,17 @@ export function requireImageAuth(req: Request, res: Response, next: NextFunction
   }
   req.userId = user.id;
   req.userRole = user.role;
+  next();
+}
+
+// `router.param()` handler for every `:profileId`/`:userId` URL param - see
+// types.ts's isSafeId for why (prototype pollution through store.ts's maps).
+// 404 rather than 400 so an unknown/odd id looks the same as a missing one.
+export function validateIdParam(_req: Request, res: Response, next: NextFunction, value: unknown) {
+  if (!isSafeId(value)) {
+    res.status(404).json({ error: 'Not found.' });
+    return;
+  }
   next();
 }
 

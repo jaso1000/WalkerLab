@@ -27,6 +27,12 @@ services:
       # Optional: supply your own 32-byte encryption key (base64 or hex)
       # instead of the auto-generated one persisted to the volume.
       # - WALKERLAB_ENCRYPTION_KEY=
+      # Optional: which proxies to believe about the real client IP/scheme.
+      # Default 1 = one tunnel/reverse proxy in front (e.g. cloudflared).
+      # Set to false if clients reach this port directly with nothing in
+      # between, otherwise they can fake their IP and dodge the login rate
+      # limit.
+      # - WALKERLAB_TRUST_PROXY=1
     restart: unless-stopped
 
 volumes:

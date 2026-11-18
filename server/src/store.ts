@@ -261,18 +261,52 @@ export function touchSession(sessionId: string, extendBy: number): SessionRecord
 // exactly as long as its session is (logout/expiry/user deletion revoke it).
 let imageTokenKey: Buffer | undefined;
 
+// token -> session id, filled in as tokens are computed. A screen of posters
+// is dozens of image requests at once; without this each one recomputed an
+// HMAC for every session on the server to find its owner. Never trusted on
+// its own: a hit still has to point at a session that exists right now.
+const imageTokenIndex = new Map<string, string>();
+
 export function imageTokenForSession(sessionId: string): string {
   imageTokenKey ??= Buffer.from(crypto.hkdfSync('sha256', masterKey, Buffer.alloc(0), 'walkerlab-image-proxy-token', 32));
-  return crypto.createHmac('sha256', imageTokenKey).update(sessionId).digest('base64url');
+  const token = crypto.createHmac('sha256', imageTokenKey).update(sessionId).digest('base64url');
+  imageTokenIndex.set(token, sessionId);
+  return token;
 }
 
 export function findSessionIdByImageToken(token: string): string | undefined {
+  const indexed = imageTokenIndex.get(token);
+  if (indexed) {
+    if (data.sessions[indexed]) return indexed;
+    imageTokenIndex.delete(token);
+    return undefined;
+  }
+  // Index miss: a session from before this process started (the index lives
+  // in memory only). Scanning computes - and so indexes - every session's
+  // token, so this happens about once per session per process.
   const given = Buffer.from(token);
   for (const sessionId of Object.keys(data.sessions)) {
     const expected = Buffer.from(imageTokenForSession(sessionId));
     if (expected.length === given.length && crypto.timingSafeEqual(expected, given)) return sessionId;
   }
   return undefined;
+}
+
+// Logs a user out everywhere except `keepSessionId` (the session that just
+// changed the password, so the person doing it isn't kicked out mid-flow).
+// Used after a password change: anyone holding an old session - a stolen
+// cookie, a forgotten browser, a lost phone in server mode - loses access
+// immediately instead of keeping it for up to 30 days.
+export function deleteOtherSessions(userId: string, keepSessionId: string | undefined) {
+  let changed = false;
+  for (const [sessionId, session] of Object.entries(data.sessions)) {
+    if (session.userId === userId && sessionId !== keepSessionId) {
+      delete data.sessions[sessionId];
+      lastPersistedExpiry.delete(sessionId);
+      changed = true;
+    }
+  }
+  if (changed) save();
 }
 
 export function deleteSession(sessionId: string) {

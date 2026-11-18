@@ -32,9 +32,11 @@ import {
   saveWheel,
   deleteWheel,
 } from './store';
-import { isServiceName, Profile, SectionId, ServiceConfig, ServiceName, StartupSectionId, Wheel } from './types';
+import { validateIdParam } from './auth';
+import { isSafeId, isServiceName, Profile, SectionId, ServiceConfig, ServiceName, StartupSectionId, Wheel } from './types';
 
 export const configRouter = Router();
+configRouter.param('profileId', validateIdParam);
 
 // --- Profiles ------------------------------------------------------------
 // Deliberately mirrors src/lib/profiles.ts's whole-list get/set contract
@@ -57,6 +59,10 @@ configRouter.put('/profiles', (req, res) => {
     res.status(400).json({ error: 'At least one profile is required.' });
     return;
   }
+  if (!next.every((p) => p && isSafeId(p.id) && typeof p.name === 'string')) {
+    res.status(400).json({ error: 'Every profile needs a valid id and a name.' });
+    return;
+  }
   // Any profile present before but missing now is being deleted - clean up
   // its service configs/section-names/etc. so removed profiles don't leave
   // stale encrypted credentials behind indefinitely (native's AsyncStorage
@@ -74,7 +80,7 @@ configRouter.get('/profiles/active', (req, res) => {
 });
 
 configRouter.put('/profiles/active', (req, res) => {
-  const id = typeof req.body?.id === 'string' ? req.body.id : undefined;
+  const id = isSafeId(req.body?.id) ? req.body.id : undefined;
   if (!id) {
     res.status(400).json({ error: 'id is required.' });
     return;

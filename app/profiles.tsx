@@ -242,7 +242,7 @@ export default function ProfilesScreen() {
       <PromptModal
         visible={backupPromptOpen}
         title="Backup Passphrase"
-        placeholder="Choose a passphrase"
+        placeholder="Choose a passphrase (8+ characters)"
         confirmLabel="Continue"
         secureTextEntry
         onCancel={() => setBackupPromptOpen(false)}

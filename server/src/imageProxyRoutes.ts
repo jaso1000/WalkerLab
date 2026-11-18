@@ -19,10 +19,41 @@
 // on web, so a direct `<Image src>` can't authenticate itself against
 // Lidarr's `/api/v1/mediacover/...` route the way a native request (which
 // does have the real key) can.
-import { Router } from 'express';
+import { Response, Router } from 'express';
+import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
+import type { ReadableStream as WebReadableStream } from 'stream/web';
+import { validateIdParam } from './auth';
 import { getServiceConfig } from './store';
 
 export const imageProxyRouter = Router();
+imageProxyRouter.param('profileId', validateIdParam);
+
+// Streams the upstream image straight through instead of buffering the whole
+// file in memory first - less memory per request and the first bytes reach
+// the client sooner. `private` cache: this route sits behind session auth, so
+// no shared/CDN cache should keep it; images never change for a given item.
+async function sendImage(upstream: globalThis.Response, res: Response) {
+  res.set('Content-Type', upstream.headers.get('content-type') ?? 'image/jpeg');
+  res.set('Cache-Control', 'private, max-age=604800, immutable');
+  // No Content-Length passthrough: fetch() transparently un-gzips, so the
+  // upstream's length can be wrong for the bytes actually sent.
+  if (!upstream.body) {
+    res.end();
+    return;
+  }
+  await pipeline(Readable.fromWeb(upstream.body as unknown as WebReadableStream), res);
+}
+
+// Once streaming has started the status/headers are already sent, so a
+// failure can only cut the response off, not turn it into a JSON error.
+function failImage(res: Response, e: unknown) {
+  if (res.headersSent) {
+    res.destroy();
+    return;
+  }
+  res.status(502).json({ error: e instanceof Error ? e.message : 'Upstream image request failed.' });
+}
 
 imageProxyRouter.get('/:profileId/:service', async (req, res) => {
   const { profileId, service } = req.params;
@@ -46,12 +77,9 @@ imageProxyRouter.get('/:profileId/:service', async (req, res) => {
         res.status(502).json({ error: `Lidarr image request failed: ${upstream.status}` });
         return;
       }
-      const buffer = Buffer.from(await upstream.arrayBuffer());
-      res.set('Content-Type', upstream.headers.get('content-type') ?? 'image/jpeg');
-      res.set('Cache-Control', 'private, max-age=604800, immutable');
-      res.send(buffer);
+      await sendImage(upstream, res);
     } catch (e) {
-      res.status(502).json({ error: e instanceof Error ? e.message : 'Upstream image request failed.' });
+      failImage(res, e);
     }
     return;
   }
@@ -81,15 +109,8 @@ imageProxyRouter.get('/:profileId/:service', async (req, res) => {
       res.status(502).json({ error: `Tautulli image request failed: ${upstream.status}` });
       return;
     }
-    const buffer = Buffer.from(await upstream.arrayBuffer());
-    res.set('Content-Type', upstream.headers.get('content-type') ?? 'image/jpeg');
-    // Tautulli's proxied images never change for a given item - without this
-    // the browser re-fetches (and this server re-proxies) the same
-    // poster/thumbnail on every render. `private` since this route sits
-    // behind session auth, not a shared/CDN cache.
-    res.set('Cache-Control', 'private, max-age=604800, immutable');
-    res.send(buffer);
+    await sendImage(upstream, res);
   } catch (e) {
-    res.status(502).json({ error: e instanceof Error ? e.message : 'Upstream image request failed.' });
+    failImage(res, e);
   }
 });

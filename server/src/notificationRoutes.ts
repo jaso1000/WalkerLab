@@ -14,7 +14,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import webpush from 'web-push';
-import { requireAdmin } from './auth';
+import { requireAdmin, validateIdParam } from './auth';
 import { parseNotificationPayload } from './services/notificationPayloads';
 import {
   getNotificationPrefs,
@@ -28,10 +28,14 @@ import {
   setNotificationPrefs,
   setWebhookCallback,
 } from './store';
-import { isServiceName, ServiceName, VapidKeys, WebhookCallback } from './types';
+import crypto from 'crypto';
+import { isSafeId, isServiceName, ServiceName, VapidKeys, WebhookCallback } from './types';
 
 export const notificationRouter = Router();
 export const notificationWebhookRouter = Router();
+notificationRouter.param('profileId', validateIdParam);
+notificationWebhookRouter.param('profileId', validateIdParam);
+notificationWebhookRouter.param('userId', validateIdParam);
 
 // Lazily generates (once, on first need) and configures this instance's own
 // VAPID identity - can't happen at module load, since store.ts's data isn't
@@ -115,7 +119,7 @@ notificationRouter.post('/register-device', (req, res) => {
     subscription?: { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
     profileId?: string;
   };
-  if (typeof profileId !== 'string' || !profileId) {
+  if (!isSafeId(profileId)) {
     res.status(400).json({ error: 'profileId is required.' });
     return;
   }
@@ -209,7 +213,11 @@ notificationWebhookRouter.post('/:userId/:profileId/:service/:secret', webhookLi
     return;
   }
   const expected = getNotificationWebhookSecret(userId, profileId, service);
-  if (!expected || expected !== secret) {
+  // Constant-time compare so response timing can't leak how much of a
+  // guessed secret was right.
+  const given = Buffer.from(secret);
+  const wanted = expected ? Buffer.from(expected) : undefined;
+  if (!wanted || wanted.length !== given.length || !crypto.timingSafeEqual(wanted, given)) {
     res.status(404).json({ error: 'Not found.' });
     return;
   }
