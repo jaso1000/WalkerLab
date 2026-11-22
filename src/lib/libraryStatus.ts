@@ -101,28 +101,33 @@ export async function buildLibraryIndex(opts: {
   return { movieByTmdbId, seriesByTmdbId, deletedMovieIds, deletedSeriesTmdbIds };
 }
 
-// Status badge for a Discover movie card: a green check if the file is
-// already downloaded, an amber clock if it's in the library but not
-// downloaded yet, a red trash icon if it was previously removed, or no badge
-// at all if none of those apply.
+// Badge for a title that's in the library: a green check once it's downloaded, an amber clock while
+// it's still waiting. Used directly by the Recently Added rows (their items come straight from
+// Radarr/Sonarr, so there's nothing to look up) and via badgeForMovie/badgeForSeries for TMDB cards.
+export function movieLibraryBadge(movie: RadarrMovie): DiscoverCardBadge {
+  return movie.hasFile ? { icon: 'checkmark', color: colors.success } : { icon: 'time-outline', color: colors.accent };
+}
+
+// For TV, "downloaded" means every known episode has a file, not just "any file exists".
+export function seriesLibraryBadge(series: SonarrSeries): DiscoverCardBadge {
+  const stats = series.statistics;
+  const complete = !!stats && stats.episodeCount > 0 && stats.episodeFileCount >= stats.episodeCount;
+  return complete ? { icon: 'checkmark', color: colors.success } : { icon: 'time-outline', color: colors.accent };
+}
+
+// Status badge for a Discover movie card (TMDB result): the library badge above if it's in Radarr, a
+// red trash icon if it was previously removed, or no badge at all.
 export function badgeForMovie(tmdbId: number, index: LibraryIndex): DiscoverCardBadge | undefined {
   const inLibrary = index.movieByTmdbId.get(tmdbId);
-  if (inLibrary) {
-    return inLibrary.hasFile ? { icon: 'checkmark', color: colors.success } : { icon: 'time-outline', color: colors.accent };
-  }
+  if (inLibrary) return movieLibraryBadge(inLibrary);
   if (index.deletedMovieIds.has(tmdbId)) return { icon: 'trash', color: colors.danger };
   return undefined;
 }
 
-// Same as `badgeForMovie` but for TV: "complete" means every known episode
-// has a file, not just "any file exists".
+// Same as `badgeForMovie` but for TV.
 export function badgeForSeries(tmdbId: number, index: LibraryIndex): DiscoverCardBadge | undefined {
   const inLibrary = index.seriesByTmdbId.get(tmdbId);
-  if (inLibrary) {
-    const stats = inLibrary.statistics;
-    const complete = !!stats && stats.episodeCount > 0 && stats.episodeFileCount >= stats.episodeCount;
-    return complete ? { icon: 'checkmark', color: colors.success } : { icon: 'time-outline', color: colors.accent };
-  }
+  if (inLibrary) return seriesLibraryBadge(inLibrary);
   if (index.deletedSeriesTmdbIds.has(tmdbId)) return { icon: 'trash', color: colors.danger };
   return undefined;
 }

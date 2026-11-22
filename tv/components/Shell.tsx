@@ -1,12 +1,19 @@
 // Every top-level TV screen sits in this shell: a slim icon rail on the left (the phone's
 // CompactSidebar idea) that widens over the content to show section names while focus is on it, and
 // the screen beside it. Left from the content's first column lands on the rail; Right leaves it.
+//
+// Both sides are focus guides, because Android TV picks the next view by screen position alone and
+// the open rail covers the content's first column. Without them, Left landed on whichever rail item
+// happened to line up (e.g. TV Shows while on Discover), and Right skipped the card you came from
+// (hidden under the open rail) for the next one along, scrolling its row a step. Now entering the
+// rail always lands on the active section, and leaving it returns to the card you left.
 // Sections switch with router.replace - they are siblings, so Back from one leaves the app, as other
 // TV apps do.
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
+import * as ReactNative from 'react-native';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useProfiles } from '../../src/context/ProfilesContext';
 import { SectionId } from '../../src/lib/sectionNames';
@@ -14,6 +21,10 @@ import { colors } from '../../src/theme/colors';
 import { useNavSections } from '../lib/sections';
 import { FocusCard } from './FocusCard';
 import { TV_LIST } from './ui';
+
+// react-native-tvos only (the TV build swaps it in for react-native); the root typecheck sees stock
+// react-native's typings, which don't declare it.
+const TVFocusGuideView = (ReactNative as unknown as { TVFocusGuideView: React.ComponentType<Record<string, unknown>> }).TVFocusGuideView;
 
 export const RAIL_WIDTH = 76;
 const RAIL_OPEN_WIDTH = 250;
@@ -32,6 +43,8 @@ function SideRail({ active }: { active: SectionId }) {
   const { activeProfile } = useProfiles();
   const [open, setOpen] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The active section's item: where focus goes whenever it enters the rail from the content.
+  const [activeItem, setActiveItem] = useState<View | null>(null);
 
   // Focus moving between two rail items fires blur then focus: close only if nothing on the rail
   // picked focus back up a moment later.
@@ -48,11 +61,23 @@ function SideRail({ active }: { active: SectionId }) {
   }, []);
 
   const item = (key: string, icon: keyof typeof Ionicons.glyphMap, label: string, tint: string, on: boolean, onPress: () => void) => (
-    <RailItem key={key} icon={icon} label={label} tint={tint} on={on} open={open} onPress={onPress} onFocus={focusIn} onBlur={focusOut} />
+    <RailItem
+      key={key}
+      ref={on ? setActiveItem : undefined}
+      icon={icon}
+      label={label}
+      tint={tint}
+      on={on}
+      open={open}
+      onPress={onPress}
+      onFocus={focusIn}
+      onBlur={focusOut}
+    />
   );
 
   return (
     <View style={[styles.rail, open && styles.railOpen]}>
+      <TVFocusGuideView style={styles.railGuide} destinations={activeItem ? [activeItem] : undefined}>
       <View style={styles.brand}>
         <Image source={require('../../assets/walkerlab-icon.png')} style={styles.logo} />
         {open ? (
@@ -75,31 +100,26 @@ function SideRail({ active }: { active: SectionId }) {
           .map((s) => item(s.id, s.icon, s.label, colors.textSecondary, active === 'settings', () => active !== 'settings' && router.replace(s.href as never)))}
         {item('profile', 'server-outline', activeProfile.name, colors.textSecondary, false, () => router.push('/setup'))}
       </View>
+      </TVFocusGuideView>
     </View>
   );
 }
 
-function RailItem({
-  icon,
-  label,
-  tint,
-  on,
-  open,
-  onPress,
-  onFocus,
-  onBlur,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  tint: string;
-  on: boolean;
-  open: boolean;
-  onPress: () => void;
-  onFocus: () => void;
-  onBlur: () => void;
-}) {
+const RailItem = React.forwardRef<
+  View,
+  {
+    icon: keyof typeof Ionicons.glyphMap;
+    label: string;
+    tint: string;
+    on: boolean;
+    open: boolean;
+    onPress: () => void;
+    onFocus: () => void;
+    onBlur: () => void;
+  }
+>(function RailItem({ icon, label, tint, on, open, onPress, onFocus, onBlur }, ref) {
   return (
-    <FocusCard radius={14} scale={1.03} style={[styles.item, on && { backgroundColor: `${tint}26` }]} onPress={onPress} onFocus={onFocus} onBlur={onBlur}>
+    <FocusCard ref={ref} radius={14} scale={1.03} style={[styles.item, on && { backgroundColor: `${tint}26` }]} onPress={onPress} onFocus={onFocus} onBlur={onBlur}>
       <View style={[styles.iconCircle, { backgroundColor: on ? tint : `${tint}26` }]}>
         <Ionicons name={icon} size={19} color={on ? colors.background : tint} />
       </View>
@@ -110,14 +130,17 @@ function RailItem({
       ) : null}
     </FocusCard>
   );
-}
+});
 
 export function Shell({ active, children }: { active: SectionId; children: React.ReactNode }) {
   const now = useClock();
   return (
     <View style={styles.screen}>
       <View style={styles.content}>
-        {children}
+        {/* autoFocus: coming back from the rail restores the last focused view in here. */}
+        <TVFocusGuideView autoFocus style={styles.contentGuide}>
+          {children}
+        </TVFocusGuideView>
         <Text style={styles.clock} pointerEvents="none">
           {now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
         </Text>
@@ -130,6 +153,8 @@ export function Shell({ active, children }: { active: SectionId; children: React
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { flex: 1, marginLeft: RAIL_WIDTH },
+  contentGuide: { flex: 1 },
+  railGuide: { flex: 1 },
   clock: { position: 'absolute', top: 22, right: 40, color: colors.textPrimary, fontSize: 20, fontWeight: '300' },
   rail: {
     position: 'absolute',

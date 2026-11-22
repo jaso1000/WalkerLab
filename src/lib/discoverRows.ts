@@ -10,7 +10,7 @@ import { DiscoverCardItem } from '../components/DiscoverRow';
 import { LogoRowItem } from '../components/LogoRow';
 import { getCachedProviders, setCachedProviders } from './discoverCache';
 import { MediaKind, resolveMediaKind } from './discoverCategories';
-import { badgeForMovie, badgeForSeries, LibraryIndex } from './libraryStatus';
+import { badgeForMovie, badgeForSeries, LibraryIndex, movieLibraryBadge, seriesLibraryBadge } from './libraryStatus';
 
 export const PREVIEW_COUNT = 15;
 export const PROVIDER_PREVIEW_COUNT = 20;
@@ -44,7 +44,8 @@ export function toMixedCardItems(items: (TmdbMovie | TmdbTv)[], library: Library
 }
 
 // Sourced from Radarr/Sonarr's own `added` timestamp (not TMDB), sorted
-// newest-first and capped the same way the TMDB preview rows are.
+// newest-first and capped the same way the TMDB preview rows are. Every item
+// is already in the library, so each gets the downloaded/waiting badge.
 export function toLocalMovieCardItems(movies: RadarrMovie[]): DiscoverCardItem[] {
   return [...movies]
     .filter((m) => m.added)
@@ -55,6 +56,7 @@ export function toLocalMovieCardItems(movies: RadarrMovie[]): DiscoverCardItem[]
       title: m.title,
       posterUrl: m.images.find((i) => i.coverType === 'poster')?.remoteUrl,
       rating: m.ratings?.imdb?.value,
+      badge: movieLibraryBadge(m),
     }));
 }
 
@@ -68,6 +70,7 @@ export function toLocalSeriesCardItems(series: SonarrSeries[]): DiscoverCardItem
       title: s.title,
       posterUrl: s.images.find((i) => i.coverType === 'poster')?.remoteUrl,
       rating: s.ratings?.value,
+      badge: seriesLibraryBadge(s),
     }));
 }
 
@@ -120,6 +123,7 @@ export function toMixedLocalCardItems(movies: RadarrMovie[], series: SonarrSerie
         added: m.added!,
         posterUrl: m.images.find((i) => i.coverType === 'poster')?.remoteUrl,
         rating: m.ratings?.imdb?.value,
+        badge: movieLibraryBadge(m),
         mediaType: 'movie' as const,
       })),
     ...series
@@ -130,6 +134,7 @@ export function toMixedLocalCardItems(movies: RadarrMovie[], series: SonarrSerie
         added: s.added!,
         posterUrl: s.images.find((i) => i.coverType === 'poster')?.remoteUrl,
         rating: s.ratings?.value,
+        badge: seriesLibraryBadge(s),
         mediaType: 'tv' as const,
       })),
   ];
